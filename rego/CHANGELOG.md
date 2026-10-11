@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.24-beta01
+- App-Icon: Stempel-Schrift (raue Kanten) für "RE" und "GO" neben der Linie mit Haltestellen.
+
 ## 0.1.23-beta01
 - Neues App-Icon: eine Linie mit drei Haltestellen auf hellgrünem Grund, "RE" oben links, "GO" unten rechts.
 
