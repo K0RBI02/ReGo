@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.1.19-beta01
+- Fix: Haltestellensuche findet Bahnhöfe wieder zuverlässig ("Kempten Hbf", "Lindau Hbf"): Ranking über alle Quellen, Wörter dürfen in beliebiger Reihenfolge stehen ("Kempten Hbf" findet "Kempten (Allgäu) Hbf"), fünf Vorschläge statt vier.
+- Fix: Auf der Detailseite zeigt der Linien-Kreis oben die Linie der angezeigten Meldung (z. B. RE5), nicht mehr die erste Linie der Strecke (S3).
+- Zugnummern-Zusatz "(Zug-Nr. …)" wird auch bei ÖBB-/DB-Daten entfernt.
+- Protokoll: zeigt, wenn ReGo bei Strecken mit Österreich auf die ÖBB ausweicht.
+
 ## 0.1.18-beta01
 - Neu: ganz Bayern über Bahnland Bayern (Rosenheim/Chiemgau, Allgäu, Berchtesgaden, Garmisch …) mit Echtzeitdaten, dazu Grenzorte in Österreich (z. B. Freilassing → Salzburg).
 - Strecken zwischen MVV- und Bayern-Haltestellen funktionieren (die MVV-Haltestelle wird übersetzt).

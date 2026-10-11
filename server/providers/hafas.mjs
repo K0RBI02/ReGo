@@ -86,7 +86,7 @@ export function normRemark(r) {
 export function normLeg(l) {
   if (l.walking || (!l.line && l.transfer)) return { walk: true };
   return {
-    line: { name: l.line?.name || '?', product: l.line?.product || '' },
+    line: { name: String(l.line?.name || '?').replace(/\s*\(.*$/, '').trim() || '?', product: l.line?.product || '' },
     direction: l.direction || '',
     origin: normStop(l.origin), destination: normStop(l.destination),
     plannedDep: l.plannedDeparture || l.departure, dep: l.departure || l.plannedDeparture, depDelay: min(l.departureDelay),

@@ -75,8 +75,10 @@
         } catch (e) { asked.delete(q); }
       }, 250);
     }
-    const a = stationCache.filter((s) => norm(s.name).startsWith(q)), b = stationCache.filter((s) => norm(s.name).indexOf(q) > 0);
-    return a.concat(b).slice(0, 4);
+    const toks = q.split(/[\s,()\-\/]+/).filter(Boolean);
+    const hit = stationCache.filter((s) => { const n = norm(s.name); return toks.every((t) => n.indexOf(t) >= 0); });
+    const score = (s) => { const n = norm(s.name); return n === q ? 0 : n.startsWith(q) && /\b(hbf|hauptbahnhof|bahnhof|bf)\b/.test(n) ? 1 : n.startsWith(q) ? 2 : /\b(hbf|hauptbahnhof|bahnhof|bf)\b/.test(n) ? 3 : 4; };
+    return hit.map((s, n) => ({ s, n })).sort((x, y) => score(x.s) - score(y.s) || x.n - y.n).map((x) => x.s).slice(0, 5);
   };
 
   /* Lange Haltestellennamen: "Freising, Freising" -> "Freising"; gleicher Ort an beiden Enden -> Ort weglassen */

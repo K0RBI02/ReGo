@@ -1,7 +1,7 @@
 import { HafasClient, ProviderError } from './hafas.mjs';
 import { mockFetch } from './mock.mjs';
 import { createDbClient, createOebbClient } from './lib.mjs';
-import { EfaClient } from './efa.mjs';
+import { EfaClient, rankOf } from './efa.mjs';
 import { regionOf, distanceKm } from '../lib/geo.mjs';
 
 /** Liefert { db, oebb, pick(stopId) } – Österreich über ÖBB, sonst DB (die DB-API deckt Grenzverkehr ab). */
@@ -48,7 +48,7 @@ function chain(first, second) {
     name: first.name,
     async journeys(args) {
       let err;
-      try { const r = await first.journeys(args); if (r?.length) return r; } catch (e) { err = e; }
+      try { const r = await first.journeys(args); if (r?.length) return r; if (process.env.REGO_VERBOSE) console.log(`Strecke ${args.from?.name || args.fromId} → ${args.to?.name || args.toId}: ${first.name} ohne Treffer, versuche ÖBB`); } catch (e) { err = e; if (process.env.REGO_VERBOSE) console.log(`Strecke ${args.from?.name || args.fromId} → ${args.to?.name || args.toId}: ${first.name} Fehler (${e.message}), versuche ÖBB`); }
       try { return await second.journeys(args); } catch (e) { throw err || e; }
     },
     stop: (id) => first.stop(id),
@@ -145,7 +145,8 @@ export function build(db, oebb, mock, efas = []) {
       const others = results.slice(nE).flat().filter(Boolean)
         .filter((s) => !efaStops.some((e) => (distanceKm(e, s) ?? 99) < 0.3));      // dieselbe Haltestelle: Verbund-Eintrag bevorzugen
       const seen = new Set();
-      const list = [...efaStops, ...others].filter((s) => !seen.has(s.id) && seen.add(s.id));
+      const list = [...efaStops, ...others].filter((s) => !seen.has(s.id) && seen.add(s.id))
+        .map((s, n) => ({ s, n })).sort((a, b) => rankOf(a.s.name, q) - rankOf(b.s.name, q) || a.n - b.n).map((x) => x.s);      // genaue Namen und Bahnhöfe nach vorn, egal aus welcher Quelle
       if (!list.length && errors.length === sources.length) throw errors[0];
       if (done < sources.length) list.partial = true;      // nicht alle Quellen waren fertig: nicht zwischenspeichern
       return list;

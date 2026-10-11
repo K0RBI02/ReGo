@@ -64,7 +64,7 @@ export class EfaClient {
 /** Antwort der Haltestellensuche -> Stop[]; beste Treffer zuerst, höchstens 8. */
 const STATION = /\b(hbf|hauptbahnhof|bahnhof|bf)\b/i;
 /** Je kleiner, desto besser: genauer Name, dann Bahnhof mit dem Suchbegriff am Anfang, dann Anfang, dann irgendwo enthalten. */
-function rankOf(name, q) {
+export function rankOf(name, q) {
   const n = String(name || '').toLowerCase().trim(), s = String(q || '').toLowerCase().trim();
   if (!s) return 0;
   if (n === s) return 0;

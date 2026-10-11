@@ -228,3 +228,14 @@ test('zwei Verbünde: Verbindung über moby mit übersetzter MVV-Haltestelle; Ö
   const j2 = await c2.journeys({ from: frei, to: sbg, fromId: frei.id, toId: sbg.id, when: new Date().toISOString() });
   assert.equal(j2[0].legs[0].line.name, 'RJX');
 });
+
+test('Gesamtranking: Bahnhof vor Nebenhalten; ÖBB-Namen ohne Zugnummer-Zusatz', async () => {
+  const { build } = await import('../server/providers/index.mjs');
+  const { normJourney } = await import('../server/providers/hafas.mjs');
+  const efa = { key: 'moby', name: 'moby', owns: (id) => String(id).startsWith('moby|'), searchStops: async () => [{ id: 'moby|a', name: 'Kempten (Allgäu) Ost', lat: 47.72, lon: 10.33 }, { id: 'moby|b', name: 'Kempten (Bingen)', lat: 50, lon: 7 }] };
+  const oebb = { name: 'oebb', searchStops: async () => [{ id: '8000189', name: 'Kempten (Allgäu) Hbf', lat: 47.7233, lon: 10.3167 }] };
+  const r = await build({ name: 'db', healthy: () => false, searchStops: async () => [] }, oebb, false, [efa]).searchStops('Kempten');
+  assert.equal(r[0].id, '8000189');
+  const j = normJourney({ legs: [{ line: { name: 'RE5 (Zug-Nr. 79037)', product: 'regional' }, origin: { id: '1', name: 'A' }, destination: { id: '2', name: 'B' }, departure: '2026-10-11T19:36:00+02:00', plannedDeparture: '2026-10-11T19:36:00+02:00', arrival: '2026-10-11T19:46:00+02:00', plannedArrival: '2026-10-11T19:46:00+02:00' }] });
+  assert.equal(j.legs[0].line.name, 'RE5');
+});
