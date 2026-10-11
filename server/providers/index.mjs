@@ -41,6 +41,8 @@ export function withFallback(primary, fallback, config) {
 
 
 const GRACE_MS = 2200;
+/** Bahnhöfe, die unter dem Namen, den Reisende kennen, nicht zu finden wären (id -> Anzeigename) */
+const RENAME = { '8000230': 'Lindau (Bodensee) Hbf', 'moby|de:09776:1546': 'Lindau (Bodensee), Lindau Hbf' };
 
 /** Erst die erste Quelle; liefert sie nichts oder scheitert sie, die zweite. */
 function chain(first, second) {
@@ -126,7 +128,18 @@ export function build(db, oebb, mock, efas = []) {
       if (a && a === b && (regionOf(from) === 'AT' || regionOf(to) === 'AT')) return chain(a, mixed(oebb, a));
       return c;
     },
+    /** Suche mit Sonderfällen: Lindau Hbf heißt bei den Quellen "Lindau (Bodensee) Insel" bzw. "Lindau Inselbahnhof". */
     async searchStops(query) {
+      const q = String(query || '').trim();
+      const alias = /^lindau\b[\s(]*(bodensee\)?\s*)?[hb]\w*$/i.test(q) && q.length >= 8;
+      const [main, extra] = await Promise.all([this.search(q), alias ? this.search('Lindau Insel').catch(() => []) : []]);
+      const pinned = (extra || []).filter((x) => RENAME[x.id]);
+      const seen = new Set(pinned.map((x) => x.id));
+      const list = [...pinned, ...main.filter((x) => !seen.has(x.id))].map((x) => (RENAME[x.id] ? { ...x, name: RENAME[x.id] } : x));
+      if (main.partial) list.partial = true;
+      return list;
+    },
+    async search(query) {
       const q = String(query || '').trim();
       // Alle Quellen gleichzeitig fragen; sobald eine antwortet, höchstens noch kurz auf die anderen warten (die Bahn kann hängen)
       const sources = [...efas, db, oebb].filter((c) => c.healthy?.() !== false);        // gesperrte Quellen gar nicht erst fragen

@@ -267,7 +267,7 @@ test('Suche: Bahn-Quellen nur ab 4 Zeichen und nur wenn der Verbund keinen genau
   await build(db, bahn, false, [efa([])]).searchStops('Sal');
   assert.equal(asked, 0, 'unter 4 Zeichen -> ÖBB nicht fragen');
   const r = await build(db, bahn, false, [efa([{ id: 'moby|y', name: 'Lindau, Hochbuch', lat: 47.5, lon: 9.7 }])]).searchStops('Lindau Hbf');
-  assert.equal(asked, 1);
+  assert.ok(asked >= 1);
   assert.ok(r.some((s) => s.id === '8100002'));
 });
 
@@ -279,4 +279,16 @@ test('Übersetzung: "Freilassing (Obb), Freilassing" wird über einfachere Schre
   const id = await tr({ id: 'moby|de:09189:1', name: 'Freilassing (Obb), Freilassing', lat: 47.8395, lon: 12.9778 }, target);
   assert.equal(id, '8100050');
   assert.ok(qs.length >= 2);
+});
+
+test('Suche: "Lindau Hbf" zeigt den Inselbahnhof als Hbf', async () => {
+  const { build } = await import('../server/providers/index.mjs');
+  const efa = { key: 'moby', name: 'moby', owns: (id) => String(id).startsWith('moby|'), searchStops: async (q) => (/insel/i.test(q) ? [{ id: 'moby|de:09776:1546', name: 'Lindau (Bodensee), Lindau Inselbahnhof', lat: 47.5447, lon: 9.6813 }] : [{ id: 'moby|at:43:4806', name: 'Sommerein, Lindau', lat: 48, lon: 16 }]) };
+  const oebb = { name: 'oebb', searchStops: async () => [] };
+  const p = build({ name: 'db', healthy: () => false, searchStops: async () => [] }, oebb, false, [efa]);
+  const r = await p.searchStops('Lindau Hbf');
+  assert.equal(r[0].id, 'moby|de:09776:1546');
+  assert.equal(r[0].name, 'Lindau (Bodensee), Lindau Hbf');
+  const r2 = await p.searchStops('Lindau');
+  assert.ok(r2.every((x) => x.id !== 'moby|de:09776:1546'), 'ohne Hbf-Wunsch keine Sonderbehandlung');
 });

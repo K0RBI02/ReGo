@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.30-beta
+- Lindau Hbf: Der Bahnhof heißt bei den Quellen "Lindau (Bodensee) Insel" bzw. "Lindau Inselbahnhof" und war über "Lindau Hbf" nicht zu finden. Die Suche zeigt ihn jetzt bei "Lindau Hbf / Hauptbahnhof / Bahnhof" ganz oben als "Lindau (Bodensee) Hbf".
+
 ## 0.1.29-beta
 - Bahn-Suche (ÖBB/DB-Bibliothek) liefert bis zu 12 statt 8 Treffer, damit auch Bahnhöfe weiter hinten (z. B. Lindau Hbf) nicht abgeschnitten werden.
 - Neues Prüfskript scripts/probe-lindau.mjs (zeigt, wie Lindau Hbf bei ÖBB und MoBY heißt).
