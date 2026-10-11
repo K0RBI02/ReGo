@@ -35,8 +35,8 @@ export class EfaClient {
   }
 
   async searchStops(query) {
-    const data = await this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: query, anyObjFilter_sf: 2 });
-    return parseStops(data, this.key);
+    const data = await this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: query, anyObjFilter_sf: 2, anyMaxSizeHitList: 20 });
+    return parseStops(data, this.key, query);
   }
 
   /** Direktverbindungen (ohne Umstieg) ab "when" inkl. Zwischenhalte und Hinweise. */
@@ -62,9 +62,19 @@ export class EfaClient {
 }
 
 /** Antwort der Haltestellensuche -> Stop[]; beste Treffer zuerst, höchstens 8. */
-export function parseStops(data, key = 'efa') {
+const STATION = /\b(hbf|hauptbahnhof|bahnhof|bf)\b/i;
+/** Je kleiner, desto besser: genauer Name, dann Bahnhof mit dem Suchbegriff am Anfang, dann Anfang, dann irgendwo enthalten. */
+function rankOf(name, q) {
+  const n = String(name || '').toLowerCase().trim(), s = String(q || '').toLowerCase().trim();
+  if (!s) return 0;
+  if (n === s) return 0;
+  if (n.startsWith(s) && STATION.test(n)) return 1;
+  if (n.startsWith(s)) return 2;
+  return n.includes(s) ? 3 : 4;
+}
+export function parseStops(data, key = 'efa', query = '') {
   const list = (data?.locations || []).filter((x) => x && (x.type === 'stop' || x.type === 'station') && x.id);
-  list.sort((a, b) => (b.isBest ? 1 : 0) - (a.isBest ? 1 : 0) || (b.matchQuality || 0) - (a.matchQuality || 0));
+  list.sort((a, b) => rankOf(a.name || a.disassembledName, query) - rankOf(b.name || b.disassembledName, query) || (b.isBest ? 1 : 0) - (a.isBest ? 1 : 0) || (b.matchQuality || 0) - (a.matchQuality || 0));
   return list.slice(0, 8).map((x) => ({
     id: `${key}|${x.id}`, name: String(x.name || x.disassembledName || '').trim(),
     lat: Array.isArray(x.coord) ? x.coord[0] : undefined, lon: Array.isArray(x.coord) ? x.coord[1] : undefined,

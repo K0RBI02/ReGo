@@ -42,6 +42,19 @@ export function withFallback(primary, fallback, config) {
 
 const GRACE_MS = 2200;
 
+/** Erst die erste Quelle; liefert sie nichts oder scheitert sie, die zweite. */
+function chain(first, second) {
+  return {
+    name: first.name,
+    async journeys(args) {
+      let err;
+      try { const r = await first.journeys(args); if (r?.length) return r; } catch (e) { err = e; }
+      try { return await second.journeys(args); } catch (e) { throw err || e; }
+    },
+    stop: (id) => first.stop(id),
+  };
+}
+
 const unsupported =(msg) => ({ name: 'efa', async journeys() { throw new ProviderError(msg, { kind: 'unsupported' }); }, async stop(id) { return { id, name: '', lines: [] }; } });
 
 /** Haltestelle eines Verbunds beim anderen Anbieter wiederfinden (Name + Koordinaten). */
@@ -88,13 +101,23 @@ export function build(db, oebb, mock, efas = []) {
     forTour(from, to) {
       const a = efaOf(from), b = efaOf(to);
       if (a && a === b) return a;
+      if (a && b) {      // zwei Verbünde (MVV + Bayern): die breitere Quelle (moby) fragen, die Haltestelle des anderen übersetzen
+        const target = efas.find((e) => e.key === 'moby') || a;
+        return mixed(target, target === a ? b : a);
+      }
       if (a || b) {
-        if (a && b) return unsupported('Verbindung zwischen verschiedenen Verkehrsverbünden wird noch nicht unterstützt');
         const other = a ? to : from;
         const target = regionOf(other) === 'AT' || regionOf(a ? from : to) === 'AT' ? oebb : db;
         return mixed(target, a || b);
       }
       return regionOf(from) === 'AT' || regionOf(to) === 'AT' ? oebb : db;
+    },
+    /** Verbund zuerst; bei Strecken mit Österreich-Ende wird die ÖBB als Rückfall versucht (z. B. wenn der Verbund dort nichts kennt). */
+    forTourSafe(from, to) {
+      const c = this.forTour(from, to);
+      const a = efaOf(from), b = efaOf(to);
+      if (a && a === b && (regionOf(from) === 'AT' || regionOf(to) === 'AT')) return chain(a, mixed(oebb, a));
+      return c;
     },
     async searchStops(q) {
       // Alle Quellen gleichzeitig fragen; sobald eine antwortet, höchstens noch kurz auf die anderen warten (die Bahn kann hängen)
@@ -113,7 +136,12 @@ export function build(db, oebb, mock, efas = []) {
       });
       if (process.env.REGO_VERBOSE) console.log(`Suche "${q}": ` + sources.map((c, i) => `${c.key || c.name} ${i in results && results[i] ? results[i].length : 'offen'}`).join(', ') + (errors.length ? ` (Fehler: ${errors.map((e) => e.message).join(' | ')})` : ''));
       const nE = sources.filter((c) => efas.includes(c)).length;
-      const efaStops = results.slice(0, nE).flat().filter(Boolean);
+      const related = (a, b) => { const x = String(a.name || '').toLowerCase(), y = String(b.name || '').toLowerCase(); return x === y || x.includes(y) || y.includes(x); };
+      const kept = [];
+      results.slice(0, nE).forEach((r, si) => (r || []).forEach((s) => {
+        if (s && !kept.some((k) => k.src !== si && (distanceKm(k.s, s) ?? 99) < 0.3 && related(k.s, s))) kept.push({ s, src: si });
+      }));
+      const efaStops = kept.map((k) => k.s);
       const others = results.slice(nE).flat().filter(Boolean)
         .filter((s) => !efaStops.some((e) => (distanceKm(e, s) ?? 99) < 0.3));      // dieselbe Haltestelle: Verbund-Eintrag bevorzugen
       const seen = new Set();

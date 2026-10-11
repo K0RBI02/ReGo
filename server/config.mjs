@@ -17,7 +17,7 @@ export const config = {
     db: env.REGO_DB_URL || 'https://v6.db.transport.rest',
     oebb: env.REGO_OEBB_URL || 'https://v6.oebb.transport.rest',
     // Regionale Verbünde (EFA). Kürzel = Präfix der Haltestellen-IDs. Weitere Verbünde: hier eintragen.
-    efa: [{ key: 'mvv', url: env.REGO_MVV_URL || 'https://efa.mvv-muenchen.de/ng' }],
+    efa: [{ key: 'mvv', url: env.REGO_MVV_URL || 'https://efa.mvv-muenchen.de/ng' }, { key: 'moby', url: env.REGO_MOBY_URL || 'https://bahnland-bayern.de/efa' }],
     userAgent: env.REGO_UA || 'ReGo/0.1 (privates Hobbyprojekt)',
     timeoutMs: Number(env.REGO_TIMEOUT_MS || 8000),
     retries: Number(env.REGO_RETRIES || 2),

@@ -34,7 +34,7 @@ export function createService({ config, store, now = () => Date.now(), providers
 
     await Promise.all(profile.tours.map(async (tour, i) => {
       if (tour.active === false) { tours[i] = { out: { id: tour.id, name: tour.name, lineId: '', active: false, period: tour.period, ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}), distanceKm: null, schedule: tour.schedule, departures: [] }, inc: [] }; return; }
-      const client = providers.forTour(tour.from, tour.to);
+      const client = (providers.forTourSafe || providers.forTour).call(providers, tour.from, tour.to);
       let journeys = [];
       try {
         const r = await cache.get(`jl:${tour.from.id}:${tour.to.id}`, config.ttl.journeys, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(t).toISOString(), results: 5 }));

@@ -195,3 +195,36 @@ test('summaryOf: abgeschnittener Untertitel -> erster ganzer Satz; Linienlabel o
   assert.equal(lineLabel('RE5(Zug-Nr.79030)'), 'RE5');
   assert.equal(lineLabel('S 1'), 'S1');
 });
+
+test('Ranking der Haltestellensuche: genauer Name und Bahnhof zuerst', async () => {
+  const { parseStops } = await import('../server/providers/efa.mjs');
+  const data = { locations: [
+    { id: 'at:42:6231', name: 'Rosenheim (Baldramsdorf), Rosenheim', type: 'stop', isBest: true, coord: [46.8, 13.4] },
+    { id: 'de:09163:9', name: 'Rosenheim', type: 'stop', coord: [47.85, 12.12] },
+    { id: 'de:09163:376', name: 'Rosenheim, WEKO', type: 'stop', coord: [47.86, 12.1] }] };
+  assert.equal(parseStops(data, 'moby', 'Rosenheim')[0].id, 'moby|de:09163:9');
+  const d2 = { locations: [{ id: 'a', name: 'Berchtesgaden, Erika', type: 'stop' }, { id: 'b', name: 'Berchtesgaden Hbf', type: 'stop' }] };
+  assert.equal(parseStops(d2, 'moby', 'Berchtesgaden')[0].id, 'moby|b');
+});
+
+test('zwei Verbünde: Verbindung über moby mit übersetzter MVV-Haltestelle; Österreich-Ende mit ÖBB-Rückfall', async () => {
+  const { build } = await import('../server/providers/index.mjs');
+  const mk = (key, stopsReturn, journeysReturn) => ({ key, name: key, owns: (id) => String(id).startsWith(key + '|'), searchStops: async () => stopsReturn, stop: async (id) => ({ id, lat: 48.14, lon: 11.56, lines: [] }), journeys: async (a) => { mk.calls.push([key, a.fromId, a.toId]); return journeysReturn; } });
+  mk.calls = [];
+  const mvv = mk('mvv', [], []);
+  const moby = mk('moby', [{ id: 'moby|de:09162:2', name: 'München Hbf', lat: 48.14, lon: 11.56 }], [{ legs: [{ line: { name: 'RE 5' } }] }]);
+  const oebb = { name: 'oebb', searchStops: async () => [], stop: async (id) => ({ id, lines: [] }), journeys: async (a) => { mk.calls.push(['oebb', a.fromId, a.toId]); return [{ legs: [{ line: { name: 'RJX' } }] }]; } };
+  const p = build({ name: 'db' }, oebb, false, [mvv, moby]);
+  const c = p.forTour({ id: 'mvv|de:09162:2', name: 'München Hbf', lat: 48.14, lon: 11.56 }, { id: 'moby|de:09163:9', name: 'Rosenheim', lat: 47.85, lon: 12.12 });
+  const j = await c.journeys({ from: { id: 'mvv|de:09162:2', name: 'München Hbf', lat: 48.14, lon: 11.56 }, to: { id: 'moby|de:09163:9' }, fromId: 'mvv|de:09162:2', toId: 'moby|de:09163:9', when: new Date().toISOString() });
+  assert.equal(j[0].legs[0].line.name, 'RE 5');
+  assert.deepEqual(mk.calls[0], ['moby', 'moby|de:09162:2', 'moby|de:09163:9']);
+  // moby kennt die Strecke nach Österreich nicht -> ÖBB
+  moby.journeys = async () => [];
+  const sbg = { id: 'moby|at:45:50002', name: 'Salzburg Hbf', lat: 47.81, lon: 13.04 };
+  oebb.searchStops = async () => [{ id: '8100002', name: 'Salzburg Hbf', lat: 47.8128, lon: 13.0457 }, { id: '8000261', name: 'München Hbf', lat: 48.1402, lon: 11.5586 }];
+  const frei = { id: 'moby|de:09162:2', name: 'München Hbf', lat: 48.14, lon: 11.56 };
+  const c2 = p.forTourSafe(frei, sbg);
+  const j2 = await c2.journeys({ from: frei, to: sbg, fromId: frei.id, toId: sbg.id, when: new Date().toISOString() });
+  assert.equal(j2[0].legs[0].line.name, 'RJX');
+});

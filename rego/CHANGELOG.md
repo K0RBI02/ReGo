@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.1.18-beta01
+- Neu: ganz Bayern über Bahnland Bayern (Rosenheim/Chiemgau, Allgäu, Berchtesgaden, Garmisch …) mit Echtzeitdaten, dazu Grenzorte in Österreich (z. B. Freilassing → Salzburg).
+- Strecken zwischen MVV- und Bayern-Haltestellen funktionieren (die MVV-Haltestelle wird übersetzt).
+- Strecken mit Österreich-Ende: wenn Bahnland Bayern nichts findet, versucht ReGo es über die ÖBB.
+- Haltestellensuche sortiert besser: genauer Name und Bahnhöfe zuerst, doppelte Einträge aus MVV und Bayern werden zusammengelegt.
+
 ## 0.1.17-beta01
 - Fix: Die Zahl am Warnsymbol stimmt jetzt mit der Liste unter Meldungen überein (vorher fehlte die oberste Meldung).
 - Fix: Meldungen-Karten stapeln sich untereinander und werden nicht mehr ineinander gequetscht; lange Texte laufen komplett durch (auch im Detail).
