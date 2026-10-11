@@ -39,7 +39,7 @@
     return body;
   };
 
-  R.version = 'Beta01';
+  R.version = 'Beta';
   R.contact = '';   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
   R.banner = function () {
     const c = R.connection; let st = c.status;

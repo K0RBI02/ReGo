@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.1.28-beta
+- Ticket-Screen lässt sich scrollen (Karte und weitere Tickets), der Button "Ticket hinzufügen" bleibt unten stehen.
+- Anzeige "Beta" statt "Beta01".
+- Log: bei jeder Suche stehen die ersten Treffer jeder Quelle dabei (zur Fehlersuche).
+
 ## 0.1.27-beta
 - ÖBB/DB entlastet: Die Suche fragt die Bahn-Server nur noch ab 4 Zeichen und nur, wenn der Verbund den Bahnhof nicht genau kennt (vorher bei jedem Tastendruck, das hat die ÖBB in Timeouts getrieben). Eingabe wartet 450 ms.
 - IPv4 zuerst (bahn.de hängt hier per IPv6) – das sollte die ÖBB-Timeouts beenden.

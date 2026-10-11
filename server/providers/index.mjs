@@ -150,7 +150,7 @@ export function build(db, oebb, mock, efas = []) {
           });
         });
       });
-      if (process.env.REGO_VERBOSE) console.log(`Suche "${q}": ` + sources.map((c, i) => `${c.key || c.name} ${skipped.has(i) ? 'übersprungen' : i in results && results[i] ? results[i].length : 'offen'}`).join(', ') + (errors.length ? ` (Fehler: ${errors.map((e) => e.message).join(' | ')})` : ''));
+      if (process.env.REGO_VERBOSE) console.log(`Suche "${q}": ` + sources.map((c, i) => `${c.key || c.name} ${skipped.has(i) ? 'übersprungen' : i in results && results[i] ? results[i].length + (results[i].length ? ' [' + results[i].slice(0, 3).map((x) => x.name).join(' | ') + ']' : '') : 'offen'}`).join(', ') + (errors.length ? ` (Fehler: ${errors.map((e) => e.message).join(' | ')})` : ''));
       const nE = sources.filter((c) => efas.includes(c)).length;
       const related = (a, b) => { const x = String(a.name || '').toLowerCase(), y = String(b.name || '').toLowerCase(); return x === y || x.includes(y) || y.includes(x); };
       const kept = [];
