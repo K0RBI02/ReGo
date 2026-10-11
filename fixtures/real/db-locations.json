@@ -1,0 +1,146 @@
+[
+  {
+    "id": "8002078",
+    "name": "Freising",
+    "lat": 48.39498,
+    "lon": 11.744551,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "8004279",
+    "name": "Neufahrn(b Freising)",
+    "lat": 48.32131,
+    "lon": 11.660681,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "8004900",
+    "name": "Pulling(b Freising)",
+    "lat": 48.363342,
+    "lon": 11.70711,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": false,
+      "suburban": true,
+      "bus": false,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "302860",
+    "name": "München-Flughafen Besucherpark, Freising",
+    "lat": 48.35258,
+    "lon": 11.765612,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "625996",
+    "name": "Bahnhof, Freising",
+    "lat": 48.39467,
+    "lon": 11.743238,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "626003",
+    "name": "Freising (S) P+R-Platz",
+    "lat": 48.395836,
+    "lon": 11.746205,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "102817",
+    "name": "Freisinger Straße, Langenbach (Kreis Freising)",
+    "lat": 48.434807,
+    "lon": 11.843809,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": false,
+      "suburban": false,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  },
+  {
+    "id": "626104",
+    "name": "Bahnhof, Neufahrn b. Freising",
+    "lat": 48.320705,
+    "lon": 11.660771,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "regionalExpress": false,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "taxi": false
+    }
+  }
+]

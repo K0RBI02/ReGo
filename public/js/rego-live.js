@@ -1,0 +1,166 @@
+/* window.REGO – gleiche Felder wie im Design (rego-data.js), gefüllt aus dem Backend.
+ * Offline-first: letzter Stand liegt im Gerät, Tickets verlassen das Gerät nie. */
+(function () {
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  };
+  const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 24);
+  let device = LS.get('rego.device', null);
+  if (!device) { device = rid(); LS.set('rego.device', device); }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const nowParts = () => { const d = new Date(); return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, now: `${pad(d.getHours())}:${pad(d.getMinutes())}` }; };
+
+  const FALLBACK_LINE = { id: '', label: '', color: '#5B5B58' };
+  const linesProxy = (obj) => new Proxy(obj, { get: (t, k) => (k in t ? t[k] : (typeof k === 'string' ? Object.assign({}, FALLBACK_LINE, { id: k, label: k }) : undefined)) });
+
+  const THEME = { kinds: {
+    delay: { label: 'Verspätung', bg: '#FDE3CF', icon: ['M24 8c1 0 2 .6 2.6 1.6L41 36c1 2-.2 4.2-2.6 4.2H9.6C7.2 40.2 6 38 7 36L21.4 9.6C22 8.6 23 8 24 8z', 'M24 18v11M24 34.5v.1'] },
+    replacement: { label: 'Ersatzverkehr', bg: '#F9D6D2', icon: ['M8 12c0-2 1.4-3.6 3.6-3.6h24.8c2.2 0 3.6 1.6 3.6 3.6v20c0 1.8-1.2 3-3 3H11c-1.8 0-3-1.2-3-3z', 'M8 26h32M14 40v-4M34 40v-4'] },
+    construction: { label: 'Baustelle', bg: '#FDF3DC', icon: ['M17 24l9 9-5 6c-2 2-5 2-7 0l-2-2c-2-2-2-5 0-7z', 'M26 29L38 13M33 8l9 7'] },
+    ok: { label: 'Pünktlich', bg: '#EAF6CF', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M14 25l8 8 14-17'] },
+  } };
+
+  const R = window.REGO = {
+    schemaVersion: 1, theme: THEME, lines: linesProxy({}), tours: [], incidents: [],
+    tickets: LS.get('rego.tickets', []), walletOffers: [],
+    connection: { status: 'ok', loading: true, lastSync: '' },
+    settings: { pushThresholdMin: 5, delayGraceMin: 10 },
+    clock: nowParts(), stations: [], deviceId: device,
+  };
+  let stationCache = LS.get('rego.stations', []);     // [{id,name,region,lat,lon}]
+  R.stations = stationCache;
+
+  const api = async (path, opt = {}) => {
+    const res = await fetch(`/api${path}`, Object.assign({}, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, opt.headers || {}) }));
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status });
+    return body;
+  };
+
+  R.version = 'Beta01';
+  R.contact = '';   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
+  R.banner = function () {
+    const c = R.connection; let st = c.status;
+    try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
+    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Keine aktuellen Daten' : 'Offline-Modus', offlineSince: c.lastSync, loading: !!c.loading };
+  };
+  R.isVisible = function (inc) {
+    const now = new Date(`${R.clock.date}T${R.clock.now}`).getTime();
+    let until = new Date(inc.validity.until).getTime();
+    if (inc.kind === 'delay') until += R.settings.delayGraceMin * 60000;
+    return now <= until;
+  };
+
+  /* --- Haltestellen: Vorschläge kommen vom Server, bekannte bleiben im Gerät --- */
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const asked = new Set();
+  let timer;
+  R.isStation = (name) => stationCache.some((s) => norm(s.name) === norm(name));
+  R.findStation = (name) => stationCache.find((s) => norm(s.name) === norm(name));
+  R.searchStations = function (query) {
+    const q = norm(query);
+    if (!q || R.isStation(q)) return [];
+    if (q.length >= 2 && !asked.has(q)) {
+      asked.add(q);
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const { stations } = await api(`/stations?q=${encodeURIComponent(q)}`);
+          const known = new Set(stationCache.map((s) => s.id));
+          for (const s of stations) if (!known.has(s.id)) stationCache.push(s);
+          stationCache = stationCache.slice(-400); R.stations = stationCache; LS.set('rego.stations', stationCache);
+          R.onChange && R.onChange({ remount: false });
+        } catch (e) { asked.delete(q); }
+      }, 250);
+    }
+    const a = stationCache.filter((s) => norm(s.name).startsWith(q)), b = stationCache.filter((s) => norm(s.name).indexOf(q) > 0);
+    return a.concat(b).slice(0, 4);
+  };
+
+  /* --- Zustand holen --- */
+  function apply(state, status, lastSync) {
+    R.tours = state.tours || []; R.incidents = state.incidents || [];
+    R.lines = linesProxy(state.lines || {}); R.settings = Object.assign({}, R.settings, state.settings || {});
+    R.connection = { status, loading: false, lastSync };
+  }
+  let busy = false;
+  R.refresh = async function () {
+    if (busy) return; busy = true;
+    R.clock = nowParts();
+    try {
+      let q = '';
+      if (R.position) q = `?lat=${R.position.lat}&lon=${R.position.lon}`;
+      const state = await api(`/state${q}`);
+      const t = nowParts().now;
+      if (state.connection && state.connection.status === 'error') {
+        const cached = LS.get('rego.state', null);
+        const ids = new Set(((cached && cached.state.tours) || []).map((x) => x.id));
+        // Alten Stand nur zeigen, wenn er alle aktuellen Strecken kennt und Abfahrten hat; sonst würden neu angelegte Strecken verschwinden
+        const useCached = cached && state.tours.every((x) => !(x.departures || []).length) && state.tours.every((x) => ids.has(x.id)) && cached.state.tours.some((x) => (x.departures || []).length);
+        if (useCached) { apply(cached.state, 'error', cached.at); }
+        else apply(state, 'error', state.connection.lastSync || t);
+        // Ohne irgendeine verwertbare Abfahrt gibt es nichts Brauchbares zu zeigen: große Meldung statt leerer Karten
+        R.outage = R.tours.length > 0 && R.tours.every((x) => !(x.departures || []).length);
+      } else { R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t }); }
+    } catch (e) {
+      const cached = LS.get('rego.state', null);
+      if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
+      else { R.outage = true; R.tours = []; R.incidents = []; R.connection = { status: 'offline', loading: false, lastSync: '' }; }
+    } finally { busy = false; R.onChange && R.onChange({ remount: true }); }
+  };
+  R.loadCached = function () {
+    const cached = LS.get('rego.state', null);
+    if (cached) apply(cached.state, 'ok', cached.at);
+    R.connection.loading = !cached;
+    if (cached) R.connection.status = 'offline';
+  };
+
+  /* --- Änderungen (Strecken-Menü) --- */
+  const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  R.actions = {
+    async addTour({ from, to, days, time, trip, backTime }) {
+      const a = R.findStation(from), b = R.findStation(to);
+      if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
+      const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
+      await api('/tours', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b), schedule: { days, departAfter: time }, roundTrip: trip === 'both', returnAfter: backTime }) });
+      await R.refresh();
+    },
+    async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },
+    async removeTour(id) { R._before = await api('/profile'); await api(`/tours/${id}`, { method: 'DELETE' }); await R.refresh(); },
+    async undoRemove() { if (R._before) { await api('/profile', { method: 'PUT', body: JSON.stringify(R._before) }); R._before = null; await R.refresh(); } },
+    saveTicket(t) {
+      const id = t.slot || ('t' + Date.now().toString(36));
+      R.tickets = R.tickets.filter((x) => x.id !== id && !(t.slot && x.slot === t.slot));
+      R.tickets.push({ id, slot: t.slot || null, name: t.name, validUntil: t.validUntil, image: t.image, original: t.original || '', payload: t.payload || '', format: t.format || '' });
+      LS.set('rego.tickets', R.tickets);
+    },
+    removeTicket(id) { R.tickets = R.tickets.filter((x) => x.id !== id); LS.set('rego.tickets', R.tickets); },
+    async setThreshold(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushThresholdMin: v }) }); R.settings.pushThresholdMin = v; },
+  };
+  /* --- Push --- */
+  const b64ToU8 = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  R.actions.enablePush = async function () {
+    if (!window.isSecureContext || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Push braucht eine sichere Verbindung (https).');
+    if (Notification.permission === 'denied') throw new Error('Benachrichtigungen sind für ReGo blockiert.');
+    const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('Ohne Erlaubnis kann ReGo keine Meldungen schicken.');
+    const reg = await navigator.serviceWorker.ready;
+    try { const c = await caches.open('rego-meta'); await c.put('/__device', new Response(device)); } catch (e) {}
+    const { publicKey } = await api('/push/key');
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(publicKey) });
+    await api('/push', { method: 'PUT', body: JSON.stringify(sub.toJSON()) });
+    LS.set('rego.push', true);
+    return true;
+  };
+  /* --- Standort (grob, auf ca. 1 km gerundet; nur für „nächste Strecke zuerst“) --- */
+  R.requestPosition = () => new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(false);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { R.position = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) }; resolve(true); },
+      () => resolve(false), { maximumAge: 600000, timeout: 15000 });
+  });
+  R.DAYS = DAYS;
+})();

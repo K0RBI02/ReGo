@@ -1,0 +1,146 @@
+[
+  {
+    "id": "8100002",
+    "name": "Salzburg Hbf",
+    "lat": 47.813057,
+    "lon": 13.045856,
+    "products": {
+      "nationalExpress": true,
+      "national": true,
+      "interregional": true,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  },
+  {
+    "id": "1150101",
+    "name": "Salzburg",
+    "lat": 47.81437,
+    "lon": 13.045784,
+    "products": {
+      "nationalExpress": true,
+      "national": true,
+      "interregional": true,
+      "regional": true,
+      "suburban": true,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  },
+  {
+    "id": "1250106",
+    "name": "Salzburg Hagenau Bahnhst",
+    "lat": 47.832061,
+    "lon": 13.029612,
+    "products": {
+      "nationalExpress": false,
+      "national": true,
+      "interregional": false,
+      "regional": false,
+      "suburban": true,
+      "bus": false,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": false
+    }
+  },
+  {
+    "id": "1350172",
+    "name": "Salzburg Herbert-von-Karajan-Platz",
+    "lat": 47.799376,
+    "lon": 13.040696,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "interregional": false,
+      "regional": false,
+      "suburban": false,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  },
+  {
+    "id": "591059",
+    "name": "Salzburg Hofhaymer Allee",
+    "lat": 47.785335,
+    "lon": 13.052328,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "interregional": false,
+      "regional": false,
+      "suburban": false,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  },
+  {
+    "id": "591051",
+    "name": "Salzburg Hagenaustraße",
+    "lat": 47.827952,
+    "lon": 13.022457,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "interregional": false,
+      "regional": false,
+      "suburban": false,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  },
+  {
+    "id": "591313",
+    "name": "Salzburg Halmberggasse",
+    "lat": 47.820797,
+    "lon": 13.022924,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "interregional": false,
+      "regional": false,
+      "suburban": false,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  },
+  {
+    "id": "591052",
+    "name": "Salzburg Hammerauerstraße",
+    "lat": 47.76234,
+    "lon": 13.017225,
+    "products": {
+      "nationalExpress": false,
+      "national": false,
+      "interregional": false,
+      "regional": false,
+      "suburban": false,
+      "bus": true,
+      "ferry": false,
+      "subway": false,
+      "tram": false,
+      "onCall": true
+    }
+  }
+]

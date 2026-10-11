@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Start 1 von 3</title>
+<script src="./support.js"></script>
+<script src="./rego-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+button,input{font-family:inherit}
+button{cursor:pointer}
+a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
+a:active,button:active{transform:scale(.97)}
+@keyframes rg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rg-down{from{transform:translateY(-100%)}to{transform:none}}
+@keyframes rg-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+[role=status]{animation:rg-down .35s ease-out}
+.rg-in{animation:rg-in .45s ease-out both}
+.rg-toast{animation:rg-up .3s ease-out both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F9D6D2; color: #1C1A1A; font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; overflow: hidden">
+
+<nav aria-label="Fortschritt" style="display: flex; gap: 8px; padding: 22px 24px 0">
+<span aria-label="Schritt 1 von 3" style="flex: 1; padding: 16px 0"><span style="display: block; height: 3px; background: #1C1A1A"></span></span>
+<span aria-label="Schritt 2 von 3" style="flex: 1; padding: 16px 0"><span style="display: block; height: 3px; background: rgba(28,26,26,0.22)"></span></span>
+<span aria-label="Schritt 3 von 3" style="flex: 1; padding: 16px 0"><span style="display: block; height: 3px; background: rgba(28,26,26,0.22)"></span></span>
+</nav>
+
+<h1 style="margin: 14px 24px 0; font-size: 60px; line-height: 0.95; font-weight: 700; letter-spacing: -0.05em">Dein<br>Weg</h1>
+
+
+<div class="rg-illu" style="flex: 1; min-height: 0; overflow: hidden; display: grid; place-items: center">
+<svg style="max-height: 100%; max-width: 100%" width="200" height="190" viewBox="0 0 200 190" fill="none" stroke="#1C1A1A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M40 156C72 130 56 96 98 104S150 82 158 56" stroke-dasharray="1 13" stroke-width="7"></path>
+<path d="M36 176c-12-11-21-21-21-34 0-12 9-20 21-20s21 8 21 20c0 13-9 23-21 34z" fill="#fff"></path><circle cx="36" cy="142" r="6" fill="#1C1A1A"></circle>
+<path d="M160 70c-12-11-21-21-21-34 0-12 9-20 21-20s21 8 21 20c0 13-9 23-21 34z" fill="#1C1A1A"></path><circle cx="160" cy="36" r="6" fill="#fff" stroke="none"></circle>
+<path d="M82 88h36a7 7 0 0 1 7 7v24a7 7 0 0 1-7 7H82a7 7 0 0 1-7-7V95a7 7 0 0 1 7-7z" fill="#fff"></path><path d="M82 96h36v12H82z" fill="#1C1A1A"></path><circle cx="88" cy="118" r="2" fill="#1C1A1A"></circle><circle cx="112" cy="118" r="2" fill="#1C1A1A"></circle>
+<path d="M100 72v-10M118 76l6-8M82 76l-6-8"></path>
+</svg>
+</div>
+
+<p style="margin: 0 24px; font-size: 18px; font-weight: 500; line-height: 1.35">Sag uns, wo du pendelst. ReGo merkt sich deine Stammstrecke und zeigt dir sofort, ob sie läuft.</p>
+
+<div style="margin: 14px 24px 0; display: flex; flex-direction: column; gap: 10px">
+<div style="position: relative">
+<label style="background: #fff; border-radius: 22px; padding: 10px 20px 8px; display: flex; flex-direction: column; gap: 0; font-size: 13px; font-weight: 600; color: #4A4747">Von
+<input type="text" value="{{from}}" onInput="{{setFrom}}" autocomplete="off" style="border: 0; padding: 0; min-height: 34px; font-size: 22px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box"></label>
+<sc-if value="{{showSugFrom}}" hint-placeholder-val="{{ false }}">
+<div role="listbox" aria-label="Haltestellen" style="position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); padding: 4px 14px; overflow: hidden">
+<sc-for list="{{sug}}" as="q" hint-placeholder-count="3">
+<button type="button" role="option" onClick="{{q.pick}}" style="min-height: 52px; border: 0; border-bottom: 1.5px solid rgba(28,26,26,0.12); background: transparent; text-align: left; padding: 0 4px; font-size: 20px; font-weight: 700; color: #1C1A1A; display: flex; align-items: center; justify-content: space-between"><span>{{q.name}}</span><span style="font-size: 13px; font-weight: 700; color: #4A4747">{{q.region}}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="position: relative">
+<label style="background: #fff; border-radius: 22px; padding: 10px 20px 8px; display: flex; flex-direction: column; gap: 0; font-size: 13px; font-weight: 600; color: #4A4747">Nach
+<input type="text" value="{{to}}" onInput="{{setTo}}" autocomplete="off" style="border: 0; padding: 0; min-height: 34px; font-size: 22px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box"></label>
+<sc-if value="{{showSugTo}}" hint-placeholder-val="{{ false }}">
+<div role="listbox" aria-label="Haltestellen" style="position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); padding: 4px 14px; overflow: hidden">
+<sc-for list="{{sug}}" as="q" hint-placeholder-count="3">
+<button type="button" role="option" onClick="{{q.pick}}" style="min-height: 52px; border: 0; border-bottom: 1.5px solid rgba(28,26,26,0.12); background: transparent; text-align: left; padding: 0 4px; font-size: 20px; font-weight: 700; color: #1C1A1A; display: flex; align-items: center; justify-content: space-between"><span>{{q.name}}</span><span style="font-size: 13px; font-weight: 700; color: #4A4747">{{q.region}}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+
+<div style="margin: 10px 24px 0; padding: 4px; background: #fff; border-radius: 999px; display: flex; gap: 4px">
+<sc-for list="{{tripOpts}}" as="o" hint-placeholder-count="2">
+<button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button>
+</sc-for>
+</div>
+
+<div style="padding: 20px 24px 32px; display: flex; align-items: center; gap: 16px">
+<a href="{{next}}" aria-disabled="{{notReady}}" style="{{ctaStyle}}">Weiter</a>
+<span style="font-size: 14px; font-weight: 600; line-height: 1.25; color: #3A3737">{{hint}}</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { from: '', to: '', trip: 'both', focus: '' }; }
+  renderVals() {
+    const T = window.REGO, st = this.state;
+    const val = (e) => (e && e.target ? e.target.value : '');
+    const okFrom = T.isStation(st.from), okTo = T.isStation(st.to);
+    const ok = okFrom && okTo && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
+    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({
+      name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland',
+      pick: () => this.setState({ [st.focus]: q.name, focus: '' })
+    })) : [];
+    const typed = (st.from.trim() !== '' && !okFrom) || (st.to.trim() !== '' && !okTo);
+    window.REGO_pending = ok ? { from: st.from, to: st.to, trip: st.trip } : null;
+    return {
+      from: st.from, to: st.to, sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
+      setFrom: (e) => this.setState({ from: val(e), focus: 'from' }), setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
+      tripOpts: [['one', 'Nur Hinweg'], ['both', 'Hin und zurück']].map((o) => ({
+        label: o[1], on: st.trip === o[0],
+        style: 'flex: 1; min-height: 46px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (st.trip === o[0] ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A'),
+        pick: () => this.setState({ trip: o[0] })
+      })),
+      hint: ok ? 'Du kannst alles später\nim Menü ändern.'.replace('\n', ' ') : (typed ? 'Bitte wähle eine\nHaltestelle aus.'.replace('\n', ' ') : 'Ohne Strecke kann ReGo nichts zeigen.'),
+      next: ok ? 'Onboarding2.dc.html' : '#', notReady: !ok,
+      ctaStyle: 'width: 180px; min-height: 64px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; ' + (ok ? 'background: #1C1A1A; color: #fff' : 'background: rgba(28,26,26,0.25); color: rgba(255,255,255,0.8)')
+    };
+  }
+}
+</script>
+</body>
+</html>

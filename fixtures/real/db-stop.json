@@ -1,0 +1,236 @@
+{
+  "id": "8002078",
+  "name": "Freising",
+  "lat": 48.395195,
+  "lon": 11.744539,
+  "products": {
+    "nationalExpress": false,
+    "national": false,
+    "regionalExpress": false,
+    "regional": true,
+    "suburban": true,
+    "bus": true,
+    "ferry": false,
+    "subway": false,
+    "tram": false,
+    "taxi": false
+  },
+  "lines": [
+    {
+      "name": "ALX",
+      "product": "regional"
+    },
+    {
+      "name": "RB",
+      "product": "regional"
+    },
+    {
+      "name": "RE",
+      "product": "regional"
+    },
+    {
+      "name": "ag",
+      "product": "regional"
+    },
+    {
+      "name": "Bus 635EV",
+      "product": "regional"
+    },
+    {
+      "name": "Bus EV",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RB3",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RB33",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RB33",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RE2",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RE3",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RE22",
+      "product": "regional"
+    },
+    {
+      "name": "Bus RE25",
+      "product": "regional"
+    },
+    {
+      "name": "S1",
+      "product": "suburban"
+    },
+    {
+      "name": "Bus 511",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 512V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 630",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 632",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 633",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 633V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 634",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 634V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 635",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 636",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 637",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 638",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 639",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 640",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 641",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 642",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 643",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 645",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 650",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 650V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 651",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 652",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 653",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 654",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 655",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 661",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 662",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 662V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 663",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 664",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 664V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 665",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 666",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 667",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 668",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 691",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 691V",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 725",
+      "product": "bus"
+    },
+    {
+      "name": "Bus 6030",
+      "product": "bus"
+    },
+    {
+      "name": "Bus X660",
+      "product": "bus"
+    }
+  ]
+}

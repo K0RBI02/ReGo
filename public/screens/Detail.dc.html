@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Details</title>
+<script src="./support.js"></script>
+<script src="./rego-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
+a:active,button:active{transform:scale(.97)}
+@keyframes rg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rg-down{from{transform:translateY(-100%)}to{transform:none}}
+@keyframes rg-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+[role=status]{animation:rg-down .35s ease-out}
+.rg-in{animation:rg-in .45s ease-out both}
+.rg-toast{animation:rg-up .3s ease-out both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/*rg-dark-start*/
+@media (prefers-color-scheme: dark){html{color-scheme:dark}
+[style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+[style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+[style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+[style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+[style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+[style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+[style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+[style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+[style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+[style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+[style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+[style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+[style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+[style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+[style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+[style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+[style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+.rg-skel{background:#2A2A2A !important}
+.rg-row{border-bottom-color:#333333 !important}
+svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+svg[stroke="#fff"]{stroke:#121212 !important}
+svg[stroke="#fff"] *{stroke:#121212 !important}
+input{color-scheme:dark !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+}
+html.rg-dark{color-scheme:dark}
+html.rg-dark [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+html.rg-dark [style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+html.rg-dark [style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+html.rg-dark [style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+html.rg-dark [style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+html.rg-dark [style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+html.rg-dark [style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+html.rg-dark [style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+html.rg-dark .rg-skel{background:#2A2A2A !important}
+html.rg-dark .rg-row{border-bottom-color:#333333 !important}
+html.rg-dark svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+html.rg-dark svg[stroke="#fff"]{stroke:#121212 !important}
+html.rg-dark svg[stroke="#fff"] *{stroke:#121212 !important}
+html.rg-dark input{color-scheme:dark !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+/*rg-dark-end*/
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #FFFFFF; color: #1C1A1A; font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden">
+<sc-if value="{{offline}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="flex: none; min-height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 700"><span>{{bannerLabel}}</span><span style="opacity: 0.5">|</span><span>Stand: {{offlineSince}}</span></div>
+</sc-if>
+
+<div style="position: relative; height: 338px; flex: none; background: {{mapBg}}">
+<svg width="390" height="338" viewBox="0 0 390 338" role="img" aria-label="Schematische Netzkarte" style="position: absolute; left: 0; top: 0">
+<defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7F95A0" stop-opacity="0.8"></stop><stop offset="1" stop-color="#7F95A0" stop-opacity="0"></stop></linearGradient></defs>
+<rect x="{{b0.x}}" y="{{b0.y}}" width="{{b0.w}}" height="{{b0.h}}" rx="3" fill="url(#fade)"></rect>
+<rect x="{{b1.x}}" y="{{b1.y}}" width="{{b1.w}}" height="{{b1.h}}" rx="3" fill="url(#fade)"></rect>
+<rect x="{{b2.x}}" y="{{b2.y}}" width="{{b2.w}}" height="{{b2.h}}" rx="3" fill="url(#fade)"></rect>
+<rect x="{{b3.x}}" y="{{b3.y}}" width="{{b3.w}}" height="{{b3.h}}" rx="3" fill="url(#fade)"></rect>
+<rect x="{{b4.x}}" y="{{b4.y}}" width="{{b4.w}}" height="{{b4.h}}" rx="3" fill="url(#fade)"></rect>
+<rect x="{{b5.x}}" y="{{b5.y}}" width="{{b5.w}}" height="{{b5.h}}" rx="3" fill="url(#fade)"></rect>
+<rect x="{{b6.x}}" y="{{b6.y}}" width="{{b6.w}}" height="{{b6.h}}" rx="3" fill="url(#fade)"></rect>
+<defs>
+<linearGradient id="tg0" gradientUnits="userSpaceOnUse" x1="{{t0.x1}}" y1="{{t0.y1}}" x2="{{t0.x2}}" y2="{{t0.y2}}"><stop offset="0" stop-color="#9A9A9A" stop-opacity="0.85"></stop><stop offset="1" stop-color="#9A9A9A" stop-opacity="0"></stop></linearGradient>
+<linearGradient id="tg1" gradientUnits="userSpaceOnUse" x1="{{t1.x1}}" y1="{{t1.y1}}" x2="{{t1.x2}}" y2="{{t1.y2}}"><stop offset="0" stop-color="#9A9A9A" stop-opacity="0.85"></stop><stop offset="1" stop-color="#9A9A9A" stop-opacity="0"></stop></linearGradient>
+<linearGradient id="tg2" gradientUnits="userSpaceOnUse" x1="{{t2.x1}}" y1="{{t2.y1}}" x2="{{t2.x2}}" y2="{{t2.y2}}"><stop offset="0" stop-color="#9A9A9A" stop-opacity="0.85"></stop><stop offset="1" stop-color="#9A9A9A" stop-opacity="0"></stop></linearGradient>
+</defs>
+<path d="{{t0.d}}" fill="none" stroke="url(#tg0)" stroke-width="7" stroke-linecap="round"></path>
+<path d="{{t1.d}}" fill="none" stroke="url(#tg1)" stroke-width="7" stroke-linecap="round"></path>
+<path d="{{t2.d}}" fill="none" stroke="url(#tg2)" stroke-width="7" stroke-linecap="round"></path>
+<path d="{{mainD}}" fill="none" stroke="#0B6B3F" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="{{disD}}" fill="none" stroke="#8C8C8C" stroke-width="8" stroke-linecap="round" stroke-dasharray="0.1 11"></path>
+<path d="{{altD}}" fill="none" stroke="#8ED3E8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="{{haloD}}" fill="#FDE3CF" stroke="#1C1A1A" stroke-width="2" stroke-dasharray="4 4"></path>
+<path d="{{smallD}}" fill="#fff" stroke="#1C1A1A" stroke-width="3.5"></path>
+<path d="{{bigD}}" fill="#fff" stroke="#1C1A1A" stroke-width="4.5"></path>
+</svg>
+<span style="{{l0.s}}">{{l0.t}}</span>
+<span style="{{l1.s}}">{{l1.t}}</span>
+<span style="{{l2.s}}">{{l2.t}}</span>
+<span style="{{l3.s}}">{{l3.t}}</span>
+<span style="{{l4.s}}">{{l4.t}}</span>
+<span style="{{l5.s}}">{{l5.t}}</span>
+<span style="{{l6.s}}">{{l6.t}}</span>
+<span style="{{t0.bs}}">{{t0.bt}}</span>
+<span style="{{t1.bs}}">{{t1.bt}}</span>
+<span style="{{t2.bs}}">{{t2.bt}}</span>
+<span style="{{chip.s}}">{{chip.t}}</span>
+<span style="{{c0.s}}">{{c0.t}}</span>
+<span style="{{c1.s}}">{{c1.t}}</span>
+<span style="{{c2.s}}">{{c2.t}}</span>
+<span style="{{c3.s}}">{{c3.t}}</span>
+<span style="{{c4.s}}">{{c4.t}}</span>
+<span style="{{c5.s}}">{{c5.t}}</span>
+<span style="{{c6.s}}">{{c6.t}}</span>
+<div class="rg-in" style="{{route.s}}"><span style="{{route.bs}}">{{route.line}}</span><span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap">{{route.text}}</span></div>
+<header style="position: absolute; left: 0; right: 0; top: 0; padding: 16px 12px 0 20px; display: flex; align-items: center; justify-content: space-between">
+<a href="{{backHref}}" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
+Zurück</a>
+<a href="Strecken.dc.html" aria-label="Menü" style="width: 52px; height: 52px; display: grid; place-items: center">
+<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 9h22M5 16h22M5 23h22"></path></svg>
+</a>
+</header>
+</div>
+
+<div style="flex: 1; min-height: 0; margin-top: -28px; position: relative; background: #fff; border-radius: 32px 32px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.06); padding: 20px 20px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto">
+
+<div style="{{statusStyle}}">
+<div style="display: flex; flex-direction: column">
+<span style="font-size: 16px; font-weight: 600">{{head}}</span>
+<span style="font-size: 48px; line-height: 1.04; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap">{{big}}</span>
+<span style="font-size: 15px; font-weight: 600; line-height: 1.3">{{sub}}</span>
+</div>
+<svg width="56" height="56" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{icon1}}" fill="#fff"></path><path d="{{icon2}}" stroke-width="3"></path></svg>
+</div>
+
+<div style="display: flex; flex-direction: column; padding: 0 2px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<div style="min-height: 60px; padding: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1.5px solid #ECECEC">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">{{r.label}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">{{r.sub}}</span></span>
+<span style="font-size: 17px; font-weight: 700; white-space: nowrap">{{r.value}} <span style="font-size: 13px; font-weight: 600; color: #4A4747; text-decoration: line-through">{{r.planned}}</span></span>
+</div>
+</sc-for>
+</div>
+
+<sc-if value="{{hasAlt}}" hint-placeholder-val="{{ true }}">
+<div style="background: #D4EDF6; border-radius: 24px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 14px; font-weight: 700">{{alt.title}}</span>
+<span style="font-size: 17px; font-weight: 700; line-height: 1.2">{{alt.line1}}</span>
+<span style="font-size: 15px; font-weight: 600">{{alt.line2}}</span>
+</div>
+<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{alt.badge}}</span>
+</div>
+</sc-if>
+
+<sc-if value="{{hasTicket}}" hint-placeholder-val="{{ false }}">
+<div style="background: #FDF3DC; border-radius: 24px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 16px; font-weight: 600; line-height: 1.3">{{ticket.text}}</div>
+<a href="{{ticket.url}}" target="_blank" rel="noopener" style="min-height: 60px; background: #1C1A1A; color: #fff; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; font-weight: 700">
+{{ticket.cta}}
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg>
+</a>
+<div style="font-size: 13px; font-weight: 600; color: #5A5448; text-align: center">{{ticket.note}}</div>
+</div>
+</sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+/* Alle Inhalte kommen aus window.REGO (rego-data.js):
+   Hash  #<incidentId|tourId>-<m|l>   (m = von Dashboard, l = von Meldungen)
+   incident.view.map = { stations[], hubIndex, disrupted{from,to}|null, alternative{label,fromIndex,toIndex}|null,
+                         haloIndex, connections[{stationIndex,lineId,dir:'down'|'right'}] } */
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    let h = '';
+    try { h = (window.location.hash || '').replace('#', ''); } catch (e) {}
+    const p = h.split('-');
+    this.state = { id: p[0] || 'i2', from: p[1] === 'l' ? 'l' : 'm' };
+  }
+  renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
+  _rv() {
+    const T = window.REGO;
+    const inc = T.incidents.find((i) => i.id === this.state.id);
+    const tour = inc ? T.tours.find((t) => t.id === inc.tourId) : T.tours.find((t) => t.id === this.state.id);
+    const view = inc ? inc.view : (tour && tour.view) || T.incidents[1].view;
+    const kindKey = view.kind || 'ok';
+    const K = T.theme.kinds[kindKey];
+    const M = view.map || { stations: [], connections: [], disrupted: null, alternative: null, haloIndex: -1, hubIndex: -1 };
+
+    const Y = 214;
+    const pl = (pts) => pts.map((q, i) => (i ? 'L' : 'M') + q[0] + ' ' + q[1]).join('');
+    const circ = (q, r) => 'M' + (q[0] - r) + ' ' + q[1] + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0z';
+    const none = { t: '', s: 'display: none' };
+    const n = M.stations.length;
+    const x0 = 36, x1 = n >= 6 ? 292 : 270;
+    const st = M.stations.map((s, i) => Object.assign({}, s, { x: n > 1 ? x0 + i * (x1 - x0) / (n - 1) : x0, big: i === 0 || i === n - 1 || i === M.hubIndex }));
+    const seg = (a, b) => [[st[a].x, Y], [st[b].x, Y]];
+
+    let mainD = '', disD = '', haloD = '';
+    if (n > 1) {
+      if (M.disrupted) {
+        const a = M.disrupted.from, b = M.disrupted.to;
+        disD = pl(seg(a, b));
+        if (a > 0) mainD += pl(seg(0, a));
+        if (b < n - 1) mainD += pl(seg(b, n - 1));
+      } else mainD = pl(seg(0, n - 1));
+    }
+    if (M.haloIndex >= 0 && st[M.haloIndex]) haloD = circ([st[M.haloIndex].x, Y], 21);
+
+    let altD = '', chip = none;
+    if (M.alternative) {
+      const a = st[M.alternative.fromIndex].x, b = st[M.alternative.toIndex].x, d = 44;
+      altD = 'M' + a + ' ' + Y + 'L' + (a + d) + ' ' + (Y + d) + 'L' + (b - d) + ' ' + (Y + d) + 'L' + b + ' ' + Y;
+      chip = { t: M.alternative.label, s: 'position: absolute; left: ' + ((a + b) / 2) + 'px; top: ' + (Y + d + 12) + 'px; transform: translateX(-50%); white-space: nowrap; background: #fff; border: 2px solid #8ED3E8; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1' };
+    }
+
+    const out = {
+      mapBg: kindKey === 'ok' ? '#DCEFB8' : '#EEF1F2',
+      mainD, disD, haloD, altD, chip,
+      smallD: st.filter((q) => !q.big).map((q) => circ([q.x, Y], 8)).join(''),
+      bigD: st.filter((q) => q.big).map((q) => circ([q.x, Y], 11)).join('')
+    };
+    for (let i = 0; i < 7; i++) {
+      const q = st[i];
+      out['l' + i] = q ? { t: q.name, s: 'position: absolute; left: ' + (q.x + 6) + 'px; top: ' + (Y - 24) + 'px; transform-origin: 0 50%; transform: rotate(-45deg); white-space: nowrap; font-size: ' + (q.big ? 15 : 14) + 'px; font-weight: 700; line-height: 1' } : none;
+      out['b' + i] = { x: 0, y: 0, w: 0, h: 0 };
+      out['c' + i] = none;
+    }
+    // angedeutete Anschluss-/Kreuzungslinien: kurzer, auslaufender Stummel mit Linienname
+    for (let i = 0; i < 3; i++) {
+      const c = (M.connections || [])[i], q = c && st[c.stationIndex];
+      if (!q) { out['t' + i] = { x1: 0, y1: 0, x2: 1, y2: 0, d: 'M0 0', bs: 'display: none', bt: '' }; continue; }
+      const down = c.dir !== 'right';
+      // erst kurz gerade, dann schräg weg
+      const ax = q.x + (down ? 0 : 9), ay = Y + (down ? 9 : 0);
+      const mx = down ? ax : ax + 18, my = down ? ay + 14 : ay;
+      const bx = down ? ax + 26 : mx + 32, by = down ? my + 26 : my + 24;
+      out['t' + i] = {
+        x1: ax, y1: ay, x2: bx, y2: by, d: 'M' + ax + ' ' + ay + 'L' + mx + ' ' + my + 'L' + bx + ' ' + by,
+        bt: (T.lines[c.lineId] || { label: c.lineId }).label,
+        bs: 'position: absolute; left: ' + (bx + 6) + 'px; top: ' + (by - 12) + 'px; font-size: 11px; font-weight: 700; line-height: 1; color: #4A5A62'
+      };
+    }
+
+    const rl = T.lines[tour ? tour.lineId : 'S1'] || { label: '', color: '#5B5B58' };
+    out.route = {
+      line: rl.label, text: tour ? tour.name : '',
+      s: 'position: absolute; left: 20px; top: 78px; background: #fff; border-radius: 999px; padding: 5px 16px 5px 5px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)',
+      bs: 'min-width: 34px; height: 34px; border-radius: 17px; padding: 0 6px; box-sizing: border-box; background: ' + rl.color + '; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700'
+    };
+    out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px';
+    out.head = view.head; out.big = view.big; out.sub = view.sub;
+    out.icon1 = K.icon[0]; out.icon2 = K.icon[1];
+    out.rows = view.rows || [];
+    out.hasAlt = !!view.alternative;
+    out.alt = view.alternative || { title: '', line1: '', line2: '', badge: '' };
+    out.hasTicket = !!view.ticketHint;
+    out.ticket = view.ticketHint || { text: '', url: '#', cta: '', note: '' };
+    out.backHref = this.state.from === 'l' ? 'Meldungen.dc.html' : 'Main.dc.html';
+    return out;
+  }
+}
+</script>
+</body>
+</html>

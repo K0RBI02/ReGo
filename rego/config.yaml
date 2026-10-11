@@ -1,0 +1,26 @@
+name: "ReGo"
+version: "0.1.14-beta01"
+slug: rego
+description: "ReGo – minimalistische ÖPNV-App für Pendler (Alpenregion Bayern & Österreich)"
+url: "https://github.com/K0RBI02/ReGo"
+image: "ghcr.io/k0rbi02/rego-addon-{arch}"
+arch: [aarch64, amd64]
+startup: application
+boot: auto
+init: false
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: "ReGo Web-App und API (nur http, im Heimnetz)"
+options:
+  contact: ""
+  provider: "library"
+  ts_mode: "off"
+  ts_hostname: "rego-beta01"
+  ts_authkey: ""
+schema:
+  contact: "str?"
+  provider: "list(library|transport-rest|mock)"
+  ts_mode: "list(off|serve|funnel)"
+  ts_hostname: "str?"
+  ts_authkey: "password?"

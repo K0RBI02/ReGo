@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ticket hinzufügen</title>
+<script src="./support.js"></script>
+<script src="./rego-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+button{font-family:inherit;cursor:pointer}
+a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
+a:active,button:active{transform:scale(.97)}
+@keyframes rg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rg-down{from{transform:translateY(-100%)}to{transform:none}}
+@keyframes rg-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+[role=status]{animation:rg-down .35s ease-out}
+.rg-in{animation:rg-in .45s ease-out both}
+.rg-toast{animation:rg-up .3s ease-out both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/*rg-dark-start*/
+@media (prefers-color-scheme: dark){html{color-scheme:dark}
+[style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+[style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+[style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+[style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+[style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+[style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+[style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+[style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+[style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+[style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+[style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+[style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+[style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+[style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+[style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+[style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+[style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+.rg-skel{background:#2A2A2A !important}
+.rg-row{border-bottom-color:#333333 !important}
+svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+svg[stroke="#fff"]{stroke:#121212 !important}
+svg[stroke="#fff"] *{stroke:#121212 !important}
+input{color-scheme:dark !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+}
+html.rg-dark{color-scheme:dark}
+html.rg-dark [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+html.rg-dark [style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+html.rg-dark [style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+html.rg-dark [style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+html.rg-dark [style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+html.rg-dark [style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+html.rg-dark [style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+html.rg-dark [style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+html.rg-dark .rg-skel{background:#2A2A2A !important}
+html.rg-dark .rg-row{border-bottom-color:#333333 !important}
+html.rg-dark svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+html.rg-dark svg[stroke="#fff"]{stroke:#121212 !important}
+html.rg-dark svg[stroke="#fff"] *{stroke:#121212 !important}
+html.rg-dark input{color-scheme:dark !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+/*rg-dark-end*/
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F7F7F7; color: #1C1A1A; font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden">
+<sc-if value="{{offline}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="flex: none; min-height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 700"><span>{{bannerLabel}}</span><span style="opacity: 0.5">|</span><span>Stand: {{offlineSince}}</span></div>
+</sc-if>
+
+<header style="padding: 16px 12px 0 20px; display: flex; align-items: center; justify-content: space-between">
+<a href="Ticket.dc.html" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
+Zurück</a>
+<a href="Strecken.dc.html" aria-label="Menü" style="width: 52px; height: 52px; display: grid; place-items: center">
+<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 9h22M5 16h22M5 23h22"></path></svg>
+</a>
+</header>
+
+<h1 style="margin: 12px 20px 0; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Ticket<br>hinzufügen</h1>
+
+<sc-if value="{{noFound}}" hint-placeholder-val="{{ true }}">
+<div style="margin: 20px 20px 0; padding: 5px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; display: flex; gap: 4px">
+<button type="button" aria-pressed="{{isScan}}" onClick="{{showScan}}" style="{{scanStyle}}">Scannen</button>
+<button type="button" aria-pressed="{{isWallet}}" onClick="{{showPhoto}}" style="{{walletStyle}}">Aus Foto</button>
+</div>
+</sc-if>
+
+<sc-if value="{{askCam}}" hint-placeholder-val="{{ false }}">
+<div class="rg-in" style="margin: 14px 20px 0; height: 400px; background: #FDE3CF; border-radius: 32px; padding: 24px 22px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center">
+<svg width="120" height="110" viewBox="0 0 64 56" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16h10l4-6h20l4 6h10a4 4 0 0 1 4 4v28a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V20a4 4 0 0 1 4-4z" fill="#fff"></path><circle cx="32" cy="33" r="10" fill="#1C1A1A"></circle></svg>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 26px; line-height: 1.05; font-weight: 700; letter-spacing: -0.03em">Kamera nur zum Scannen</span>
+<span style="font-size: 16px; font-weight: 500; line-height: 1.35">ReGo nutzt die Kamera nur, um den Barcode deines Tickets zu lesen. Das Ticket bleibt auf diesem Gerät.</span>
+</div>
+<div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px">
+<button type="button" onClick="{{allowCam}}" style="width: 100%; min-height: 60px; background: #1C1A1A; color: #fff; border: 0; border-radius: 999px; font-size: 18px; font-weight: 700">Kamera erlauben</button>
+<button type="button" onClick="{{showPhoto}}" style="min-height: 44px; border: 0; background: transparent; font-size: 15px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Lieber ein Foto oder Screenshot wählen</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showCam}}" hint-placeholder-val="{{ true }}">
+<div style="margin: 14px 20px 0; height: 400px; background: #1C1A1A; border-radius: 32px; position: relative; overflow: hidden; display: grid; place-items: end center">
+<video id="rg-video" playsinline muted autoplay style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover"></video>
+<div style="position: absolute; left: 50px; right: 50px; top: 50px; bottom: 90px">
+<span style="position: absolute; left: 0; top: 0; width: 46px; height: 46px; border-left: 6px solid #fff; border-top: 6px solid #fff; border-top-left-radius: 20px"></span>
+<span style="position: absolute; right: 0; top: 0; width: 46px; height: 46px; border-right: 6px solid #fff; border-top: 6px solid #fff; border-top-right-radius: 20px"></span>
+<span style="position: absolute; left: 0; bottom: 0; width: 46px; height: 46px; border-left: 6px solid #fff; border-bottom: 6px solid #fff; border-bottom-left-radius: 20px"></span>
+<span style="position: absolute; right: 0; bottom: 0; width: 46px; height: 46px; border-right: 6px solid #fff; border-bottom: 6px solid #fff; border-bottom-right-radius: 20px"></span>
+</div>
+<div style="position: relative; padding-bottom: 28px; color: #fff; font-size: 18px; font-weight: 600; text-align: center">{{camHint}}</div>
+</div>
+<div style="margin: 14px 24px 0; font-size: 16px; font-weight: 600; color: #4A4747; line-height: 1.35">Funktioniert mit Deutschlandticket, KlimaTicket und Verbundkarten.</div>
+</sc-if>
+
+<sc-if value="{{camError}}" hint-placeholder-val="{{ false }}">
+<div style="margin: 14px 20px 0; background: #F9D6D2; border-radius: 28px; padding: 18px 22px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 17px; font-weight: 600; line-height: 1.35; color: #1C1A1A">{{camError}}</span>
+<button type="button" onClick="{{showPhoto}}" style="align-self: flex-start; min-height: 48px; padding: 0 20px; background: #1C1A1A; color: #fff; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700">Foto wählen</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isPhoto}}" hint-placeholder-val="{{ false }}">
+<div style="margin: 14px 20px 0; background: #FDF3DC; border-radius: 32px; padding: 24px 22px; display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 22px; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em">Foto oder Screenshot</span>
+<span style="font-size: 16px; font-weight: 500; line-height: 1.35; color: #1C1A1A">Wähle ein Bild mit dem Barcode, zum Beispiel einen Screenshot aus der Bahn-App oder der Wallet. Das Bild wird nur auf diesem Gerät gespeichert.</span>
+<button type="button" onClick="{{pickFile}}" style="min-height: 60px; background: #1C1A1A; color: #fff; border: 0; border-radius: 999px; font-size: 18px; font-weight: 700">Bild auswählen</button>
+</div>
+</sc-if>
+<input type="file" id="rg-file" accept="image/*" onChange="{{onFile}}" style="display: none">
+
+<sc-if value="{{hasFound}}" hint-placeholder-val="{{ false }}">
+<div style="margin: 14px 20px 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto">
+<div style="background: #fff; border-radius: 28px; padding: 14px; display: grid; place-items: center">
+<img class="rg-code" alt="Gescannter Barcode" src="{{foundImg}}" style="max-width: 100%; max-height: 190px">
+</div>
+<sc-if value="{{hasInfo}}" hint-placeholder-val="{{ true }}"><div style="font-size: 14px; line-height: 1.4; font-weight: 600; color: #4A4747; padding: 0 6px">{{info}}</div></sc-if>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{types}}" as="c" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+<label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 10px 20px 8px; display: flex; flex-direction: column; font-size: 13px; font-weight: 600; color: #4A4747">Name
+<input type="text" value="{{fName}}" onInput="{{setName}}" placeholder="z. B. BahnCard 25" autocomplete="off" style="border: 0; padding: 0; min-height: 34px; font-size: 20px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box"></label>
+<label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 10px 20px 8px; display: flex; flex-direction: column; font-size: 13px; font-weight: 600; color: #4A4747">Gültig bis
+<input type="date" value="{{fValid}}" onInput="{{setValid}}" style="border: 0; padding: 0; min-height: 34px; font-size: 20px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box"></label>
+<div style="display: flex; gap: 10px; padding-bottom: 20px">
+<button type="button" onClick="{{again}}" style="min-height: 64px; padding: 0 22px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 700; color: #1C1A1A">Neu</button>
+<button type="button" aria-disabled="{{notSavable}}" onClick="{{save}}" style="{{saveStyle}}">Ticket speichern</button>
+</div>
+</div>
+</sc-if>
+
+<div style="flex: 1"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mode: 'scan', perm: false, camHint: 'Barcode in den Rahmen halten', camError: '', found: null, type: 'dt', name: 'Deutschlandticket', valid: '', info: '', diag: '', last: '' };
+    this.state.diag = 'Stand ' + ((window.RegoCode && window.RegoCode.build) || '?') + ' · Eigener Leser: QR, Aztec';
+  }
+  onDestroy() { window.RLOG && RLOG('Scan onDestroy'); this._stopCam(); }
+  _stopCam() {
+    if (this._stream || this._scan) window.RLOG && RLOG('Kamera stopp');
+    clearInterval(this._scan);
+    if (this._stream) { this._stream.getTracks().forEach((tr) => tr.stop()); this._stream = null; }
+  }
+  _b64(bytes) { let t = ''; for (let i = 0; i < bytes.length; i += 4096) t += String.fromCharCode.apply(null, bytes.slice(i, i + 4096)); return btoa(t); }
+  // Bild auf eine Zeichenfläche holen (höchstens max Pixel an der langen Seite) und die Pixel auslesen
+  _grab(source, w, h, max) {
+    const k = Math.min(1, max / Math.max(w, h, 1));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(source, 0, 0, c.width, c.height);
+    return { canvas: c, img: g.getImageData(0, 0, c.width, c.height) };
+  }
+  // Zuschnitt um den Code samt weißem Rand, damit er später wieder lesbar ist
+  _crop(source, w, h, box) {
+    if (!box || !(box.width > 0)) return this._whole(source, w, h);
+    const m = Math.max(24, Math.round(Math.max(box.width, box.height) * 0.12));
+    const x = Math.max(0, Math.floor(box.x - m)), y = Math.max(0, Math.floor(box.y - m));
+    const cw = Math.min(w - x, Math.ceil(box.width + 2 * m)), ch = Math.min(h - y, Math.ceil(box.height + 2 * m));
+    const k = Math.min(1, 700 / Math.max(cw, ch));
+    const c = document.createElement('canvas'); c.width = Math.round(cw * k); c.height = Math.round(ch * k);
+    c.getContext('2d').drawImage(source, x, y, cw, ch, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/png');
+    return url.length > 64 ? url : this._whole(source, w, h);
+  }
+  _whole(source, w, h) {
+    const c = document.createElement('canvas'); const k = Math.min(1, 900 / Math.max(w, h, 1));
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.9);
+  }
+  _found(image, fmt, bytes, note) {
+    window.RLOG && RLOG('gefunden ' + (fmt || '-') + ' ' + (bytes ? bytes.length : 0) + 'B, bild ' + (image ? image.length : 0));
+    this._stopCam();
+    this.state.last = ' · Letzter Scan: ' + (fmt || 'ohne Code') + (bytes ? ', ' + bytes.length + ' Byte' : '');
+    const tok = (this._tok = (this._tok || 0) + 1);
+    this.setState({ found: { image, fmt, raw: bytes ? this._b64(bytes) : '', code: null }, camError: '', info: bytes ? 'Code wird gelesen …' : (note || 'Im Bild wurde kein Code erkannt. Das Foto wird unverändert gespeichert, bitte Typ und Datum selbst eintragen.') });
+    if (bytes) this._read(tok, bytes, fmt);
+  }
+  async _read(tok, raw, fmt) {
+    const RC = window.RegoCode;
+    let p = { kind: 'opaque' }, code = null;
+    try { p = await RC.parseTicket(raw); } catch (e) {}
+    try { code = await RC.regenerate(raw, fmt); } catch (e) {}
+    window.RLOG && RLOG('gelesen: ' + p.kind + ', neu gezeichnet: ' + (code ? 'ja' : 'nein'));
+    if (tok !== this._tok || !this.state.found) { window.RLOG && RLOG('Ergebnis verworfen'); return; }
+    const fmtDate = (iso) => iso.slice(8) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4);
+    const patch = {};
+    const parts = [];
+    if (p.type) { patch.type = p.type; patch.name = p.name; }
+    if (p.validUntil) patch.valid = p.validUntil;
+    if (p.kind === 'data' && p.validUntil) parts.push('Aus dem Code gelesen: ' + (p.name || 'Ticket') + ', gültig bis ' + fmtDate(p.validUntil) + '.');
+    else if (p.kind === 'data') parts.push((p.name || 'Ticket') + ' erkannt. Die Gültigkeit steht nicht lesbar im Code, bitte prüfen.');
+    else if (p.kind === 'link') parts.push('Dieser Code enthält nur einen Link, keine Ticketdaten. Typ und Datum bitte selbst eintragen.');
+    else parts.push('Der Code ist verschlüsselt, Typ und Gültigkeit lassen sich daraus nicht lesen. Bitte selbst eintragen.');
+    if (!p.validUntil && (patch.type || this.state.type) === 'dt') {
+      const n = new Date(), last = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+      patch.valid = last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0') + '-' + String(last.getDate()).padStart(2, '0');
+      parts.push('Datum auf Monatsende vorgeschlagen.');
+    }
+    parts.push(code ? 'Der Code wurde neu gezeichnet und gegengelesen.' : 'Neu zeichnen war nicht sicher möglich, das Original bleibt erhalten.');
+    this.setState(Object.assign(patch, { info: parts.join(' '), found: Object.assign({}, this.state.found, { code: code ? code.image : null }) }));
+  }
+  async _startCam() {
+    window.RLOG && RLOG('Kamera start');
+    this.setState({ perm: true, mode: 'scan', camError: '' });
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('secure');
+      this._stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      await new Promise((r) => setTimeout(r, 60));
+      const v = document.getElementById('rg-video');
+      if (!v) { this._stopCam(); return; }
+      v.srcObject = this._stream; await v.play().catch(() => {});
+      this._errs = 0; this._busy = false;
+      this._scan = setInterval(async () => {
+        if (!v.videoWidth || v.readyState < 2 || this._busy || this.state.found) return;
+        this._busy = true;
+        try {
+          const g = this._grab(v, v.videoWidth, v.videoHeight, 1024);
+          const r = await window.RegoScan.decode(g.img, { formats: ['qr_code', 'aztec'], scales: [1] });
+          this._errs = 0;
+          if (r && this._scan && !this.state.found) this._found(this._crop(g.canvas, g.canvas.width, g.canvas.height, r.box), r.format, r.bytes);
+        } catch (e) {
+          this._errs++;
+          window.RLOG && RLOG('Scan-Fehler ' + (e && e.message));
+          if (this._errs >= 5) { this._stopCam(); this.setState({ perm: false, camError: 'Das Lesen der Kamerabilder klappt auf diesem Handy nicht. Wähle bitte ein Foto oder einen Screenshot.' }); }
+        }
+        this._busy = false;
+      }, 250);
+    } catch (e) {
+      this._stopCam();
+      const msg = e && e.message === 'secure' ? 'Die Kamera geht nur über eine sichere Verbindung (https).'
+        : e && e.name === 'NotAllowedError' ? 'Kamera ist nicht erlaubt. Du kannst es in den Browser-Einstellungen freigeben.' : 'Die Kamera lässt sich gerade nicht starten.';
+      window.RLOG && RLOG('Kamera-Fehler ' + (e && (e.name || e.message)));
+      this.setState({ perm: false, camError: msg });
+    }
+  }
+  async _fromFile(file) {
+    if (!file) return;
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch (e) { window.RLOG && RLOG('Bild nicht lesbar ' + (e && e.message)); this.setState({ camError: 'Dieses Bild lässt sich nicht lesen.' }); return; }
+    this.setState({ info: 'Bild wird gelesen …' });
+    let image = null, bytes = null, fmt = '', note = '';
+    try {
+      const g = this._grab(bmp, bmp.width, bmp.height, 1800);
+      const t0 = Date.now();
+      let r = await window.RegoScan.decode(g.img, { formats: ['qr_code', 'aztec'], scales: Math.max(g.img.width, g.img.height) <= 1000 ? [1, 2] : [1] });
+      if (!r && Math.max(g.img.width, g.img.height) > 1000) {   // zweiter Versuch mit kleinerem Bild
+        const g2 = this._grab(bmp, bmp.width, bmp.height, 1000);
+        r = await window.RegoScan.decode(g2.img, { formats: ['qr_code', 'aztec'], scales: [1, 2] });
+        if (r) { const k = g.canvas.width / g2.canvas.width; r.box = { x: r.box.x * k, y: r.box.y * k, width: r.box.width * k, height: r.box.height * k }; }
+      }
+      window.RLOG && RLOG('Foto gelesen in ' + (Date.now() - t0) + ' ms: ' + (r ? r.format + ' ' + r.bytes.length + 'B' : 'kein Code'));
+      if (r) { image = this._crop(g.canvas, g.canvas.width, g.canvas.height, r.box); bytes = r.bytes; fmt = r.format; }
+      else { image = this._whole(g.canvas, g.canvas.width, g.canvas.height); note = 'In diesem Foto wurde kein QR- oder Aztec-Code gefunden. Das Foto wird gespeichert, bitte Typ und Datum selbst eintragen. Tipp: näher ran, scharf und ohne Spiegelung.'; }
+    } catch (e) {
+      window.RLOG && RLOG('Foto-Fehler ' + (e && e.message));
+      image = this._whole(bmp, bmp.width, bmp.height); note = 'Beim Lesen ist ein Fehler aufgetreten. Das Foto wird gespeichert, bitte Typ und Datum selbst eintragen.';
+    }
+    this._found(image, fmt, bytes, note);
+  }
+  renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
+  _rv() {
+    const st = this.state, m = st.mode;
+    const pill = (on) => 'flex: 1; min-height: 52px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (on ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A');
+    const chip = (on) => 'min-height: 48px; padding: 0 18px; border: 1.5px solid ' + (on ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 24px; font-size: 16px; font-weight: 700; ' + (on ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A');
+    const types = [['dt', 'Deutschlandticket'], ['kt', 'KlimaTicket'], ['other', 'Anderes']].map((o) => ({
+      label: o[1], on: st.type === o[0], style: chip(st.type === o[0]),
+      pick: () => this.setState({ type: o[0], name: o[0] === 'other' ? '' : o[1] })
+    }));
+    const ok = st.name.trim() !== '' && st.valid !== '';
+    const val = (e) => (e && e.target ? e.target.value : '');
+    const found = !!st.found;
+    return {
+      noFound: !found, hasFound: found, foundImg: found ? (st.found.code || st.found.image) : '', info: st.info, hasInfo: !!(found && st.info),
+      isScan: m === 'scan', isWallet: m === 'photo', isPhoto: m === 'photo' && !found,
+      askCam: m === 'scan' && !st.perm && !st.camError && !found, showCam: m === 'scan' && st.perm && !found,
+      camError: found ? '' : st.camError, camHint: st.camHint,
+      allowCam: () => this._startCam(),
+      scanStyle: pill(m === 'scan'), walletStyle: pill(m === 'photo'),
+      showScan: () => { this._stopCam(); this.setState({ mode: 'scan', perm: false, camError: '' }); },
+      showPhoto: () => { this._stopCam(); this.setState({ mode: 'photo', perm: false, camError: '' }); },
+      pickFile: () => { const f = document.getElementById('rg-file'); if (f) f.click(); },
+      onFile: (e) => { const f = e && e.target && e.target.files && e.target.files[0]; this._fromFile(f); if (e && e.target) e.target.value = ''; },
+      types, fName: st.name, fValid: st.valid,
+      setName: (e) => this.setState({ name: val(e) }), setValid: (e) => this.setState({ valid: val(e) }),
+      again: () => { this._tok = (this._tok || 0) + 1; this.setState({ found: null, perm: false, camError: '', info: '' }); },
+      notSavable: !ok,
+      saveStyle: 'flex: 1; min-height: 64px; border: 0; border-radius: 999px; font-size: 18px; font-weight: 700; ' + (ok ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
+      save: () => {
+        if (!ok) return;
+        const [y, mo, d] = st.valid.split('-');
+        window.REGO.actions.saveTicket({ slot: st.type === 'other' ? null : st.type, name: st.name.trim(), validUntil: d + '.' + mo + '.' + y, image: st.found.code || st.found.image, original: st.found.code ? st.found.image : '', payload: st.found.raw, format: st.found.fmt });
+        window.REGO.navigate('/Ticket#neu');
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

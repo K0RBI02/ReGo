@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Meine Strecken</title>
+<script src="./support.js"></script>
+<script src="./rego-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+button,input{font-family:inherit}
+button{cursor:pointer}
+a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
+a:active,button:active{transform:scale(.97)}
+.rg-row{border:0;border-bottom:1.5px solid #E3E3E3}
+@keyframes rg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rg-down{from{transform:translateY(-100%)}to{transform:none}}
+@keyframes rg-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+[role=status]{animation:rg-down .35s ease-out}
+.rg-in{animation:rg-in .45s ease-out both}
+.rg-toast{animation:rg-up .3s ease-out both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/*rg-dark-start*/
+@media (prefers-color-scheme: dark){html{color-scheme:dark}
+[style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+[style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+[style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+[style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+[style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+[style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+[style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+[style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+[style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+[style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+[style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+[style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+[style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+[style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+[style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+[style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+[style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+.rg-skel{background:#2A2A2A !important}
+.rg-row{border-bottom-color:#333333 !important}
+svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+svg[stroke="#fff"]{stroke:#121212 !important}
+svg[stroke="#fff"] *{stroke:#121212 !important}
+input{color-scheme:dark !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+}
+html.rg-dark{color-scheme:dark}
+html.rg-dark [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+html.rg-dark [style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+html.rg-dark [style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+html.rg-dark [style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+html.rg-dark [style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+html.rg-dark [style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+html.rg-dark [style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+html.rg-dark [style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+html.rg-dark .rg-skel{background:#2A2A2A !important}
+html.rg-dark .rg-row{border-bottom-color:#333333 !important}
+html.rg-dark svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+html.rg-dark svg[stroke="#fff"]{stroke:#121212 !important}
+html.rg-dark svg[stroke="#fff"] *{stroke:#121212 !important}
+html.rg-dark input{color-scheme:dark !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+/*rg-dark-end*/
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F7F7F7; color: #1C1A1A; font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden; position: relative">
+<sc-if value="{{offline}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="flex: none; min-height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 700"><span>{{bannerLabel}}</span><span style="opacity: 0.5">|</span><span>Stand: {{offlineSince}}</span></div>
+</sc-if>
+
+<header class="rg-top" style="padding: 16px 20px 0">
+<a href="Main.dc.html" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
+Zurück</a>
+</header>
+
+<sc-if value="{{notAdding}}" hint-placeholder-val="{{ true }}">
+<div class="rg-dockpad rg-under" style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 12px; display: flex; flex-direction: column; gap: 12px">
+<h1 style="margin: 0 0 4px; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Meine<br>Strecken</h1>
+
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+<div class="rg-in" style="background: #EAF6CF; border-radius: 28px; padding: 22px 20px; display: flex; align-items: center; gap: 12px">
+<span style="font-size: 17px; font-weight: 600; line-height: 1.35; flex: 1">Keine Strecken gespeichert. Füge deine erste Pendelstrecke hinzu.</span>
+<svg width="84" height="80" viewBox="0 0 200 190" fill="none" stroke="#1C1A1A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M40 156C72 130 56 96 98 104S150 82 158 56" stroke-dasharray="1 15"></path><path d="M36 176c-12-11-21-21-21-34 0-12 9-20 21-20s21 8 21 20c0 13-9 23-21 34z" fill="#fff"></path><path d="M160 70c-12-11-21-21-21-34 0-12 9-20 21-20s21 8 21 20c0 13-9 23-21 34z" fill="#1C1A1A"></path></svg>
+</div>
+</sc-if>
+
+<sc-for list="{{routes}}" as="r" hint-placeholder-count="3">
+<div style="background: #fff; border-radius: 28px; display: flex; align-items: stretch">
+<div style="flex: 1; min-width: 0; padding: 14px 8px 8px 20px; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 14px; font-weight: 600; color: #4A4747">{{r.when}}</span>
+<span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{r.name}}</span>
+<span style="display: flex; align-items: center; gap: 10px; padding-top: 2px">
+<span style="{{r.chipStyle}}">{{r.line}}</span>
+<button type="button" onClick="{{r.remove}}" aria-label="{{r.removeLabel}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 15px; font-weight: 600; color: #4A4747; text-decoration: underline">Entfernen</button>
+</span>
+</div>
+<div style="width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px 8px 0">
+<button type="button" role="switch" aria-checked="{{r.on}}" aria-label="{{r.label}}" onClick="{{r.toggle}}" style="{{r.switchStyle}}"><span style="{{r.knobStyle}}"></span></button>
+<span style="font-size: 14px; font-weight: 700">{{r.state}}</span>
+</div>
+</div>
+</sc-for>
+<div style="font-size: 15px; font-weight: 600; color: #4A4747; line-height: 1.35; padding: 0 4px">Pendel-Push kommt nur für Strecken, die an sind. Im Urlaub einfach ausschalten.</div>
+
+<div style="background: #fff; border-radius: 28px; padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 17px; font-weight: 700">Push ab Verspätung von</span>
+<div style="display: flex; gap: 8px">
+<sc-for list="{{pushChips}}" as="c" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="padding: 0 4px; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? Melde dich bei Korbi<sc-if value="{{hasContact}}" hint-placeholder-val="{{ false }}"> unter <a href="{{contactHref}}" style="color: #1C1A1A; font-weight: 700; text-decoration: underline">{{contact}}</a></sc-if>.</div>
+
+</div>
+
+<div class="rg-dock" style="padding: 0 20px 28px">
+<button type="button" onClick="{{openAdd}}" style="width: 100%; min-height: 72px; background: #1C1A1A; color: #fff; border: 0; border-radius: 999px; font-size: 21px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 12px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+Strecke hinzufügen</button>
+</div>
+</sc-if>
+
+<sc-if value="{{adding}}" hint-placeholder-val="{{ false }}">
+<div class="rg-dockpad rg-under" style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 12px; display: flex; flex-direction: column; gap: 12px">
+<h1 style="margin: 0 0 4px; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Neue<br>Strecke</h1>
+<div style="position: relative">
+<label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 12px 20px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 14px; font-weight: 600; color: #4A4747">Von
+<input type="text" value="{{from}}" onInput="{{setFrom}}" autocomplete="off" style="border: 0; padding: 0; min-height: 36px; font-size: 24px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box">
+</label>
+<sc-if value="{{showSugFrom}}" hint-placeholder-val="{{ false }}">
+<div role="listbox" aria-label="Haltestellen" style="position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); padding: 4px 14px; overflow: hidden">
+<sc-for list="{{sug}}" as="q" hint-placeholder-count="3">
+<button type="button" role="option" class="rg-row" onClick="{{q.pick}}" style="min-height: 52px; background: transparent; text-align: left; padding: 0 6px; font-size: 19px; font-weight: 700; color: #1C1A1A; display: flex; align-items: center; justify-content: space-between"><span>{{q.name}}</span><span style="font-size: 13px; font-weight: 700; color: #4A4747">{{q.region}}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="position: relative">
+<label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 12px 20px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 14px; font-weight: 600; color: #4A4747">Nach
+<input type="text" value="{{to}}" onInput="{{setTo}}" autocomplete="off" style="border: 0; padding: 0; min-height: 36px; font-size: 24px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box">
+</label>
+<sc-if value="{{showSugTo}}" hint-placeholder-val="{{ false }}">
+<div role="listbox" aria-label="Haltestellen" style="position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); padding: 4px 14px; overflow: hidden">
+<sc-for list="{{sug}}" as="q" hint-placeholder-count="3">
+<button type="button" role="option" class="rg-row" onClick="{{q.pick}}" style="min-height: 52px; background: transparent; text-align: left; padding: 0 6px; font-size: 19px; font-weight: 700; color: #1C1A1A; display: flex; align-items: center; justify-content: space-between"><span>{{q.name}}</span><span style="font-size: 13px; font-weight: 700; color: #4A4747">{{q.region}}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 14px; font-weight: 600; color: #4A4747">Tage</span><span style="display: flex; gap: 4px"><button type="button" onClick="{{daysWork}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Mo–Fr</button><button type="button" onClick="{{daysAll}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Täglich</button></span></div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{days}}" as="d" hint-placeholder-count="7">
+<button type="button" aria-pressed="{{d.on}}" onClick="{{d.toggle}}" style="{{d.style}}">{{d.label}}</button>
+</sc-for>
+</div>
+</div>
+<label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600">Abfahrt ab
+<input type="time" value="{{time}}" onInput="{{setTime}}" style="min-height: 52px; border: 0; padding: 0; font-size: 28px; font-weight: 700; background: transparent; color: #1C1A1A">
+</label>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 14px; font-weight: 600; color: #4A4747">Pendelst du auch zurück?</div>
+<div style="padding: 5px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; display: flex; gap: 4px">
+<sc-for list="{{tripOpts}}" as="o" hint-placeholder-count="2">
+<button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{both}}" hint-placeholder-val="{{ true }}">
+<label style="background: #FDE3CF; border-radius: 24px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600">Rückweg ab
+<input type="time" value="{{backTime}}" onInput="{{setBackTime}}" style="min-height: 52px; border: 0; padding: 0; font-size: 28px; font-weight: 700; background: transparent; color: #1C1A1A">
+</label>
+</sc-if>
+</div>
+<div class="rg-dock" style="padding: 0 20px 28px; display: flex; gap: 10px">
+<button type="button" onClick="{{cancelAdd}}" style="flex: 1; min-height: 72px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; border-radius: 999px; font-size: 19px; font-weight: 700">Abbrechen</button>
+<button type="button" onClick="{{saveAdd}}" aria-disabled="{{saveBlocked}}" style="{{saveStyle}}">Speichern</button>
+</div>
+</sc-if>
+<sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
+<div class="rg-toast" role="status" style="position: absolute; left: 20px; right: 20px; bottom: 112px; min-height: 56px; background: #1C1A1A; color: #fff; border-radius: 999px; padding: 0 8px 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 600; animation: rg-up .3s ease-out both">
+<span>{{toast}}</span>
+<button type="button" onClick="{{undo}}" style="{{undoStyle}}">Rückgängig</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      list: this._fromRego(),
+      adding: false, from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
+      days: [true, true, true, true, true, false, false],
+      trip: 'both', backTime: '16:30', toast: '', prev: null, focus: ''
+    };
+  }
+  _fromRego() {
+    const R = window.REGO, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    return R.tours.map((t) => {
+      const d = t.schedule.days, work = d.length === 5 && names.slice(0, 5).every((n) => d.includes(n));
+      const L = R.lines[t.lineId];
+      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ab ' + t.schedule.departAfter, name: t.name, line: L.label, color: L.color, on: t.active };
+    });
+  }
+  onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
+  flash(msg, prev) {
+    clearTimeout(this._tm);
+    this.setState({ toast: msg, prev: prev || null });
+    this._tm = setTimeout(() => this.setState({ toast: '', prev: null }), 4500);
+  }
+  renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
+  _rv() {
+    const st = this.state;
+    const names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const routes = st.list.map((d, i) => ({
+      when: d.when, name: d.name, line: d.line,
+      chipStyle: d.line ? 'min-width: 36px; height: 34px; padding: 0 10px; border-radius: 17px; background: ' + d.color + '; color: #fff; display: inline-grid; place-items: center; font-size: 15px; font-weight: 700; box-sizing: border-box' : 'display: none',
+      on: d.on, state: d.on ? 'An' : 'Aus',
+      label: 'Warnungen für ' + d.name,
+      removeLabel: d.name + ' entfernen',
+      switchStyle: 'width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (d.on ? 'flex-end' : 'flex-start') + '; background: ' + (d.on ? '#1C1A1A' : '#DCDCDC'),
+      knobStyle: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
+      toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => this.flash('Nicht gespeichert – keine Verbindung', null)); },
+      remove: () => { this.setState({ list: st.list.filter((x, j) => j !== i) }); this.flash('Strecke entfernt', st.list); window.REGO.actions.removeTour(d.id).catch(() => this.flash('Nicht gespeichert – keine Verbindung', null)); }
+    }));
+    const days = names.map((n, i) => ({
+      label: n, on: st.days[i],
+      style: 'min-height: 52px; border: 1.5px solid ' + (st.days[i] ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; padding: 0; font-size: 15px; font-weight: 700; ' + (st.days[i] ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
+      toggle: () => this.setState({ days: st.days.map((x, j) => j === i ? !x : x) })
+    }));
+    const val = (e) => (e && e.target ? e.target.value : '');
+    const T = window.REGO;
+    const valid = T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
+    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => this.setState({ [st.focus]: q.name, focus: '' }) })) : [];
+    const pushChips = [3, 5, 10].map((v) => ({
+      label: v + ' Min.', on: st.threshold === v,
+      style: 'flex: 1; min-height: 52px; border: 1.5px solid ' + (st.threshold === v ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; font-size: 16px; font-weight: 700; ' + (st.threshold === v ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
+      pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => (window.REGO.position ? Promise.resolve() : window.REGO.requestPosition())).then(() => window.REGO.actions.enablePush().then(() => this.flash('Push aktiv ab ' + v + ' Min.', null), (e) => this.flash('Gespeichert. ' + (e && e.message ? e.message : 'Push nicht möglich'), null)), () => this.flash('Nicht gespeichert – keine Verbindung', null)); }
+    }));
+    return {
+      tripOpts: [['one', 'Nur Hinweg'], ['both', 'Hin und zurück']].map((o) => ({
+        label: o[1], on: st.trip === o[0],
+        style: 'flex: 1; min-height: 52px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (st.trip === o[0] ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A'),
+        pick: () => this.setState({ trip: o[0] })
+      })),
+      both: st.trip === 'both', backTime: st.backTime, setBackTime: (e) => this.setState({ backTime: val(e) }),
+      toast: st.toast, undo: () => { if (st.prev) { this.setState({ list: st.prev }); window.REGO.actions.undoRemove().catch(() => {}); } clearTimeout(this._tm); this.setState({ toast: '', prev: null }); },
+      undoStyle: 'min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; font-size: 15px; font-weight: 700' + (st.prev ? '' : '; display: none'),
+      sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
+      daysWork: () => this.setState({ days: [true, true, true, true, true, false, false] }),
+      daysAll: () => this.setState({ days: [true, true, true, true, true, true, true] }),
+      saveBlocked: !valid,
+      saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
+      hasContact: !!window.REGO.contact, contact: window.REGO.contact || '', contactHref: /@/.test(window.REGO.contact || '') ? 'mailto:' + window.REGO.contact : (window.REGO.contact || '#'),
+      pushChips, routes, days, empty: st.list.length === 0,
+      adding: st.adding, notAdding: !st.adding,
+      from: st.from, to: st.to, time: st.time,
+      setFrom: (e) => this.setState({ from: val(e), focus: 'from' }),
+      setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
+      setTime: (e) => this.setState({ time: val(e) }),
+      openAdd: () => this.setState({ adding: true, focus: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
+      cancelAdd: () => this.setState({ adding: false }),
+      saveAdd: () => {
+        if (!valid) return;
+        const from = st.from.trim(), to = st.to.trim();
+        const sel = names.filter((n, i) => st.days[i]);
+        if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
+        window.REGO.actions.addTour({ from, to, days: sel, time: st.time, trip: st.trip, backTime: st.backTime }).then(
+          () => { this.setState({ adding: false, list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
+          (e) => this.flash(e && e.message ? e.message : 'Nicht gespeichert', null)
+        );
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

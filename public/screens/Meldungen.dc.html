@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Meldungen</title>
+<script src="./support.js"></script>
+<script src="./rego-data.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
+a:active,button:active{transform:scale(.97)}
+@keyframes rg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rg-down{from{transform:translateY(-100%)}to{transform:none}}
+@keyframes rg-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+[role=status]{animation:rg-down .35s ease-out}
+.rg-in{animation:rg-in .45s ease-out both}
+.rg-toast{animation:rg-up .3s ease-out both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/*rg-dark-start*/
+@media (prefers-color-scheme: dark){html{color-scheme:dark}
+[style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+[style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+[style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+[style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+[style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+[style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+[style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+[style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+[style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+[style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+[style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+[style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+[style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+[style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+[style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+[style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+[style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+[style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+.rg-skel{background:#2A2A2A !important}
+.rg-row{border-bottom-color:#333333 !important}
+svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+svg[stroke="#fff"]{stroke:#121212 !important}
+svg[stroke="#fff"] *{stroke:#121212 !important}
+input{color-scheme:dark !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+:is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+}
+html.rg-dark{color-scheme:dark}
+html.rg-dark [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#121212 !important}
+html.rg-dark [style*="background: rgb(255, 255, 255)"]{background:#1F1F1F !important}
+html.rg-dark [style*="color: rgb(28, 26, 26)"]{color:#F2F2F2 !important}
+html.rg-dark [style*="color: rgb(74, 71, 71)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(58, 55, 55)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(90, 84, 72)"]{color:#B4B4B4 !important}
+html.rg-dark [style*="color: rgb(74, 90, 98)"]{color:#A9B6BC !important}
+html.rg-dark [style*="background: rgb(28, 26, 26)"]{background:#F2F2F2 !important;color:#121212 !important}
+html.rg-dark [style*="height: 400px; background: rgb(28, 26, 26)"]{background:#000 !important;color:#fff !important}
+html.rg-dark [style*="solid rgb(232, 232, 232)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(227, 227, 227)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
+html.rg-dark [style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
+html.rg-dark [style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
+html.rg-dark [style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
+html.rg-dark .rg-skel{background:#2A2A2A !important}
+html.rg-dark .rg-row{border-bottom-color:#333333 !important}
+html.rg-dark svg[stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [stroke="#1C1A1A"]{stroke:#F2F2F2 !important}
+html.rg-dark svg [fill="#1C1A1A"]{fill:#F2F2F2 !important}
+html.rg-dark svg[stroke="#fff"]{stroke:#121212 !important}
+html.rg-dark svg[stroke="#fff"] *{stroke:#121212 !important}
+html.rg-dark input{color-scheme:dark !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]){color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(28, 26, 26)"]{color:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(74, 71, 71)"]{color:#4A4747 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="color: rgb(90, 84, 72)"]{color:#5A5448 !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="background: rgb(28, 26, 26)"]{background:#1C1A1A !important;color:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [stroke="#1C1A1A"]{stroke:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg [fill="#1C1A1A"]{fill:#1C1A1A !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"]{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) svg[stroke="#fff"] *{stroke:#fff !important}
+html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
+html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+/*rg-dark-end*/
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F7F7F7; color: #1C1A1A; font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden">
+<sc-if value="{{offline}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="flex: none; min-height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 700"><span>{{bannerLabel}}</span><span style="opacity: 0.5">|</span><span>Stand: {{offlineSince}}</span></div>
+</sc-if>
+
+<header style="padding: 16px 12px 0 20px; display: flex; align-items: center; justify-content: space-between">
+<a href="Main.dc.html" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
+Zurück</a>
+<a href="Strecken.dc.html" aria-label="Menü" style="width: 52px; height: 52px; display: grid; place-items: center">
+<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 9h22M5 16h22M5 23h22"></path></svg>
+</a>
+</header>
+
+<div style="padding: 12px 20px 0">
+<h1 style="margin: 0; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Meldungen</h1>
+<div style="margin-top: 8px; font-size: 15px; font-weight: 600; color: #4A4747">Nur deine Strecken · nach Nähe sortiert</div>
+</div>
+
+<div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 12px">
+
+<sc-for list="{{items}}" as="n" hint-placeholder-count="3">
+<a class="rg-in" href="{{n.href}}" style="{{n.style}}">
+<span style="display: flex; flex-direction: column; gap: 3px">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{n.icon1}}"></path><path d="{{n.icon2}}"></path></svg>{{n.category}}</span>
+<span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{n.title}}</span>
+<span style="font-size: 15px; font-weight: 600">{{n.summary}}</span>
+</span>
+<span style="font-size: 36px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{n.delay}}</span>
+</a>
+</sc-for>
+
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+<div class="rg-in" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 0 20px">
+<svg width="150" height="150" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 6a18 18 0 1 0 .01 0z" fill="#EAF6CF"></path><path d="M14 25l8 8 14-17" stroke-width="2.6"></path></svg>
+<span style="font-size: 28px; line-height: 1.05; font-weight: 700; letter-spacing: -0.04em">Alles ruhig</span>
+<span style="font-size: 17px; font-weight: 500; line-height: 1.35; color: #4A4747">Keine Meldungen auf deinen Strecken.</span>
+</div>
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = {}; }
+  renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
+  _rv() {
+    const T = window.REGO;
+    const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
+    const tours = T.tours.filter((t) => t.active);
+    const items = T.incidents
+      .map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) }))
+      .filter((x) => x.t && T.isVisible(x.i))
+      .sort((a, b) => ((a.t.distanceKm ?? 0) - (b.t.distanceKm ?? 0)) || b.i.severity - a.i.severity)
+      .map(({ i, t }) => {
+        const k = T.theme.kinds[i.kind];
+        return {
+          href: 'Detail.dc.html#' + i.id + '-l',
+          style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 112px',
+          icon1: k.icon[0], icon2: k.icon[1],
+          category: k.label + ' · ' + i.validity.label,
+          title: i.title, summary: i.summary + (t.distanceKm == null ? '' : ' · ' + km(t.distanceKm)),
+          delay: '+' + i.delayMin + ' Min.'
+        };
+      });
+    return { items, empty: items.length === 0 };
+  }
+}
+</script>
+</body>
+</html>

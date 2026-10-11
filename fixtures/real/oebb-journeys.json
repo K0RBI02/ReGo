@@ -1,0 +1,738 @@
+[
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RJX19915",
+          "product": "nationalExpress"
+        },
+        "direction": "Budapest-Keleti",
+        "origin": {
+          "id": "8100002",
+          "name": "Salzburg Hbf",
+          "lat": 47.813057,
+          "lon": 13.045856,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "destination": {
+          "id": "8103000",
+          "name": "Wien Hbf (Bahnsteige 3-12)",
+          "lat": 48.184986,
+          "lon": 16.37795,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "plannedDep": "2026-10-10T16:07:00+02:00",
+        "dep": "2026-10-10T16:39:00+02:00",
+        "depDelay": 32,
+        "plannedArr": "2026-10-10T18:32:00+02:00",
+        "arr": "2026-10-10T18:49:00+02:00",
+        "arrDelay": 17,
+        "plannedPlatform": "4",
+        "platform": "4",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791539413#PI#0#ZI#76181#TA#0#DA#101026#1S#8100090#1T#1111#LS#5500003#LT#2135#PU#81#RT#1#CA#RJX#ZE#19915#ZB#RJX19915#PC#0#FR#8100090#FT#1111#TO#5500003#TT#2135#",
+        "stopovers": [
+          {
+            "id": "8100002",
+            "name": "Salzburg Hbf",
+            "lat": 47.813057,
+            "lon": 13.045856,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100013",
+            "name": "Linz/Donau Hbf",
+            "lat": 48.290241,
+            "lon": 14.29186,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100008",
+            "name": "St.Pölten Hbf",
+            "lat": 48.208277,
+            "lon": 15.624681,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100514",
+            "name": "Wien Meidling Bahnhof",
+            "lat": 48.174532,
+            "lon": 16.333966,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8103000",
+            "name": "Wien Hbf (Bahnsteige 3-12)",
+            "lat": 48.184986,
+            "lon": 16.37795,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          }
+        ],
+        "remarks": [
+          {
+            "type": "warning",
+            "code": "",
+            "priority": 100,
+            "summary": "ACHTUNG: Starker Reisetag/Mitfahrt nur mit Sitzplatzreservierung gesichert",
+            "text": "RJX19915: Für diesen Zug erwarten wir eine sehr hohe Auslastung. Die Mitfahrt kann daher nur mit einer Sitzplatzreservierung garantiert werden.",
+            "validFrom": "2025-12-14T00:00:00+01:00",
+            "validUntil": "2026-12-12T23:59:00+01:00"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RJX13479",
+          "product": "nationalExpress"
+        },
+        "direction": "Flughafen Wien",
+        "origin": {
+          "id": "8100002",
+          "name": "Salzburg Hbf",
+          "lat": 47.813057,
+          "lon": 13.045856,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "destination": {
+          "id": "8103000",
+          "name": "Wien Hbf (Bahnsteige 3-12)",
+          "lat": 48.184986,
+          "lon": 16.37795,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "plannedDep": "2026-10-10T17:07:00+02:00",
+        "dep": "2026-10-10T17:15:00+02:00",
+        "depDelay": 8,
+        "plannedArr": "2026-10-10T19:32:00+02:00",
+        "arr": "2026-10-10T19:32:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "4C-F",
+        "platform": "4",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791539413#PI#0#ZI#73208#TA#0#DA#101026#1S#8503000#1T#1032#LS#8100353#LT#1957#PU#81#RT#1#CA#RJX#ZE#13479#ZB#RJX13479#PC#0#FR#8503000#FT#1032#TO#8100353#TT#1957#",
+        "stopovers": [
+          {
+            "id": "8100002",
+            "name": "Salzburg Hbf",
+            "lat": 47.813057,
+            "lon": 13.045856,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100013",
+            "name": "Linz/Donau Hbf",
+            "lat": 48.290241,
+            "lon": 14.29186,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100008",
+            "name": "St.Pölten Hbf",
+            "lat": 48.208277,
+            "lon": 15.624681,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100514",
+            "name": "Wien Meidling Bahnhof",
+            "lat": 48.174532,
+            "lon": 16.333966,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8103000",
+            "name": "Wien Hbf (Bahnsteige 3-12)",
+            "lat": 48.184986,
+            "lon": 16.37795,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "IC 745",
+          "product": "national"
+        },
+        "direction": "Flughafen Wien",
+        "origin": {
+          "id": "8100002",
+          "name": "Salzburg Hbf",
+          "lat": 47.813057,
+          "lon": 13.045856,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "destination": {
+          "id": "8103000",
+          "name": "Wien Hbf (Bahnsteige 3-12)",
+          "lat": 48.184986,
+          "lon": 16.37795,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "plannedDep": "2026-10-10T17:11:00+02:00",
+        "dep": "2026-10-10T17:11:00+02:00",
+        "depDelay": 0,
+        "plannedArr": "2026-10-10T20:03:00+02:00",
+        "arr": "2026-10-10T20:03:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "5A-B",
+        "platform": "5A-B",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791539413#PI#0#ZI#289567#TA#1#DA#101026#1S#8100002#1T#1711#LS#8100353#LT#2027#PU#81#RT#1#CA#IC#ZE#745#ZB#IC 745  #PC#2#FR#8100002#FT#1711#TO#8100353#TT#2027#",
+        "stopovers": [
+          {
+            "id": "8100002",
+            "name": "Salzburg Hbf",
+            "lat": 47.813057,
+            "lon": 13.045856,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100134",
+            "name": "Neumarkt/Wallersee Bahnhof",
+            "lat": 47.955842,
+            "lon": 13.225964,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": false,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100507",
+            "name": "Vöcklabruck Bahnhof",
+            "lat": 48.010083,
+            "lon": 13.663783,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": false,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100017",
+            "name": "Attnang-Puchheim Bahnhof",
+            "lat": 48.012609,
+            "lon": 13.720892,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": false,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100014",
+            "name": "Wels Hbf",
+            "lat": 48.165947,
+            "lon": 14.026507,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100013",
+            "name": "Linz/Donau Hbf",
+            "lat": 48.290241,
+            "lon": 14.29186,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100009",
+            "name": "St.Valentin Bahnhof",
+            "lat": 48.178909,
+            "lon": 14.522002,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100012",
+            "name": "Amstetten NÖ Bahnhof",
+            "lat": 48.121531,
+            "lon": 14.878253,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": false,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100008",
+            "name": "St.Pölten Hbf",
+            "lat": 48.208277,
+            "lon": 15.624681,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8102059",
+            "name": "Tullnerfeld Bahnhof",
+            "lat": 48.295275,
+            "lon": 15.996529,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100514",
+            "name": "Wien Meidling Bahnhof",
+            "lat": 48.174532,
+            "lon": 16.333966,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8103000",
+            "name": "Wien Hbf (Bahnsteige 3-12)",
+            "lat": 48.184986,
+            "lon": 16.37795,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RJX19917",
+          "product": "nationalExpress"
+        },
+        "direction": "Bratislava hl.st.",
+        "origin": {
+          "id": "8100002",
+          "name": "Salzburg Hbf",
+          "lat": 47.813057,
+          "lon": 13.045856,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "destination": {
+          "id": "8103000",
+          "name": "Wien Hbf (Bahnsteige 3-12)",
+          "lat": 48.184986,
+          "lon": 16.37795,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "interregional": true,
+            "regional": true,
+            "suburban": true,
+            "bus": false,
+            "ferry": false,
+            "subway": false,
+            "tram": false,
+            "onCall": false
+          }
+        },
+        "plannedDep": "2026-10-10T18:07:00+02:00",
+        "dep": "2026-10-10T18:07:00+02:00",
+        "depDelay": 0,
+        "plannedArr": "2026-10-10T20:32:00+02:00",
+        "arr": "2026-10-10T20:32:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "4",
+        "platform": "4",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791539413#PI#0#ZI#76186#TA#0#DA#101026#1S#8100197#1T#1347#LS#5600207#LT#2151#PU#81#RT#1#CA#RJX#ZE#19917#ZB#RJX19917#PC#0#FR#8100197#FT#1347#TO#5600207#TT#2151#",
+        "stopovers": [
+          {
+            "id": "8100002",
+            "name": "Salzburg Hbf",
+            "lat": 47.813057,
+            "lon": 13.045856,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100013",
+            "name": "Linz/Donau Hbf",
+            "lat": 48.290241,
+            "lon": 14.29186,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100008",
+            "name": "St.Pölten Hbf",
+            "lat": 48.208277,
+            "lon": 15.624681,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8100514",
+            "name": "Wien Meidling Bahnhof",
+            "lat": 48.174532,
+            "lon": 16.333966,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          },
+          {
+            "id": "8103000",
+            "name": "Wien Hbf (Bahnsteige 3-12)",
+            "lat": 48.184986,
+            "lon": 16.37795,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "interregional": true,
+              "regional": true,
+              "suburban": true,
+              "bus": false,
+              "ferry": false,
+              "subway": false,
+              "tram": false,
+              "onCall": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  }
+]

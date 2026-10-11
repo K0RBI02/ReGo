@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Start 2 von 3</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+button,input{font-family:inherit}
+button{cursor:pointer}
+a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
+a:active,button:active{transform:scale(.97)}
+@keyframes rg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rg-down{from{transform:translateY(-100%)}to{transform:none}}
+@keyframes rg-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+[role=status]{animation:rg-down .35s ease-out}
+.rg-in{animation:rg-in .45s ease-out both}
+.rg-toast{animation:rg-up .3s ease-out both}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #EAF6CF; color: #1C1A1A; font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; overflow: hidden">
+
+<nav aria-label="Fortschritt" style="display: flex; gap: 8px; padding: 22px 24px 0">
+<a href="Onboarding1.dc.html" aria-label="Schritt 1 von 3" style="flex: 1; padding: 16px 0"><span style="display: block; height: 3px; background: rgba(28,26,26,0.22)"></span></a>
+<a href="Onboarding2.dc.html" aria-label="Schritt 2 von 3" style="flex: 1; padding: 16px 0"><span style="display: block; height: 3px; background: #1C1A1A"></span></a>
+<a href="Onboarding3.dc.html" aria-label="Schritt 3 von 3" style="flex: 1; padding: 16px 0"><span style="display: block; height: 3px; background: rgba(28,26,26,0.22)"></span></a>
+</nav>
+
+<h1 style="margin: 14px 24px 0; font-size: 60px; line-height: 0.95; font-weight: 700; letter-spacing: -0.05em">Dein<br>Ticket</h1>
+
+<div class="rg-illu" style="flex: 1; min-height: 0; overflow: hidden; display: grid; place-items: center">
+<svg style="max-height: 100%; max-width: 100%" width="200" height="190" viewBox="0 0 200 190" fill="none" stroke="#1C1A1A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<g transform="rotate(-12 100 100)"><path d="M32 54h136a9 9 0 0 1 9 9v74a9 9 0 0 1-9 9H32a9 9 0 0 1-9-9V63a9 9 0 0 1 9-9z" fill="#fff"></path><path d="M23 80h154v22H23z" fill="#1C1A1A"></path><path d="M40 124h42M40 134h26"></path><path d="M130 114h30v26h-30z"></path><path d="M138 122h4v4h-4zM148 122h4v4h-4zM138 130h4v4h-4zM148 130h4v4h-4z" fill="#1C1A1A" stroke-width="2"></path></g>
+<path d="M150 30l10 12 24-30" stroke-width="6"></path><path d="M44 36l-6-10M62 30l-2-12M28 52l-10-4"></path>
+</svg>
+</div>
+
+<p style="margin: 0 24px; font-size: 18px; font-weight: 500; line-height: 1.35">Hinterlege dein Abo einmal. Danach ist es mit einem Tap da, auch ohne Netz.</p>
+
+<div style="margin: 14px 24px 0; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{options}}" as="o" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button>
+</sc-for>
+</div>
+
+<div style="padding: 20px 24px 32px; display: flex; align-items: center; gap: 16px">
+<a href="Onboarding3.dc.html" style="width: 180px; min-height: 64px; background: #1C1A1A; color: #fff; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700">Weiter</a>
+<a href="Main.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 14px; font-weight: 600; line-height: 1.25; color: #3A3737">Später<br>einrichten</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 0 }; }
+  renderVals() {
+    const labels = ['Deutschlandticket', 'KlimaTicket', 'Später hinzufügen'];
+    const options = labels.map((l, i) => ({
+      label: l, on: this.state.sel === i,
+      style: 'min-height: 54px; border: 0; border-radius: 27px; font-size: 18px; font-weight: 700; text-align: left; padding: 0 22px; ' + (this.state.sel === i ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
+      pick: () => this.setState({ sel: i })
+    }));
+    return { options };
+  }
+}
+</script>
+</body>
+</html>

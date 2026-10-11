@@ -1,0 +1,698 @@
+[
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RE25",
+          "product": "regional"
+        },
+        "direction": "München Hbf",
+        "origin": {
+          "id": "8002078",
+          "name": "Freising",
+          "lat": 48.39498,
+          "lon": 11.744551,
+          "products": {
+            "nationalExpress": false,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "destination": {
+          "id": "8000261",
+          "name": "München Hbf",
+          "lat": 48.140366,
+          "lon": 11.558744,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "regionalExpress": true,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "plannedDep": "2026-10-10T16:51:00+02:00",
+        "dep": "2026-10-10T16:55:00+02:00",
+        "depDelay": 4,
+        "plannedArr": "2026-10-10T17:18:00+02:00",
+        "arr": "2026-10-10T17:20:00+02:00",
+        "arrDelay": 2,
+        "plannedPlatform": "2",
+        "platform": "2",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791409613#PI#0#ZI#388801#TA#0#DA#101026#1S#5400171#1T#1122#LS#8000261#LT#1718#PU#80#RT#1#CA#EX#ZE#356#ZB#EX            356#PC#1#FR#5400171#FT#1122#TO#8000261#TT#1718#",
+        "stopovers": [
+          {
+            "id": "8002078",
+            "name": "Freising",
+            "lat": 48.39498,
+            "lon": 11.744551,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8000261",
+            "name": "München Hbf",
+            "lat": 48.140366,
+            "lon": 11.558744,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "regionalExpress": true,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RE3",
+          "product": "regional"
+        },
+        "direction": "München Hbf",
+        "origin": {
+          "id": "8002078",
+          "name": "Freising",
+          "lat": 48.39498,
+          "lon": 11.744551,
+          "products": {
+            "nationalExpress": false,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "destination": {
+          "id": "8000261",
+          "name": "München Hbf",
+          "lat": 48.140366,
+          "lon": 11.558744,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "regionalExpress": true,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "plannedDep": "2026-10-10T17:10:00+02:00",
+        "dep": "2026-10-10T17:10:00+02:00",
+        "depDelay": 0,
+        "plannedArr": "2026-10-10T17:37:00+02:00",
+        "arr": "2026-10-10T17:37:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "2",
+        "platform": "2",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791409613#PI#0#ZI#269520#TA#0#DA#101026#1S#8000301#1T#1602#LS#8000261#LT#1737#PU#80#RT#1#CA#NRE#ZE#4077#ZB#             4077#PC#3#FR#8000301#FT#1602#TO#8000261#TT#1737#",
+        "stopovers": [
+          {
+            "id": "8002078",
+            "name": "Freising",
+            "lat": 48.39498,
+            "lon": 11.744551,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8000261",
+            "name": "München Hbf",
+            "lat": 48.140366,
+            "lon": 11.558744,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "regionalExpress": true,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "S1",
+          "product": "suburban"
+        },
+        "direction": "München Hbf Gl.27-36",
+        "origin": {
+          "id": "8002078",
+          "name": "Freising",
+          "lat": 48.39498,
+          "lon": 11.744551,
+          "products": {
+            "nationalExpress": false,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "destination": {
+          "id": "8098261",
+          "name": "München Hbf Gl.27-36",
+          "lat": 48.141533,
+          "lon": 11.556712,
+          "products": {
+            "nationalExpress": true,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "plannedDep": "2026-10-10T17:14:00+02:00",
+        "dep": "2026-10-10T17:14:00+02:00",
+        "depDelay": 0,
+        "plannedArr": "2026-10-10T17:57:00+02:00",
+        "arr": "2026-10-10T17:57:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "3",
+        "platform": "3",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791409613#PI#0#ZI#396288#TA#11#DA#101026#1S#8002078#1T#1714#LS#8098261#LT#1757#PU#80#RT#1#CA#DBS#ZE#S1#ZB#               S1#PC#4#FR#8002078#FT#1714#TO#8098261#TT#1757#",
+        "stopovers": [
+          {
+            "id": "8002078",
+            "name": "Freising",
+            "lat": 48.39498,
+            "lon": 11.744551,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004900",
+            "name": "Pulling(b Freising)",
+            "lat": 48.363342,
+            "lon": 11.70711,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004279",
+            "name": "Neufahrn(b Freising)",
+            "lat": 48.32131,
+            "lon": 11.660681,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8001647",
+            "name": "Eching",
+            "lat": 48.303032,
+            "lon": 11.616904,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8003735",
+            "name": "Lohhof",
+            "lat": 48.288345,
+            "lon": 11.581405,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8006688",
+            "name": "Unterschleißheim",
+            "lat": 48.273888,
+            "lon": 11.568722,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004580",
+            "name": "Oberschleißheim",
+            "lat": 48.258022,
+            "lon": 11.558438,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004147",
+            "name": "München-Feldmoching",
+            "lat": 48.21396,
+            "lon": 11.541412,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004145",
+            "name": "München-Fasanerie",
+            "lat": 48.197704,
+            "lon": 11.525771,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004155",
+            "name": "München-Moosach",
+            "lat": 48.180004,
+            "lon": 11.505968,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004151",
+            "name": "München-Laim",
+            "lat": 48.144283,
+            "lon": 11.504206,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004179",
+            "name": "München Hirschgarten",
+            "lat": 48.143547,
+            "lon": 11.519506,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8004128",
+            "name": "München Donnersbergerbrücke",
+            "lat": 48.14268,
+            "lon": 11.537133,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8098261",
+            "name": "München Hbf Gl.27-36",
+            "lat": 48.141533,
+            "lon": 11.556712,
+            "products": {
+              "nationalExpress": true,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RE2",
+          "product": "regional"
+        },
+        "direction": "München Hbf Gl.27-36",
+        "origin": {
+          "id": "8002078",
+          "name": "Freising",
+          "lat": 48.39498,
+          "lon": 11.744551,
+          "products": {
+            "nationalExpress": false,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "destination": {
+          "id": "8098261",
+          "name": "München Hbf Gl.27-36",
+          "lat": 48.141533,
+          "lon": 11.556712,
+          "products": {
+            "nationalExpress": true,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "plannedDep": "2026-10-10T17:51:00+02:00",
+        "dep": "2026-10-10T17:51:00+02:00",
+        "depDelay": 0,
+        "plannedArr": "2026-10-10T18:16:00+02:00",
+        "arr": "2026-10-10T18:16:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "2",
+        "platform": "2",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791409613#PI#0#ZI#270124#TA#0#DA#101026#1S#8000247#1T#1507#LS#8098261#LT#1816#PU#80#RT#1#CA#NRE#ZE#4865#ZB#             4865#PC#3#FR#8000247#FT#1507#TO#8098261#TT#1816#",
+        "stopovers": [
+          {
+            "id": "8002078",
+            "name": "Freising",
+            "lat": 48.39498,
+            "lon": 11.744551,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8098261",
+            "name": "München Hbf Gl.27-36",
+            "lat": 48.141533,
+            "lon": 11.556712,
+            "products": {
+              "nationalExpress": true,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  },
+  {
+    "legs": [
+      {
+        "line": {
+          "name": "RE3",
+          "product": "regional"
+        },
+        "direction": "München Hbf",
+        "origin": {
+          "id": "8002078",
+          "name": "Freising",
+          "lat": 48.39498,
+          "lon": 11.744551,
+          "products": {
+            "nationalExpress": false,
+            "national": false,
+            "regionalExpress": false,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "destination": {
+          "id": "8000261",
+          "name": "München Hbf",
+          "lat": 48.140366,
+          "lon": 11.558744,
+          "products": {
+            "nationalExpress": true,
+            "national": true,
+            "regionalExpress": true,
+            "regional": true,
+            "suburban": true,
+            "subway": false,
+            "tram": false,
+            "bus": false,
+            "taxi": false,
+            "ferry": false
+          }
+        },
+        "plannedDep": "2026-10-10T18:10:00+02:00",
+        "dep": "2026-10-10T18:10:00+02:00",
+        "depDelay": 0,
+        "plannedArr": "2026-10-10T18:37:00+02:00",
+        "arr": "2026-10-10T18:37:00+02:00",
+        "arrDelay": 0,
+        "plannedPlatform": "2",
+        "platform": "2",
+        "cancelled": false,
+        "tripId": "2|#VN#1#ST#1791409613#PI#0#ZI#269520#TA#1#DA#101026#1S#8000301#1T#1702#LS#8000261#LT#1837#PU#80#RT#1#CA#NRE#ZE#4079#ZB#             4079#PC#3#FR#8000301#FT#1702#TO#8000261#TT#1837#",
+        "stopovers": [
+          {
+            "id": "8002078",
+            "name": "Freising",
+            "lat": 48.39498,
+            "lon": 11.744551,
+            "products": {
+              "nationalExpress": false,
+              "national": false,
+              "regionalExpress": false,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          },
+          {
+            "id": "8000261",
+            "name": "München Hbf",
+            "lat": 48.140366,
+            "lon": 11.558744,
+            "products": {
+              "nationalExpress": true,
+              "national": true,
+              "regionalExpress": true,
+              "regional": true,
+              "suburban": true,
+              "subway": false,
+              "tram": false,
+              "bus": false,
+              "taxi": false,
+              "ferry": false
+            }
+          }
+        ],
+        "remarks": []
+      }
+    ]
+  }
+]
