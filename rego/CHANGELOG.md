@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.25-beta01
+- App-Icon: zwei sich kreuzende Linien mit Haltestellen auf Pastellgrün (Statusleiste: dasselbe Symbol einfarbig).
+
 ## 0.1.24-beta01
 - App-Icon: Stempel-Schrift (raue Kanten) für "RE" und "GO" neben der Linie mit Haltestellen.
 
