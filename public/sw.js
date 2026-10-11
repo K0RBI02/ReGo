@@ -1,6 +1,6 @@
 /* Service Worker: App-Gerüst offline verfügbar. Daten (/api) laufen immer übers Netz; die App hält ihren letzten Stand selbst. */
-const CACHE = 'rego-v24';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png',
+const CACHE = 'rego-v25';
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
   ...['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'].map((n) => `/screens/${n}.dc.html`)];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -30,11 +30,11 @@ self.addEventListener('push', (e) => {
     let list = [];
     try {
       const d = await deviceId();
-      const res = await fetch('/api/notifications', { headers: { 'x-device': d } });
+      const res = await fetch('/api/notifications', { headers: { 'x-device': d }, signal: AbortSignal.timeout(8000) });
       list = (await res.json()).notifications || [];
     } catch (err) {}
     if (!list.length) list = [{ title: 'ReGo', body: 'Neue Meldung auf deiner Strecke', url: '/Meldungen' }];
-    for (const n of list) await self.registration.showNotification(n.title, { body: n.body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: n.url, data: { url: n.url || '/' } });
+    for (const n of list) await self.registration.showNotification(n.title, { body: n.body, icon: '/icons/icon-192.png', badge: '/icons/badge.png', tag: (n.url || 'rego') + '|' + (n.ts || Date.now()), renotify: true, data: { url: n.url || '/' } });
   })());
 });
 self.addEventListener('notificationclick', (e) => {

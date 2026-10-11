@@ -39,10 +39,14 @@ import { verify } from 'node:crypto';
 function verifyP1363(data, sig, key) { return verify('sha256', Buffer.from(data), { key, dsaEncoding: 'ieee-p1363' }, sig); }
 
 /** Leeren Push senden. Gibt 'ok' | 'gone' | 'error' zurück. */
-export async function sendPush(vapid, subject, sub, fetchImpl = (...a) => globalThis.fetch(...a)) {
+export async function sendPush(vapid, subject, sub, fetchImpl = (...a) => globalThis.fetch(...a), log = () => {}) {
+  let host = '?';
+  try { host = new URL(sub.endpoint).host; } catch { /* ungültiger Endpunkt */ }
   try {
     const res = await fetchImpl(sub.endpoint, { method: 'POST', headers: vapidHeaders(vapid, sub.endpoint, subject), signal: AbortSignal.timeout(10000) });
-    if (res.status === 404 || res.status === 410) return 'gone';
-    return res.ok ? 'ok' : 'error';
-  } catch { return 'error'; }
+    if (res.status === 404 || res.status === 410) { log(`Push an ${host}: HTTP ${res.status} (Abo abgelaufen, wird entfernt)`); return 'gone'; }
+    if (!res.ok) { let t = ''; try { t = (await res.text()).slice(0, 120); } catch { /* ohne Text */ } log(`Push an ${host}: HTTP ${res.status} ${t}`); return 'error'; }
+    log(`Push an ${host}: HTTP ${res.status} angenommen`);
+    return 'ok';
+  } catch (e) { log(`Push an ${host}: ${e.name === 'TimeoutError' ? 'Zeitüberschreitung' : e.message}`); return 'error'; }
 }

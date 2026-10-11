@@ -59,3 +59,22 @@ test('Benachrichtigung: einmal je Vorfall, Warteschlange wird geleert', async ()
   await n2.sendTest(dev);
   assert.equal((await store.load(dev)).push, null);
 });
+
+test('Push-Dienst nicht erreichbar: Meldung geht nicht verloren, nächster Durchlauf versucht es erneut', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rego-n2-'));
+  const cfg = { ...config, provider: 'mock', dataDir: dir };
+  const noon = Date.parse('2026-10-10T12:00:00+02:00');
+  const now = () => noon;
+  const store = new ProfileStore(dir, now);
+  const service = createService({ config: cfg, store, now });
+  const dev = 'notifygeraet654321';
+  await store.update(dev, (p) => { addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }); p.push = { endpoint: 'https://fcm.googleapis.com/fcm/send/y' }; });
+  let ok = false; const calls = [];
+  const n = createNotifier({ config: cfg, store, service, vapid: await loadVapid(dir), now, send: async () => { calls.push(1); return ok ? 'ok' : 'error'; } });
+  assert.equal(await n.checkDevice(dev), 0);          // Zustellung scheitert
+  assert.equal((await store.load(dev)).push.endpoint.length > 0, true);   // Abo bleibt
+  ok = true;
+  assert.equal(await n.checkDevice(dev), 1);          // zweiter Versuch klappt
+  assert.equal(calls.length, 2);
+  assert.equal((await n.takeOutbox(dev)).length, 1);  // genau eine Meldung, keine doppelte
+});

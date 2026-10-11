@@ -22,11 +22,14 @@ export function textFor(inc) {
 export function createNotifier({ config, store, service, vapid, now = () => Date.now(), send = sendPush }) {
   const subject = config.vapidSubject;
 
+  const log = (...a) => config.verbose && console.log(...a);
+
   async function deliver(device, profile) {
     const sub = profile.push;
-    if (!sub?.endpoint) return;
-    const r = await send(vapid, subject, sub);
+    if (!sub?.endpoint) return 'none';
+    const r = await send(vapid, subject, sub, undefined, log);
     if (r === 'gone') await store.update(device, (p) => { p.push = null; });
+    return r;
   }
 
   async function checkDevice(device) {
@@ -43,7 +46,14 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
       p.outbox = (p.outbox || []).slice(-9);
       for (const i of fresh) { p.notified[i.id] = now(); p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: now() }); }
     });
-    await deliver(device, await store.load(device));
+    log(`Push: ${fresh.length} neue Meldung(en) für ein Gerät: ${fresh.map((i) => i.title).join(' | ')}`);
+    const r = await deliver(device, await store.load(device));
+    if (r === 'error') {      // Push-Dienst nicht erreichbar: beim nächsten Durchlauf noch einmal versuchen, nichts verlieren
+      const stamp = now();
+      await store.update(device, (p) => { for (const i of fresh) delete (p.notified || {})[i.id]; p.outbox = (p.outbox || []).filter((o) => !fresh.some((i) => o.url === `/Detail#${i.id}-m`)); });
+      log(`Push: Zustellung fehlgeschlagen, neuer Versuch in ${config.notifyEverySec} s (${new Date(stamp).toISOString()})`);
+      return 0;
+    }
     return fresh.length;
   }
 

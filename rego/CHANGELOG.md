@@ -1,5 +1,12 @@
 # Änderungen
 
+## 0.1.20-beta01
+- Neu: Add-on-Icon und Logo für Home Assistant.
+- Neu: einfarbiges Statusleisten-Symbol für Benachrichtigungen (vorher ein weißes Quadrat).
+- Push: Neue Meldungen ersetzen sich nicht mehr gegenseitig; der Abruf des Meldungstextes bricht nach 8 s ab, statt zu hängen.
+- Push: Scheitert die Zustellung an den Push-Dienst, versucht ReGo es beim nächsten Durchlauf erneut, statt die Meldung zu verlieren.
+- Protokoll zeigt jetzt jede Zustellung: `Push an fcm.googleapis.com: HTTP 201 angenommen` (oder den Fehler).
+
 ## 0.1.19-beta01
 - Fix: Haltestellensuche findet Bahnhöfe wieder zuverlässig ("Kempten Hbf", "Lindau Hbf"): Ranking über alle Quellen, Wörter dürfen in beliebiger Reihenfolge stehen ("Kempten Hbf" findet "Kempten (Allgäu) Hbf"), fünf Vorschläge statt vier.
 - Fix: Auf der Detailseite zeigt der Linien-Kreis oben die Linie der angezeigten Meldung (z. B. RE5), nicht mehr die erste Linie der Strecke (S3).
