@@ -35,8 +35,14 @@ export class EfaClient {
   }
 
   async searchStops(query) {
-    const data = await this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: query, anyObjFilter_sf: 2, anyMaxSizeHitList: 20 });
-    return parseStops(data, this.key, query);
+    const ask = (q) => this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: q, anyObjFilter_sf: 2, anyMaxSizeHitList: 20 });
+    const first = String(query).trim().split(/\s+/)[0];
+    // Mehrere Wörter ("Lindau Hb"): der Verbund findet bei unvollständigem 2. Wort oft nur Nebensächliches -> zusätzlich nur nach dem ersten Wort fragen
+    const [main, wide] = await Promise.allSettled([ask(query), first && first !== String(query).trim() && first.length >= 3 ? ask(first) : Promise.resolve(null)]);
+    if (main.status === 'rejected' && !wide.value) throw main.reason;
+    const locations = [...(main.value?.locations || []), ...(wide.value?.locations || [])];
+    const seen = new Set();
+    return parseStops({ locations: locations.filter((x) => x && !seen.has(x.id) && seen.add(x.id)) }, this.key, query);
   }
 
   /** Direktverbindungen (ohne Umstieg) ab "when" inkl. Zwischenhalte und Hinweise. */
@@ -70,6 +76,8 @@ export function rankOf(name, q) {
   if (n === s) return 0;
   if (n.startsWith(s) && STATION.test(n)) return 1;
   if (n.startsWith(s)) return 2;
+  const nt = n.split(/[\s,()/-]+/).filter(Boolean), qt = s.split(/\s+/);
+  if (qt.length > 1 && qt.every((t) => nt.some((w) => w.startsWith(t)))) return STATION.test(n) ? 1 : 2;      // "Lindau Hb" -> "Lindau (Bodensee) Hbf"
   return n.includes(s) ? 3 : 4;
 }
 export function parseStops(data, key = 'efa', query = '') {

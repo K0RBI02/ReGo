@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.26-beta
+- Suche: "Lindau Hb" findet jetzt Lindau Hbf (bei mehreren Wörtern wird zusätzlich nach dem ersten Wort gesucht, Bahnhöfe mit passendem Wortanfang kommen nach vorn).
+- Versionsnummer heißt jetzt einfach "-beta".
+
 ## 0.1.25-beta01
 - App-Icon: zwei sich kreuzende Linien mit Haltestellen auf Pastellgrün (Statusleiste: dasselbe Symbol einfarbig).
 

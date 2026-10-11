@@ -239,3 +239,19 @@ test('Gesamtranking: Bahnhof vor Nebenhalten; ÖBB-Namen ohne Zugnummer-Zusatz',
   const j = normJourney({ legs: [{ line: { name: 'RE5 (Zug-Nr. 79037)', product: 'regional' }, origin: { id: '1', name: 'A' }, destination: { id: '2', name: 'B' }, departure: '2026-10-11T19:36:00+02:00', plannedDeparture: '2026-10-11T19:36:00+02:00', arrival: '2026-10-11T19:46:00+02:00', plannedArrival: '2026-10-11T19:46:00+02:00' }] });
   assert.equal(j.legs[0].line.name, 'RE5');
 });
+
+test('Suche: "Lindau Hb" findet Lindau Hbf über die Suche nach dem ersten Wort', async () => {
+  const { EfaClient, rankOf } = await import('../server/providers/efa.mjs');
+  const seen = [];
+  const fetchImpl = async (url) => {
+    const q = new URL(url).searchParams.get('name_sf'); seen.push(q);
+    const locations = q === 'Lindau Hb' ? [{ id: 'h', name: 'Lindau (Bodensee), Hochbuch', type: 'stop' }]
+      : [{ id: 'h', name: 'Lindau (Bodensee), Hochbuch', type: 'stop' }, { id: 'b', name: 'Lindau (Bodensee) Hbf', type: 'stop' }];
+    return { ok: true, json: async () => ({ locations }) };
+  };
+  const c = new EfaClient('https://x.test/efa', { key: 'moby', fetchImpl, retries: 0, timeoutMs: 1000, userAgent: 't' });
+  const r = await c.searchStops('Lindau Hb');
+  assert.deepEqual(seen.sort(), ['Lindau', 'Lindau Hb']);
+  assert.equal(r[0].id, 'moby|b');
+  assert.ok(rankOf('Lindau (Bodensee) Hbf', 'Lindau Hb') < rankOf('Lindau (Bodensee), Hochbuch', 'Lindau Hb'));
+});
