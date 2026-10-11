@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.22-beta01
+- Neues App-Icon: drei parallele Verkehrslinien als Bündel (grün = läuft, weiß = neutral, gelb = Störung), jede endet an einer Haltestelle. Ersetzt das "R".
+
 ## 0.1.21-beta01
 - Neues App-Icon: ein "R" als Verkehrslinie mit Haltestellen (Home-Screen, Add-on, Browser-Tab, Statusleiste). Klar lesbar auch in sehr kleinen Größen.
 
