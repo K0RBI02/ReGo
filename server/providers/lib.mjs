@@ -22,7 +22,7 @@ export class LibClient {
   }
 
   async searchStops(query) {
-    const r = await this.call((c) => c.locations(query, { results: 8, stops: true, addresses: false, poi: false, language: 'de' }));
+    const r = await this.call((c) => c.locations(query, { results: 12, stops: true, addresses: false, poi: false, language: 'de' }));
     return (r || []).filter((x) => x.type === 'stop' || x.type === 'station').map(normStop);
   }
 

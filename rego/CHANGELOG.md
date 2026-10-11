@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.29-beta
+- Bahn-Suche (ÖBB/DB-Bibliothek) liefert bis zu 12 statt 8 Treffer, damit auch Bahnhöfe weiter hinten (z. B. Lindau Hbf) nicht abgeschnitten werden.
+- Neues Prüfskript scripts/probe-lindau.mjs (zeigt, wie Lindau Hbf bei ÖBB und MoBY heißt).
+
 ## 0.1.28-beta
 - Ticket-Screen lässt sich scrollen (Karte und weitere Tickets), der Button "Ticket hinzufügen" bleibt unten stehen.
 - Anzeige "Beta" statt "Beta01".
