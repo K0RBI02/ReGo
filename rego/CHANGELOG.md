@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.1.27-beta
+- ÖBB/DB entlastet: Die Suche fragt die Bahn-Server nur noch ab 4 Zeichen und nur, wenn der Verbund den Bahnhof nicht genau kennt (vorher bei jedem Tastendruck, das hat die ÖBB in Timeouts getrieben). Eingabe wartet 450 ms.
+- IPv4 zuerst (bahn.de hängt hier per IPv6) – das sollte die ÖBB-Timeouts beenden.
+- Grenzstrecken: "Freilassing (Obb), Freilassing" wird bei der ÖBB jetzt über einfachere Schreibweisen gefunden.
+
 ## 0.1.26-beta
 - Suche: "Lindau Hb" findet jetzt Lindau Hbf (bei mehreren Wörtern wird zusätzlich nach dem ersten Wort gesucht, Bahnhöfe mit passendem Wortanfang kommen nach vorn).
 - Versionsnummer heißt jetzt einfach "-beta".

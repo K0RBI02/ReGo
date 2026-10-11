@@ -4,6 +4,7 @@
 OPT=/data/options.json
 get() { node -e "try{const o=require('$OPT');process.stdout.write(String(o['$1']??''))}catch(e){}"; }
 export HOST=0.0.0.0 PORT=8080 REGO_DATA=/data REGO_VERBOSE=1
+export NODE_OPTIONS="--dns-result-order=ipv4first $NODE_OPTIONS"      # bahn.de hängt hier per IPv6 (Timeout), IPv4 funktioniert
 P=$(get provider); [ -n "$P" ] && export REGO_PROVIDER="$P"
 C=$(get contact); [ -n "$C" ] && export REGO_VAPID_SUBJECT="mailto:$C"
 

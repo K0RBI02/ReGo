@@ -58,6 +58,7 @@ function chain(first, second) {
 const unsupported =(msg) => ({ name: 'efa', async journeys() { throw new ProviderError(msg, { kind: 'unsupported' }); }, async stop(id) { return { id, name: '', lines: [] }; } });
 
 /** Haltestelle eines Verbunds beim anderen Anbieter wiederfinden (Name + Koordinaten). */
+const v0err = (e) => e?.kind === 'network' && /derzeit nicht erreichbar/.test(e.message || '');
 export function createTranslator(efa) {
   const cache = new Map();
   return async function translate(stop, target) {
@@ -65,8 +66,14 @@ export function createTranslator(efa) {
     if (cache.has(key)) return cache.get(key);
     let { lat, lon } = stop;
     if (lat == null) { try { const s = await efa.stop(stop.id); lat = s.lat; lon = s.lon; } catch { /* ohne Koordinaten weiter */ } }
-    const q = String(stop.name || '').replace(/,\s*/g, ' ').trim();
-    const list = await target.searchStops(q);
+    // Namen wie "Freilassing (Obb), Freilassing" kennt die Gegenseite nicht: mehrere Schreibweisen der Reihe nach probieren
+    const full = String(stop.name || '').trim(), city = full.split(',')[0].replace(/\s*\(.*?\)/g, '').trim(), rest = full.split(',').slice(1).join(' ').trim();
+    const variants = [...new Set([full.replace(/,\s*/g, ' '), full.replace(/\s*\(.*?\)/g, '').replace(/,\s*/g, ' ').trim(), rest && rest !== city ? `${city} ${rest}` : '', city].filter((v) => v.length >= 3))];
+    let list = [];
+    for (const q of variants) {
+      try { list = await target.searchStops(q); } catch (e) { if (v0err(e)) throw e; list = []; }
+      if ((list || []).some((x) => { const d = distanceKm({ lat, lon }, x); return d != null && d <= 0.6; })) break;
+    }
     const near = (list || []).map((x) => ({ x, d: distanceKm({ lat, lon }, x) })).filter((c) => c.d != null && c.d <= 0.6).sort((p, r) => p.d - r.d);
     const hit = near[0]?.x || (lat == null ? list?.[0] : null);
     if (!hit) throw new ProviderError(`Haltestelle "${stop.name}" ist auf der anderen Seite der Grenze nicht auffindbar`, { kind: 'unsupported' });
@@ -119,22 +126,31 @@ export function build(db, oebb, mock, efas = []) {
       if (a && a === b && (regionOf(from) === 'AT' || regionOf(to) === 'AT')) return chain(a, mixed(oebb, a));
       return c;
     },
-    async searchStops(q) {
+    async searchStops(query) {
+      const q = String(query || '').trim();
       // Alle Quellen gleichzeitig fragen; sobald eine antwortet, höchstens noch kurz auf die anderen warten (die Bahn kann hängen)
       const sources = [...efas, db, oebb].filter((c) => c.healthy?.() !== false);        // gesperrte Quellen gar nicht erst fragen
       if (!sources.length) throw new ProviderError('Keine Quelle erreichbar', { kind: 'network' });
-      const results = new Array(sources.length), errors = [];
+      const results = new Array(sources.length), errors = [], skipped = new Set();
       let done = 0, firstAt = 0;
+      const isEfa = (c) => efas.includes(c);
+      const efaCount = sources.filter(isEfa).length;
       await new Promise((resolve) => {
         const finish = () => { clearTimeout(timer); resolve(); };
-        let timer;
+        let timer, efaSettled = 0, efaReady;
+        const efaDone = new Promise((r) => { efaReady = r; if (!efaCount) r(); });
+        const good = () => results.some((r, i) => isEfa(sources[i]) && (r || []).some((x) => rankOf(x.name, q) <= 1));      // Verbund kennt den Bahnhof schon genau
+        const ask = (c, i) => Promise.resolve().then(() => c.searchStops(q)).then((r) => { results[i] = r || []; if (r?.length && !firstAt) { firstAt = Date.now(); timer = setTimeout(finish, GRACE_MS); } },
+          (e) => { errors.push(e); results[i] = []; log(e); }).finally(() => { if (isEfa(c) && ++efaSettled === efaCount) efaReady(); if (++done === sources.length) finish(); });
         sources.forEach((c, i) => {
-          // Nach dem ersten Treffer noch kurz auf die übrigen warten: der Verbund ist schnell, ÖBB braucht meist 1–2 s (sonst fehlen österreichische Halte)
-          Promise.resolve().then(() => c.searchStops(q)).then((r) => { results[i] = r || []; if (r?.length && !firstAt) { firstAt = Date.now(); timer = setTimeout(finish, GRACE_MS); } },
-            (e) => { errors.push(e); results[i] = []; log(e); }).finally(() => { if (++done === sources.length) finish(); });
+          if (isEfa(c)) return ask(c, i);
+          // Bahn-Quellen sparsam fragen (sonst sperren sie bei jedem Tastendruck): erst nach dem Verbund, nur ab 4 Zeichen und nur wenn der Verbund keinen genauen Bahnhof kennt
+          Promise.race([efaDone, new Promise((r) => setTimeout(r, 900))]).then(() => {
+            if (q.length < 4 || (efaSettled === efaCount && efaCount && good())) { results[i] = []; skipped.add(i); if (++done === sources.length) finish(); } else ask(c, i);
+          });
         });
       });
-      if (process.env.REGO_VERBOSE) console.log(`Suche "${q}": ` + sources.map((c, i) => `${c.key || c.name} ${i in results && results[i] ? results[i].length : 'offen'}`).join(', ') + (errors.length ? ` (Fehler: ${errors.map((e) => e.message).join(' | ')})` : ''));
+      if (process.env.REGO_VERBOSE) console.log(`Suche "${q}": ` + sources.map((c, i) => `${c.key || c.name} ${skipped.has(i) ? 'übersprungen' : i in results && results[i] ? results[i].length : 'offen'}`).join(', ') + (errors.length ? ` (Fehler: ${errors.map((e) => e.message).join(' | ')})` : ''));
       const nE = sources.filter((c) => efas.includes(c)).length;
       const related = (a, b) => { const x = String(a.name || '').toLowerCase(), y = String(b.name || '').toLowerCase(); return x === y || x.includes(y) || y.includes(x); };
       const kept = [];

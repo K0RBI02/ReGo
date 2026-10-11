@@ -255,3 +255,28 @@ test('Suche: "Lindau Hb" findet Lindau Hbf über die Suche nach dem ersten Wort'
   assert.equal(r[0].id, 'moby|b');
   assert.ok(rankOf('Lindau (Bodensee) Hbf', 'Lindau Hb') < rankOf('Lindau (Bodensee), Hochbuch', 'Lindau Hb'));
 });
+
+test('Suche: Bahn-Quellen nur ab 4 Zeichen und nur wenn der Verbund keinen genauen Bahnhof kennt', async () => {
+  const { build } = await import('../server/providers/index.mjs');
+  let asked = 0;
+  const bahn = { name: 'oebb', searchStops: async () => { asked++; return [{ id: '8100002', name: 'Salzburg Hbf', lat: 47.81, lon: 13.04 }]; } };
+  const efa = (list) => ({ key: 'moby', name: 'moby', owns: (id) => String(id).startsWith('moby|'), searchStops: async () => list });
+  const db = { name: 'db', healthy: () => false, searchStops: async () => [] };
+  await build(db, bahn, false, [efa([{ id: 'moby|x', name: 'Salzburg Hbf', lat: 47.81, lon: 13.04 }])]).searchStops('Salzburg');
+  assert.equal(asked, 0, 'Verbund kennt den Hbf -> ÖBB nicht fragen');
+  await build(db, bahn, false, [efa([])]).searchStops('Sal');
+  assert.equal(asked, 0, 'unter 4 Zeichen -> ÖBB nicht fragen');
+  const r = await build(db, bahn, false, [efa([{ id: 'moby|y', name: 'Lindau, Hochbuch', lat: 47.5, lon: 9.7 }])]).searchStops('Lindau Hbf');
+  assert.equal(asked, 1);
+  assert.ok(r.some((s) => s.id === '8100002'));
+});
+
+test('Übersetzung: "Freilassing (Obb), Freilassing" wird über einfachere Schreibweise gefunden', async () => {
+  const { createTranslator } = await import('../server/providers/index.mjs');
+  const qs = [];
+  const target = { name: 'oebb', searchStops: async (q) => { qs.push(q); return q === 'Freilassing' ? [{ id: '8100050', name: 'Freilassing', lat: 47.8394, lon: 12.9777 }] : []; } };
+  const tr = createTranslator({ stop: async () => ({}) });
+  const id = await tr({ id: 'moby|de:09189:1', name: 'Freilassing (Obb), Freilassing', lat: 47.8395, lon: 12.9778 }, target);
+  assert.equal(id, '8100050');
+  assert.ok(qs.length >= 2);
+});

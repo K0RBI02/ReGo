@@ -73,7 +73,7 @@
           stationCache = stationCache.slice(-400); R.stations = stationCache; LS.set('rego.stations', stationCache);
           R.onChange && R.onChange({ remount: false });
         } catch (e) { asked.delete(q); }
-      }, 250);
+      }, 450);
     }
     const toks = q.split(/[\s,()\-\/]+/).filter(Boolean);
     const hit = stationCache.filter((s) => { const n = norm(s.name); return toks.every((t) => n.indexOf(t) >= 0); });
