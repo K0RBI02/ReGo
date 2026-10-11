@@ -79,9 +79,20 @@
     return a.concat(b).slice(0, 4);
   };
 
+  /* Lange Haltestellennamen: "Freising, Freising" -> "Freising"; gleicher Ort an beiden Enden -> Ort weglassen */
+  const split = (s) => { const m = /^([^,]+),\s*(.+)$/.exec(s); return m ? { loc: m[1].trim(), rest: m[2].trim() } : null; };
+  const dedupe = (s) => { const p = split(s); return p && norm(p.loc) === norm(p.rest) ? p.loc : s; };
+  const dropLoc = (s, other) => { const p = split(s); return p && norm(other).startsWith(norm(p.loc)) ? p.rest : s; };
+  R.shortRoute = (name) => {
+    const p = String(name || '').split(' → ');
+    if (p.length !== 2) return dedupe(String(name || ''));
+    const a = dedupe(p[0]), b = dedupe(p[1]);
+    return `${dropLoc(a, b)} → ${dropLoc(b, a)}`;
+  };
+
   /* --- Zustand holen --- */
   function apply(state, status, lastSync) {
-    R.tours = state.tours || []; R.incidents = state.incidents || [];
+    R.tours = (state.tours || []).map((t) => Object.assign({}, t, { name: R.shortRoute(t.name) })); R.incidents = state.incidents || [];
     R.lines = linesProxy(state.lines || {}); R.settings = Object.assign({}, R.settings, state.settings || {});
     R.connection = { status, loading: false, lastSync };
   }

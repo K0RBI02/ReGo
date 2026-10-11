@@ -6,7 +6,7 @@ const BY_PRODUCT = {
 const MUNICH_U = { U1: '#2F7A32', U2: '#C3002F', U3: '#C2410C', U4: '#0B7A6F', U5: '#8A5A1C', U6: '#1B4FBF', U7: '#2F7A32', U8: '#C2410C' };
 
 export function lineLabel(name = '?') {
-  const c = String(name).replace(/\s+/g, '').replace(/^(Bus|Tram|STR)/i, '');
+  const c = String(name).replace(/\s*\(.*$/, '').replace(/\s+/g, '').replace(/^(Bus|Tram|STR)/i, '');
   const m = c.match(/^([A-Za-zÄÖÜ]+)(\d{3,})$/);   // RJX19915 -> RJX (Zugnummer, keine Linie)
   return (m ? m[1] : c) || String(name);
 }

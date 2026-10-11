@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.1.17-beta01
+- Fix: Die Zahl am Warnsymbol stimmt jetzt mit der Liste unter Meldungen überein (vorher fehlte die oberste Meldung).
+- Fix: Meldungen-Karten stapeln sich untereinander und werden nicht mehr ineinander gequetscht; lange Texte laufen komplett durch (auch im Detail).
+- Fix: Zugnummern im Linien-Kreis ("RE5(Zug-Nr.79030)") werden zu "RE5"; längere Kürzel passen sich an.
+- Fix: abgeschnittene Verbund-Hinweise ("… bis Frei") werden durch den ersten ganzen Satz ersetzt.
+- Kürzere Strecken-Namen: "Freising, Freising" wird "Freising", gleicher Ort an beiden Enden wird einmal weggelassen.
+- Bei Ersatzverkehr/Baustelle ohne Verspätung steht kein "+0 Min." mehr.
+
 ## 0.1.16-beta01
 - Fix: ÖBB-Haltestellen ohne Standard-Nummer werden über die Koordinaten Österreich zugeordnet (richtige Beschriftung, Strecke läuft über die ÖBB).
 

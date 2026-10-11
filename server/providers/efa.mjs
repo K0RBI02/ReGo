@@ -102,6 +102,17 @@ const delayMin = (planned, est) => (planned && est ? Math.round((Date.parse(est)
 
 /** Betrifft eine Linieninfo die gefahrene Strecke? Mit "zwischen A und B": Die Strecke muss sich mit der Fahrt überlappen,
  *  sonst: Eine Haltestelle der Fahrt kommt im Text vor oder die Meldung hat hohe Priorität. */
+/** Der Untertitel der Verbünde ist oft mitten im Wort abgeschnitten ("… bis Frei"): dann den ersten ganzen Satz aus dem Volltext nehmen. */
+export function summaryOf(subtitle, text) {
+  const sub = plain(subtitle || ''), t = plain(text || '');
+  if (!t) return sub;
+  if (sub && !(t.length > sub.length && t.startsWith(sub.slice(0, 30)) && !/[.!?]$/.test(sub))) return sub;
+  const re = /(?<![\d\s])[.!?](?=\s+[A-ZÄÖÜ]|$)/g;
+  let m;
+  while ((m = re.exec(t))) if (m.index >= 30) return t.slice(0, m.index + 1).slice(0, 260);
+  return t.slice(0, 260);
+}
+
 export function infoRelevant(info, names) {
   if (!names.length) return true;
   const low = (t) => String(t).toLowerCase().replace(/ß/g, 'ss');
@@ -129,10 +140,10 @@ export function parseLeg(l, key) {
   for (const i of l.infos || []) {
     if (!infoRelevant(i, names)) continue;
     const text = plain((i.infoLinks || []).map((x) => x.content).join(' '));
-    remarks.push({ type: 'warning', code: i.id || '', priority: null, summary: plain(i.subtitle || text.slice(0, 120)), text: text || plain(i.subtitle), validFrom: null, validUntil: null });
+    remarks.push({ type: 'warning', code: i.id || '', priority: null, summary: summaryOf(i.subtitle, text), text: text || plain(i.subtitle), validFrom: null, validUntil: null });
   }
   return {
-    line: { name: t.number || t.name || '?', product: productOf(t.product) },
+    line: { name: String(t.number || t.name || '?').replace(/\s*\(.*$/, '').trim() || '?', product: productOf(t.product) },
     direction: t.destination?.name || '',
     origin: stopOf(key, o), destination: stopOf(key, d),
     plannedDep: o.departureTimePlanned || o.departureTimeBaseTimetable, dep: o.departureTimeEstimated || o.departureTimePlanned, depDelay: delayMin(o.departureTimePlanned, o.departureTimeEstimated),

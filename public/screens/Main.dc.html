@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
 <style>
 body{margin:0}
+[style*="overflow-y: auto"]>*{flex:none}
 a{color:inherit;text-decoration:none}
 a:focus-visible,button:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
 a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
@@ -151,7 +152,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 
 <div class="rg-in" style="animation-delay: 0.08s; display: flex; flex-direction: column; padding: 0 4px">
 <a href="{{near.href}}" style="min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 2px solid #E3E3E3">
-<span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap">{{near.name}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747">{{near.sub}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; min-width: 0"><span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere">{{near.name}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747">{{near.sub}}</span></span>
 <span style="background: #1C1A1A; color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 700; white-space: nowrap">{{near.inText}}</span>
 </a>
 <sc-for list="{{departures}}" as="d" hint-placeholder-count="3">
@@ -166,7 +167,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 
 <sc-for list="{{others}}" as="o" hint-placeholder-count="1">
 <a class="rg-in" href="{{o.href}}" style="animation-delay: 0.16s; background: #fff; border-radius: 28px; min-height: 76px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px">
-<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{o.name}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747">{{o.sub}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere">{{o.name}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747">{{o.sub}}</span></span>
 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M9 5l7 7-7 7"></path></svg>
 </a>
 </sc-for>
@@ -236,7 +237,7 @@ class Component extends DCLogic {
       return {
         border: idx === nd.length - 1 ? '0 solid transparent' : '1.5px solid #E3E3E3',
         time: d.expectedTime, line: T.lines[d.lineId].label,
-        badgeStyle: 'width: 40px; height: 40px; border-radius: 50%; background: ' + T.lines[d.lineId].color + '; color: #fff; display: grid; place-items: center; font-size: 15px; font-weight: 700',
+        badgeStyle: 'width: 40px; height: 40px; border-radius: 50%; background: ' + T.lines[d.lineId].color + '; color: #fff; display: grid; place-items: center; overflow: hidden; white-space: nowrap; font-size: ' + (T.lines[d.lineId].label.length > 4 ? 10 : T.lines[d.lineId].label.length > 3 ? 12 : 15) + 'px; font-weight: 700',
         iconD: late ? 'M24 8L7 38h34zM24 19v9' : 'M9 25l9 9 21-22', iconW: late ? 4 : 5,
         status: late ? '+' + d.delayMin + ' Min.' : 'pünktlich',
         platform: 'Gl. ' + d.expectedPlatform,
@@ -244,7 +245,7 @@ class Component extends DCLogic {
       };
     });
     const others = tours.slice(1).filter((t) => !t.hideOnDashboard && t.departures.length > 0).map((t) => ({ name: t.name, sub: sub(t) + ' · ' + inText(t), href: target(t) }));
-    const bc = incidents.filter((i) => i !== top).length;
+    const bc = incidents.length;      // genau das, was unter Meldungen steht
     return {
       clockNow: T.clock.now, hasTours: true, noTours: false, ticker, departures, others,
       near: { name: near.name, sub: sub(near), inText: inText(near), href: target(near) },

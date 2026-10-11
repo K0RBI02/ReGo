@@ -185,3 +185,13 @@ test('regionOf: unbekannte ID mit Koordinaten in Österreich -> AT', async () =>
   assert.equal(regionOf({ id: '8000261', lat: 48.14, lon: 11.56 }), 'BY');
   assert.equal(regionOf({ id: 'xyz' }), '');
 });
+
+test('summaryOf: abgeschnittener Untertitel -> erster ganzer Satz; Linienlabel ohne Klammerzusatz', async () => {
+  const { summaryOf } = await import('../server/providers/efa.mjs');
+  const { lineLabel } = await import('../server/lib/lines.mjs');
+  const full = 'Auf Grund von Brückenbauarbeiten in Großhelfendorf kommt es von Freitag, 24. Juli 2026 ab 20:50 Uhr durchgehend bis Freitag, 16. Oktober 2026 zu Ersatzverkehr. Bitte beachten Sie die Aushänge.';
+  assert.equal(summaryOf('Auf Grund von Brückenbauarbeiten in Großhelfendorf kommt es von Freitag, 24. Juli 2026 ab 20:50 Uhr durchgehend bis Frei', full), full.split('. Bitte')[0] + '.');
+  assert.equal(summaryOf('Kurzer Hinweis.', 'Kurzer Hinweis. Mehr Text hier.'), 'Kurzer Hinweis.');
+  assert.equal(lineLabel('RE5(Zug-Nr.79030)'), 'RE5');
+  assert.equal(lineLabel('S 1'), 'S1');
+});

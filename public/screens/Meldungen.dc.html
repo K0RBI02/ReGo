@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&amp;display=swap">
 <style>
 body{margin:0}
+[style*="overflow-y: auto"]>*{flex:none}
 a{color:inherit;text-decoration:none}
 a:focus-visible,button:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
 a,button{transition:transform .15s ease,background-color .2s ease,opacity .2s ease}
@@ -133,12 +134,12 @@ Zurück</a>
 
 <sc-for list="{{items}}" as="n" hint-placeholder-count="3">
 <a class="rg-in" href="{{n.href}}" style="{{n.style}}">
-<span style="display: flex; flex-direction: column; gap: 3px">
+<span style="display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere">
 <span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{n.icon1}}"></path><path d="{{n.icon2}}"></path></svg>{{n.category}}</span>
 <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{n.title}}</span>
 <span style="font-size: 15px; font-weight: 600">{{n.summary}}</span>
 </span>
-<span style="font-size: 36px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{n.delay}}</span>
+<span style="font-size: 36px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap; flex: none">{{n.delay}}</span>
 </a>
 </sc-for>
 
@@ -169,11 +170,11 @@ class Component extends DCLogic {
         const k = T.theme.kinds[i.kind];
         return {
           href: 'Detail.dc.html#' + i.id + '-l',
-          style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 112px',
+          style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 112px; flex: none',
           icon1: k.icon[0], icon2: k.icon[1],
           category: k.label + ' · ' + i.validity.label,
           title: i.title, summary: i.summary + (t.distanceKm == null ? '' : ' · ' + km(t.distanceKm)),
-          delay: '+' + i.delayMin + ' Min.'
+          delay: i.kind === 'delay' ? '+' + i.delayMin + ' Min.' : ''
         };
       });
     return { items, empty: items.length === 0 };
