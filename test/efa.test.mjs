@@ -163,3 +163,18 @@ test('Grenzverkehr: MVV-Haltestelle wird für die ÖBB übersetzt, Österreich-S
     assert.equal(p.forTour({ id: 'mvv|de:09162:2', name: 'A' }, { id: 'mvv|de:09162:5', name: 'B' }), p.efas[0]);
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('Suche wartet auf langsame Quelle (ÖBB) und markiert Unvollständiges', async () => {
+  const { build } = await import('../server/providers/index.mjs');
+  const src = (name, ms, list) => ({ name, searchStops: () => new Promise((r) => setTimeout(() => r(list), ms)) });
+  const efa = { ...src('efa', 10, [{ id: 'mvv|de:09162:2', name: 'München, Hbf', lat: 48.14, lon: 11.56 }]), key: 'mvv', owns: (id) => String(id).startsWith('mvv|') };
+  const oebbStop = { id: '8100002', name: 'Salzburg Hbf', lat: 47.81, lon: 13.04 };
+  const p = build(src('db', 10, []), src('oebb', 1200, [oebbStop]), false, [efa]);
+  const r = await p.searchStops('Salzburg');
+  assert.ok(r.some((s) => s.id === '8100002'), 'ÖBB-Treffer nach 1,2 s muss dabei sein');
+  assert.ok(!r.partial);
+  const p2 = build(src('db', 10, []), src('oebb', 4000, [oebbStop]), false, [efa]);
+  const r2 = await p2.searchStops('Salzburg');
+  assert.equal(r2.length, 1);
+  assert.equal(r2.partial, true);
+});

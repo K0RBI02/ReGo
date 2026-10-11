@@ -40,7 +40,9 @@ export function withFallback(primary, fallback, config) {
 }
 
 
-const unsupported = (msg) => ({ name: 'efa', async journeys() { throw new ProviderError(msg, { kind: 'unsupported' }); }, async stop(id) { return { id, name: '', lines: [] }; } });
+const GRACE_MS = 2200;
+
+const unsupported =(msg) => ({ name: 'efa', async journeys() { throw new ProviderError(msg, { kind: 'unsupported' }); }, async stop(id) { return { id, name: '', lines: [] }; } });
 
 /** Haltestelle eines Verbunds beim anderen Anbieter wiederfinden (Name + Koordinaten). */
 export function createTranslator(efa) {
@@ -72,7 +74,7 @@ function mixedFor(target, efa, translate = createTranslator(efa)) {
   };
 }
 
-function build(db, oebb, mock, efas = []) {
+export function build(db, oebb, mock, efas = []) {
   const efaOf = (stop) => efas.find((c) => c.owns(stop?.id));
   const mixedCache = new Map();
   const mixed = (target, efa) => { const k = `${target.name}|${efa.key}`; if (!mixedCache.has(k)) mixedCache.set(k, mixedFor(target, efa)); return mixedCache.get(k); };
@@ -104,10 +106,12 @@ function build(db, oebb, mock, efas = []) {
         const finish = () => { clearTimeout(timer); resolve(); };
         let timer;
         sources.forEach((c, i) => {
-          Promise.resolve().then(() => c.searchStops(q)).then((r) => { results[i] = r || []; if (r?.length && !firstAt) { firstAt = Date.now(); timer = setTimeout(finish, 600); } },
+          // Nach dem ersten Treffer noch kurz auf die übrigen warten: der Verbund ist schnell, ÖBB braucht meist 1–2 s (sonst fehlen österreichische Halte)
+          Promise.resolve().then(() => c.searchStops(q)).then((r) => { results[i] = r || []; if (r?.length && !firstAt) { firstAt = Date.now(); timer = setTimeout(finish, GRACE_MS); } },
             (e) => { errors.push(e); results[i] = []; log(e); }).finally(() => { if (++done === sources.length) finish(); });
         });
       });
+      if (process.env.REGO_VERBOSE) console.log(`Suche "${q}": ` + sources.map((c, i) => `${c.key || c.name} ${i in results && results[i] ? results[i].length : 'offen'}`).join(', ') + (errors.length ? ` (Fehler: ${errors.map((e) => e.message).join(' | ')})` : ''));
       const nE = sources.filter((c) => efas.includes(c)).length;
       const efaStops = results.slice(0, nE).flat().filter(Boolean);
       const others = results.slice(nE).flat().filter(Boolean)
@@ -115,6 +119,7 @@ function build(db, oebb, mock, efas = []) {
       const seen = new Set();
       const list = [...efaStops, ...others].filter((s) => !seen.has(s.id) && seen.add(s.id));
       if (!list.length && errors.length === sources.length) throw errors[0];
+      if (done < sources.length) list.partial = true;      // nicht alle Quellen waren fertig: nicht zwischenspeichern
       return list;
     },
   };

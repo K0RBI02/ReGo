@@ -14,6 +14,7 @@ export function createService({ config, store, now = () => Date.now(), providers
     const query = String(q || '').trim();
     if (query.length < 2) return [];
     const { value } = await cache.get(`search:${query.toLowerCase()}`, config.ttl.search, () => providers.searchStops(query));
+    if (value.partial) cache.map.delete(`search:${query.toLowerCase()}`);      // unvollständig (eine Quelle war zu langsam): beim nächsten Mal neu fragen
     return value.map((s) => ({ id: s.id, name: s.name, region: regionOf(s) || 'DE', lat: s.lat, lon: s.lon }));
   }
 
