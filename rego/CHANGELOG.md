@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.23-beta01
+- Neues App-Icon: eine Linie mit drei Haltestellen auf hellgrünem Grund, "RE" oben links, "GO" unten rechts.
+
 ## 0.1.22-beta01
 - Neues App-Icon: drei parallele Verkehrslinien als Bündel (grün = läuft, weiß = neutral, gelb = Störung), jede endet an einer Haltestelle. Ersetzt das "R".
 
