@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.16-beta01
+- Fix: ÖBB-Haltestellen ohne Standard-Nummer werden über die Koordinaten Österreich zugeordnet (richtige Beschriftung, Strecke läuft über die ÖBB).
+
 ## 0.1.15-beta01
 - Fix: Haltestellensuche findet wieder österreichische Halte (wartet auf die ÖBB statt sie nach 0,6 s abzuschneiden; unvollständige Suchergebnisse werden nicht zwischengespeichert).
 - Protokoll zeigt pro Suche, welche Quelle wie viele Treffer lieferte (`Suche "…": mvv 5, oebb 3`).

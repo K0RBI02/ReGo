@@ -178,3 +178,10 @@ test('Suche wartet auf langsame Quelle (ÖBB) und markiert Unvollständiges', as
   assert.equal(r2.length, 1);
   assert.equal(r2.partial, true);
 });
+
+test('regionOf: unbekannte ID mit Koordinaten in Österreich -> AT', async () => {
+  const { regionOf } = await import('../server/lib/geo.mjs');
+  assert.equal(regionOf({ id: '455000', lat: 47.81, lon: 13.04 }), 'AT');
+  assert.equal(regionOf({ id: '8000261', lat: 48.14, lon: 11.56 }), 'BY');
+  assert.equal(regionOf({ id: 'xyz' }), '');
+});
