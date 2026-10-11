@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.1.21-beta01
+- Neues App-Icon: ein "R" als Verkehrslinie mit Haltestellen (Home-Screen, Add-on, Browser-Tab, Statusleiste). Klar lesbar auch in sehr kleinen Größen.
+
 ## 0.1.20-beta01
 - Neu: Add-on-Icon und Logo für Home Assistant.
 - Neu: einfarbiges Statusleisten-Symbol für Benachrichtigungen (vorher ein weißes Quadrat).
