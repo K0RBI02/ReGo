@@ -116,12 +116,22 @@
     if (typeof current.instance.onData === 'function') current.instance.onData();
   };
 
-  // Standort nur nutzen, wenn schon erlaubt (kein Dialog beim Start)
-  try {
-    navigator.permissions && navigator.permissions.query({ name: 'geolocation' }).then((p) => {
-      if (p.state === 'granted') navigator.geolocation.getCurrentPosition((pos) => { R.position = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) }; R.refresh(); }, () => {}, { maximumAge: 600000, timeout: 8000 });
-    });
-  } catch (e) {}
+  // Standort nur nutzen, wenn schon erlaubt (kein Dialog beim Start). Letzten Standort merken, bei jedem Öffnen der App neu holen.
+  try { const c = JSON.parse(localStorage.getItem('rego.pos') || 'null'); if (c && c.lat && Date.now() - c.at < 12 * 3600 * 1000) R.position = { lat: c.lat, lon: c.lon }; } catch (e) {}
+  const locate = () => {
+    try {
+      navigator.permissions && navigator.permissions.query({ name: 'geolocation' }).then((p) => {
+        if (p.state !== 'granted') return;
+        navigator.geolocation.getCurrentPosition((pos) => {
+          const n = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) };
+          const changed = !R.position || R.position.lat !== n.lat || R.position.lon !== n.lon;
+          R.position = n; try { localStorage.setItem('rego.pos', JSON.stringify({ ...n, at: Date.now() })); } catch (e) {}
+          if (changed) R.refresh();
+        }, () => {}, { maximumAge: 600000, timeout: 20000 });
+      });
+    } catch (e) {}
+  };
+  locate();
 
   R.loadCached();
   splash();
@@ -129,7 +139,7 @@
 
   const tick = () => { if (document.visibilityState === 'visible') R.refresh(); };
   setInterval(tick, 30000);
-  document.addEventListener('visibilitychange', tick);
+  document.addEventListener('visibilitychange', () => { tick(); if (document.visibilityState === 'visible') locate(); });
   window.addEventListener('online', tick);
   window.addEventListener('offline', () => R.onChange());
 

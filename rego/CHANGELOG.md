@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.32-beta
+- Ticket-Screen: Unten ist Platz für den Button "Ticket hinzufügen", das letzte Ticket lässt sich vollständig hochscrollen.
+- Standort: wird bei jedem Öffnen der App neu geholt (20 s Zeit statt 8 s) und für 12 Stunden gemerkt, damit die nächste Strecke zuerst kommt.
+
 ## 0.1.31-beta
 - Offline-Anzeige nennt jetzt den Grund (z. B. "Offline-Modus · Server 500", "Zeitüberschreitung" oder "keine Verbindung zum Server"). Abrufe brechen nach 30 s ab.
 - Log: Fehlerantworten der API (HTTP ab 400) stehen jetzt im Protokoll.
