@@ -1,5 +1,5 @@
 /* Service Worker: App-Gerüst offline verfügbar. Daten (/api) laufen immer übers Netz; die App hält ihren letzten Stand selbst. */
-const CACHE = 'rego-v35';
+const CACHE = 'rego-v36';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
   ...['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'].map((n) => `/screens/${n}.dc.html`)];
 
@@ -27,24 +27,34 @@ async function deviceId() {
 }
 self.addEventListener('push', (e) => {
   e.waitUntil((async () => {
-    let list = [];
+    let list = [], fetched = false;
     try {
       const d = await deviceId();
       const res = await fetch('/api/notifications', { headers: { 'x-device': d }, signal: AbortSignal.timeout(8000) });
-      list = (await res.json()).notifications || [];
+      list = (await res.json()).notifications || []; fetched = true;
     } catch (err) {}
-    if (!list.length) list = [{ title: 'ReGo', body: 'Neue Meldung auf deiner Strecke', url: '/Meldungen' }];
-    let shown = 0;
+    if (!list.length && !fetched) list = [{ title: 'ReGo', body: 'Neue Meldung auf deiner Strecke', url: '/Meldungen' }];
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const base = { icon: '/icons/icon-192.png', badge: '/icons/badge.png' };
+    let shown = 0; const closing = [];
     for (const n of list) {
-      if (n.clear) { for (const x of await self.registration.getNotifications({ tag: n.tag })) x.close(); continue; }
+      if (n.clear) {
+        // Vorfall vorbei: die vorhandene Meldung kurz zu "behoben" umschreiben (stumm) und dann schließen
+        for (const x of await self.registration.getNotifications({ tag: n.tag })) {
+          await self.registration.showNotification(String(x.title).split(' ')[0] + ' · behoben', { ...base, body: x.body, tag: n.tag, silent: true, data: x.data });
+          closing.push(n.tag); shown++;
+        }
+        continue;
+      }
       // Gleicher Vorfall = gleiche Kennung: Update ersetzt die Meldung leise, Neues meldet sich mit Ton
-      await self.registration.showNotification(n.title, { body: n.body, icon: '/icons/icon-192.png', badge: '/icons/badge.png', tag: n.tag || ((n.url || 'rego') + '|' + (n.ts || Date.now())), renotify: !n.update, silent: !!n.update, data: { url: n.url || '/' } });
+      await self.registration.showNotification(n.title, { ...base, body: n.body, tag: n.tag || ((n.url || 'rego') + '|' + (n.ts || Date.now())), renotify: !n.update, silent: !!n.update, data: { url: n.url || '/' } });
       shown++;
     }
-    // Chrome verlangt zu jedem Push eine sichtbare Meldung: nach dem Entfernen kurz eine stumme anzeigen und sofort wieder schließen
-    if (!shown) {
-      await self.registration.showNotification('ReGo', { tag: 'rego-cleanup', silent: true, icon: '/icons/icon-192.png', badge: '/icons/badge.png' });
-      for (const x of await self.registration.getNotifications({ tag: 'rego-cleanup' })) x.close();
+    // Chrome verlangt zu jedem Push eine sichtbare Meldung: gab es nichts anzuzeigen, kurz eine stumme zeigen und wieder schließen
+    if (!shown) { await self.registration.showNotification('ReGo', { ...base, tag: 'rego-cleanup', silent: true, body: 'Aktualisiert' }); closing.push('rego-cleanup'); }
+    if (closing.length) {
+      await sleep(closing.includes('rego-cleanup') ? 2500 : 6000);
+      for (const tag of closing) for (const x of await self.registration.getNotifications({ tag })) x.close();
     }
   })());
 });

@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.1.34-beta
+- Leere stumme "ReGo"-Meldungen behoben: Das war das kurze Platzhalter-Signal beim Entfernen. Es steht jetzt als "Aktualisiert" nur 2,5 s da und wird danach geschlossen.
+- Ist ein Vorfall vorbei, wird die Meldung kurz zu "<Linie> · behoben" (stumm) und nach 6 s entfernt.
+- Kommt ein Push ohne neuen Inhalt an, erscheint nicht mehr die allgemeine Meldung "Neue Meldung auf deiner Strecke".
+
 ## 0.1.33-beta
 - Benachrichtigungen bleiben aktuell: Ändert sich die Verspätung (z. B. +6 → +9 Min.), wird die bestehende Meldung leise aktualisiert statt eine neue zu zeigen.
 - Ist die Verspätung weg (oder der Zug abgefahren), verschwindet die Meldung automatisch aus der Leiste (nach etwa zwei Minuten ohne den Vorfall).
