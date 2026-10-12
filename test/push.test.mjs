@@ -105,3 +105,18 @@ test('Benachrichtigung: Änderung der Verspätung aktualisiert, Wegfall entfernt
   assert.deepEqual([out[0].clear, out[0].tag], [true, 'inc|a1']);
   assert.equal(await n.checkDevice(dev), 0);
 });
+
+test('Push-Test ohne Abo gibt 409, kaputte Adresse 400, große Anfrage 413', async () => {
+  const { mkdtemp } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
+  const { createApp } = await import('../server/index.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'rego-'));
+  const { server } = createApp({ cfg: { ...(await import('../server/config.mjs')).config, dataDir: dir, provider: 'mock' } });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const h = { 'x-device': 'testdevice0123456789abcdef', 'content-type': 'application/json' };
+  try {
+    assert.equal((await fetch(base + '/api/push/test', { method: 'POST', headers: h })).status, 409);
+    assert.equal((await fetch(base + '/%E0%A4%A')).status, 400);
+    assert.equal((await fetch(base + '/api/tours', { method: 'POST', headers: h, body: 'a'.repeat(100000) })).status, 413);
+  } finally { server.close(); }
+});

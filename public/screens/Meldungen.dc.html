@@ -127,7 +127,7 @@ Zurück</a>
 
 <div style="padding: 12px 20px 0">
 <h1 style="margin: 0; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Meldungen</h1>
-<div style="margin-top: 8px; font-size: 15px; font-weight: 600; color: #4A4747">Nur deine Strecken · nach Nähe sortiert</div>
+<div style="margin-top: 8px; font-size: 15px; font-weight: 600; color: #4A4747">{{sortHint}}</div>
 </div>
 
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 12px">
@@ -162,22 +162,28 @@ class Component extends DCLogic {
     const T = window.REGO;
     const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
     const tours = T.tours.filter((t) => t.active);
-    const items = T.incidents
-      .map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) }))
-      .filter((x) => x.t && T.isVisible(x.i))
+    // Dieselbe Meldung auf Hin- und Rückweg derselben Strecke wird zu einer Karte
+    const merged = [];
+    for (const x of T.incidents.map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) })).filter((x) => x.t && T.isVisible(x.i))) {
+      const pair = [x.t.id, x.t.returnId, x.t.returnOf].filter(Boolean).sort()[0];
+      const key = [pair, x.i.kind, x.i.summary, x.i.delayMin, x.i.title.split(' ')[0]].join('|');
+      const hit = merged.find((m) => m.key === key && m.i.tourId !== x.i.tourId && (m.t.returnId === x.t.id || m.t.returnOf === x.t.id));
+      if (hit) { hit.both = true; if ((x.t.distanceKm ?? 0) < (hit.t.distanceKm ?? 0)) hit.t = x.t; } else merged.push({ ...x, key, both: false });
+    }
+    const items = merged
       .sort((a, b) => ((a.t.distanceKm ?? 0) - (b.t.distanceKm ?? 0)) || b.i.severity - a.i.severity)
-      .map(({ i, t }) => {
+      .map(({ i, t, both }) => {
         const k = T.theme.kinds[i.kind];
         return {
           href: 'Detail.dc.html#' + i.id + '-l',
           style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 112px; flex: none',
           icon1: k.icon[0], icon2: k.icon[1],
           category: k.label + ' · ' + i.validity.label,
-          title: i.title, summary: i.summary + (t.distanceKm == null ? '' : ' · ' + km(t.distanceKm)),
+          title: both ? i.title.replace(' → ', ' ⇄ ') : i.title, summary: i.summary + (both ? ' · beide Richtungen' : '') + (t.distanceKm == null ? '' : ' · ' + km(t.distanceKm)),
           delay: i.kind === 'delay' ? '+' + i.delayMin + ' Min.' : ''
         };
       });
-    return { items, empty: items.length === 0 };
+    return { items, empty: items.length === 0, sortHint: T.position ? 'Nur deine Strecken · nach Nähe sortiert' : 'Nur deine Strecken' };
   }
 }
 </script>

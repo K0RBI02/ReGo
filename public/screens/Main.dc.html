@@ -219,7 +219,7 @@ class Component extends DCLogic {
       const diff = toMin(d.expectedTime) - nowM;
       return diff <= 0 ? 'jetzt' : diff < 60 ? 'in ' + diff + ' Min.' : 'ab ' + d.expectedTime;
     };
-    const sub = (t) => (t.period === 'pm' ? 'Rückweg' : 'Hinweg') + ' · ' + T.lines[t.lineId].label;
+    const sub = (t) => (t.returnId ? 'Hinweg · ' : t.returnOf ? 'Rückweg · ' : '') + T.lines[t.lineId].label;
     const near = tours[0];
     const common = { clockNow: T.clock.now };
     if (T.connection.loading) return Object.assign({ hasTours: false, noTours: false, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } }, common);

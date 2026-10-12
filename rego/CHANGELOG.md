@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.1.35-beta
+- "Hinweg" und "Rückweg" stehen nur noch bei echten Hin-und-zurück-Paaren, nicht mehr nach Uhrzeit geraten.
+- Meldungen: Dieselbe Störung auf Hin- und Rückweg erscheint als eine Karte ("beide Richtungen"). "nach Nähe sortiert" steht nur noch, wenn der Standort bekannt ist.
+- Server: kaputte Adresse gibt 400 statt 500, zu große Anfrage 413 mit Text, Test-Push ohne Abo 409 statt "ok".
+- Kontaktzeile unter Strecken verlinkt auf die GitHub-Meldungen. Standard-Gerätename im Tailnet: `rego-beta-app` (gilt nur für neue Installationen).
+
 ## 0.1.34-beta
 - Leere stumme "ReGo"-Meldungen behoben: Das war das kurze Platzhalter-Signal beim Entfernen. Es steht jetzt als "Aktualisiert" nur 2,5 s da und wird danach geschlossen.
 - Ist ein Vorfall vorbei, wird die Meldung kurz zu "<Linie> · behoben" (stumm) und nach 6 s entfernt.

@@ -40,7 +40,7 @@
   };
 
   R.version = 'Beta';
-  R.contact = '';   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
+  R.contact = 'https://github.com/K0RBI02/ReGo/issues';   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}

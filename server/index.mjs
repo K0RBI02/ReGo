@@ -29,8 +29,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   };
   const readBody = (req) => new Promise((resolve, reject) => {
     let n = 0; const chunks = [];
-    req.on('data', (c) => { n += c.length; if (n > 64 * 1024) { reject(new ValidationError('Anfrage zu groß')); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new ValidationError('Kein gültiges JSON')); } });
+    req.on('data', (c) => { n += c.length; if (n > 64 * 1024) { if (n - c.length <= 64 * 1024) { const e = new ValidationError('Anfrage zu groß'); e.status = 413; reject(e); } } else chunks.push(c); });
+    req.on('end', () => { if (n > 64 * 1024) return; try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new ValidationError('Kein gültiges JSON')); } });
     req.on('error', reject);
   });
   const device = (req, url) => {
@@ -58,7 +58,9 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/settings' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => setSettings(p, b))); }
     if (path === '/api/push/key' && m === 'GET') return send(res, 200, { publicKey: (await vapid()).publicKey });
     if (path === '/api/notifications' && m === 'GET') return send(res, 200, { notifications: await (await notifier()).takeOutbox(dev) });
-    if (path === '/api/push/test' && m === 'POST') { await (await notifier()).sendTest(dev); return send(res, 200, { ok: true }); }
+    if (path === '/api/push/test' && m === 'POST') {
+      if (!(await store.load(dev)).push) { const e = new ValidationError('Kein Push-Abo für dieses Gerät. Push erst in der App aktivieren.'); e.status = 409; throw e; }
+      await (await notifier()).sendTest(dev); return send(res, 200, { ok: true }); }
     if (path === '/api/push' && m === 'DELETE') { await store.update(dev, (p) => { p.push = null; }); return send(res, 200, { subscribed: false }); }
     if (path === '/api/push' && m === 'PUT') {
       const b = await readBody(req);
@@ -72,7 +74,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   }
 
   async function serveStatic(req, res, url) {
-    let rel = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, '');
+    let decoded; try { decoded = decodeURIComponent(url.pathname); } catch { return send(res, 400, { error: 'Ungültige Adresse' }); }
+    let rel = normalize(decoded).replace(/^([/\\])+/, '');
     if (rel.split(/[/\\]/).includes('..')) return send(res, 403, { error: 'verboten' });
     let file = join(cfg.publicDir, rel || 'index.html');
     try { if ((await stat(file)).isDirectory()) file = join(file, 'index.html'); }
