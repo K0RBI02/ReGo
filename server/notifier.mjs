@@ -32,6 +32,10 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     return r;
   }
 
+  const tagOf = (id) => `inc|${id}`;
+  const GONE_TICKS = 2;       // erst nach zwei Durchläufen ohne den Vorfall die Meldung entfernen (Daten können kurz haken)
+  const CLEAR_WINDOW = 12 * 3600e3;
+
   async function checkDevice(device) {
     const profile = await store.load(device);
     if (!profile.push?.endpoint || !profile.tours.some((t) => t.active !== false)) return 0;
@@ -39,22 +43,39 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     if (hour < 4 || hour >= 23) return 0;                       // nachts Ruhe
     const state = await service.getState(device);
     if (state.connection.status === 'error') return 0;
-    const fresh = state.incidents.filter((i) => relevant(i, profile.settings.pushThresholdMin) && !(profile.notified || {})[i.id]);
-    if (!fresh.length) return 0;
+    const cur = new Map(state.incidents.filter((i) => relevant(i, profile.settings.pushThresholdMin)).map((i) => [i.id, i]));
+    const notified = profile.notified || {}, shown = profile.shownDelay || {}, gone = profile.goneCount || {};
+    const fresh = [...cur.values()].filter((i) => !notified[i.id]);
+    // Verspätung hat sich geändert: bestehende Meldung leise aktualisieren
+    const updates = [...cur.values()].filter((i) => notified[i.id] && i.kind === 'delay' && shown[i.id] != null && i.delayMin !== shown[i.id]);
+    // Vorfall ist weg (Verspätung vorbei, Zug abgefahren): Meldung entfernen
+    const nextGone = {};
+    for (const id of Object.keys(notified)) if (!cur.has(id)) nextGone[id] = (gone[id] || 0) + 1;
+    const cleared = Object.keys(nextGone).filter((id) => nextGone[id] >= GONE_TICKS && now() - notified[id] < CLEAR_WINDOW);
+    const goneChanged = JSON.stringify(nextGone) !== JSON.stringify(gone);
+    if (!fresh.length && !updates.length && !cleared.length) {
+      if (goneChanged) await store.update(device, (p) => { p.goneCount = nextGone; });
+      return 0;
+    }
+    const stamp = now();
+    const snap = { notified: { ...notified }, shown: { ...shown }, gone: { ...gone } };
     await store.update(device, (p) => {
       p.notified = Object.fromEntries(Object.entries(p.notified || {}).filter(([, ts]) => now() - ts < 3 * DAY));
-      p.outbox = (p.outbox || []).slice(-9);
-      for (const i of fresh) { p.notified[i.id] = now(); p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: now() }); }
+      p.shownDelay = p.shownDelay || {};
+      p.outbox = (p.outbox || []).slice(-19);
+      for (const i of fresh) { p.notified[i.id] = now(); if (i.kind === 'delay') p.shownDelay[i.id] = i.delayMin; p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id) }); }
+      for (const i of updates) { p.shownDelay[i.id] = i.delayMin; p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id), update: true }); }
+      for (const id of cleared) { delete p.notified[id]; delete p.shownDelay[id]; delete nextGone[id]; p.outbox.push({ clear: true, tag: tagOf(id), ts: stamp, b: stamp }); }
+      p.goneCount = nextGone;
     });
-    log(`Push: ${fresh.length} neue Meldung(en) für ein Gerät: ${fresh.map((i) => i.title).join(' | ')}`);
+    log(`Push: ${fresh.length} neu, ${updates.length} aktualisiert, ${cleared.length} entfernt (${[...fresh, ...updates].map((i) => i.title).join(' | ')})`);
     const r = await deliver(device, await store.load(device));
     if (r === 'error') {      // Push-Dienst nicht erreichbar: beim nächsten Durchlauf noch einmal versuchen, nichts verlieren
-      const stamp = now();
-      await store.update(device, (p) => { for (const i of fresh) delete (p.notified || {})[i.id]; p.outbox = (p.outbox || []).filter((o) => !fresh.some((i) => o.url === `/Detail#${i.id}-m`)); });
+      await store.update(device, (p) => { p.notified = snap.notified; p.shownDelay = snap.shown; p.goneCount = snap.gone; p.outbox = (p.outbox || []).filter((o) => o.b !== stamp); });
       log(`Push: Zustellung fehlgeschlagen, neuer Versuch in ${config.notifyEverySec} s (${new Date(stamp).toISOString()})`);
       return 0;
     }
-    return fresh.length;
+    return fresh.length + updates.length + cleared.length;
   }
 
   async function tick() {

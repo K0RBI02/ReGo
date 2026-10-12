@@ -78,3 +78,30 @@ test('Push-Dienst nicht erreichbar: Meldung geht nicht verloren, nächster Durch
   assert.equal(calls.length, 2);
   assert.equal((await n.takeOutbox(dev)).length, 1);  // genau eine Meldung, keine doppelte
 });
+
+test('Benachrichtigung: Änderung der Verspätung aktualisiert, Wegfall entfernt die Meldung', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rego-n3-'));
+  const cfg = { ...config, provider: 'mock', dataDir: dir };
+  let t = Date.parse('2026-10-10T12:00:00+02:00');
+  const now = () => t;
+  const store = new ProfileStore(dir, now);
+  const dev = 'notifygeraet777777';
+  await store.update(dev, (p) => { addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }); p.push = { endpoint: 'https://fcm.googleapis.com/fcm/send/z' }; });
+  let incidents = [{ id: 'a1', kind: 'delay', delayMin: 6, title: 'S5 Freising → München Hbf', summary: 'x', validity: { activeNow: true } }];
+  const service = { getState: async () => ({ connection: { status: 'ok' }, incidents }) };
+  const n = createNotifier({ config: cfg, store, service, vapid: await loadVapid(dir), now, send: async () => 'ok' });
+  assert.equal(await n.checkDevice(dev), 1);
+  let out = await n.takeOutbox(dev);
+  assert.equal(out[0].tag, 'inc|a1'); assert.ok(!out[0].update);
+  incidents = [{ ...incidents[0], delayMin: 9 }];
+  assert.equal(await n.checkDevice(dev), 1);
+  out = await n.takeOutbox(dev);
+  assert.equal(out[0].update, true); assert.match(out[0].title, /\+9 Min\./);
+  assert.equal(await n.checkDevice(dev), 0);          // unverändert: nichts
+  incidents = [];
+  assert.equal(await n.checkDevice(dev), 0);          // erster Durchlauf ohne Vorfall: noch abwarten
+  assert.equal(await n.checkDevice(dev), 1);          // zweiter: Meldung entfernen
+  out = await n.takeOutbox(dev);
+  assert.deepEqual([out[0].clear, out[0].tag], [true, 'inc|a1']);
+  assert.equal(await n.checkDevice(dev), 0);
+});

@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.33-beta
+- Benachrichtigungen bleiben aktuell: Ändert sich die Verspätung (z. B. +6 → +9 Min.), wird die bestehende Meldung leise aktualisiert statt eine neue zu zeigen.
+- Ist die Verspätung weg (oder der Zug abgefahren), verschwindet die Meldung automatisch aus der Leiste (nach etwa zwei Minuten ohne den Vorfall).
+
 ## 0.1.32-beta
 - Ticket-Screen: Unten ist Platz für den Button "Ticket hinzufügen", das letzte Ticket lässt sich vollständig hochscrollen.
 - Standort: wird bei jedem Öffnen der App neu geholt (20 s Zeit statt 8 s) und für 12 Stunden gemerkt, damit die nächste Strecke zuerst kommt.

@@ -1,5 +1,5 @@
 /* Service Worker: App-Gerüst offline verfügbar. Daten (/api) laufen immer übers Netz; die App hält ihren letzten Stand selbst. */
-const CACHE = 'rego-v34';
+const CACHE = 'rego-v35';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
   ...['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'].map((n) => `/screens/${n}.dc.html`)];
 
@@ -34,7 +34,18 @@ self.addEventListener('push', (e) => {
       list = (await res.json()).notifications || [];
     } catch (err) {}
     if (!list.length) list = [{ title: 'ReGo', body: 'Neue Meldung auf deiner Strecke', url: '/Meldungen' }];
-    for (const n of list) await self.registration.showNotification(n.title, { body: n.body, icon: '/icons/icon-192.png', badge: '/icons/badge.png', tag: (n.url || 'rego') + '|' + (n.ts || Date.now()), renotify: true, data: { url: n.url || '/' } });
+    let shown = 0;
+    for (const n of list) {
+      if (n.clear) { for (const x of await self.registration.getNotifications({ tag: n.tag })) x.close(); continue; }
+      // Gleicher Vorfall = gleiche Kennung: Update ersetzt die Meldung leise, Neues meldet sich mit Ton
+      await self.registration.showNotification(n.title, { body: n.body, icon: '/icons/icon-192.png', badge: '/icons/badge.png', tag: n.tag || ((n.url || 'rego') + '|' + (n.ts || Date.now())), renotify: !n.update, silent: !!n.update, data: { url: n.url || '/' } });
+      shown++;
+    }
+    // Chrome verlangt zu jedem Push eine sichtbare Meldung: nach dem Entfernen kurz eine stumme anzeigen und sofort wieder schließen
+    if (!shown) {
+      await self.registration.showNotification('ReGo', { tag: 'rego-cleanup', silent: true, icon: '/icons/icon-192.png', badge: '/icons/badge.png' });
+      for (const x of await self.registration.getNotifications({ tag: 'rego-cleanup' })) x.close();
+    }
   })());
 });
 self.addEventListener('notificationclick', (e) => {
