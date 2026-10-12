@@ -86,7 +86,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    if (cfg.verbose) { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0; if (ms >= 400) console.log(`langsam: ${req.method} ${url.pathname} ${res.statusCode} ${ms} ms`); }); }
+    if (cfg.verbose) { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0; if (ms >= 400 || (url.pathname.startsWith('/api/') && res.statusCode >= 400)) console.log(`${res.statusCode >= 400 ? 'Fehlerantwort' : 'langsam'}: ${req.method} ${url.pathname} ${res.statusCode} ${ms} ms`); }); }
     try {
       if (url.pathname.startsWith('/api/')) await api(req, res, url);
       else if (req.method === 'GET' || req.method === 'HEAD') await serveStatic(req, res, url);

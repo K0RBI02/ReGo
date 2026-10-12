@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.1.31-beta
+- Offline-Anzeige nennt jetzt den Grund (z. B. "Offline-Modus · Server 500", "Zeitüberschreitung" oder "keine Verbindung zum Server"). Abrufe brechen nach 30 s ab.
+- Log: Fehlerantworten der API (HTTP ab 400) stehen jetzt im Protokoll.
+
 ## 0.1.30-beta
 - Lindau Hbf: Der Bahnhof heißt bei den Quellen "Lindau (Bodensee) Insel" bzw. "Lindau Inselbahnhof" und war über "Lindau Hbf" nicht zu finden. Die Suche zeigt ihn jetzt bei "Lindau Hbf / Hauptbahnhof / Bahnhof" ganz oben als "Lindau (Bodensee) Hbf".
 

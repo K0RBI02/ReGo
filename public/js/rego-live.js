@@ -33,7 +33,7 @@
   R.stations = stationCache;
 
   const api = async (path, opt = {}) => {
-    const res = await fetch(`/api${path}`, Object.assign({}, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, opt.headers || {}) }));
+    const res = await fetch(`/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, opt.headers || {}) }));
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status });
     return body;
@@ -44,7 +44,7 @@
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
-    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Keine aktuellen Daten' : 'Offline-Modus', offlineSince: c.lastSync, loading: !!c.loading };
+    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Keine aktuellen Daten' : 'Offline-Modus' + (R.errorHint ? ' · ' + R.errorHint : ''), offlineSince: c.lastSync, loading: !!c.loading };
   };
   R.isVisible = function (inc) {
     const now = new Date(`${R.clock.date}T${R.clock.now}`).getTime();
@@ -116,8 +116,9 @@
         else apply(state, 'error', state.connection.lastSync || t);
         // Ohne irgendeine verwertbare Abfahrt gibt es nichts Brauchbares zu zeigen: große Meldung statt leerer Karten
         R.outage = R.tours.length > 0 && R.tours.every((x) => !(x.departures || []).length);
-      } else { R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t }); }
+      } else { R.errorHint = ''; R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t }); }
     } catch (e) {
+      R.errorHint = e && e.status ? `Server ${e.status}` : (e && e.name === 'TimeoutError') ? 'Zeitüberschreitung' : 'keine Verbindung zum Server';
       const cached = LS.get('rego.state', null);
       if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
       else { R.outage = true; R.tours = []; R.incidents = []; R.connection = { status: 'offline', loading: false, lastSync: '' }; }
