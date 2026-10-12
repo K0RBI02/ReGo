@@ -32,6 +32,15 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     return r;
   }
 
+  // Nur rund um die eingestellte Abfahrtszeit (±20 Min.) an den Tagen der Strecke
+  const WINDOW_MIN = 20, WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  function inWindow(tour, t) {
+    if (!tour?.schedule) return true;
+    const b = berlin(t), wd = WD[new Date(`${b.date}T12:00:00Z`).getUTCDay()];
+    if (!tour.schedule.days.includes(wd)) return false;
+    const m = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+    return Math.abs(m(b.time) - m(tour.schedule.departAfter)) <= WINDOW_MIN;
+  }
   const tagOf = (id) => `inc|${id}`;
   const GONE_TICKS = 2;       // erst nach zwei Durchläufen ohne den Vorfall die Meldung entfernen (Daten können kurz haken)
   const CLEAR_WINDOW = 12 * 3600e3;
@@ -43,7 +52,8 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     if (hour < 4 || hour >= 23) return 0;                       // nachts Ruhe
     const state = await service.getState(device);
     if (state.connection.status === 'error') return 0;
-    const cur = new Map(state.incidents.filter((i) => relevant(i, profile.settings.pushThresholdMin)).map((i) => [i.id, i]));
+    const tourOf = Object.fromEntries(profile.tours.map((t) => [t.id, t]));
+    const cur = new Map(state.incidents.filter((i) => relevant(i, profile.settings.pushThresholdMin) && (!profile.settings.pushWindow || inWindow(tourOf[i.tourId], now()))).map((i) => [i.id, i]));
     const notified = profile.notified || {}, shown = profile.shownDelay || {}, gone = profile.goneCount || {};
     const fresh = [...cur.values()].filter((i) => !notified[i.id]);
     // Verspätung hat sich geändert: bestehende Meldung leise aktualisieren

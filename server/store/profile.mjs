@@ -1,12 +1,12 @@
 // Profil je Gerät als JSON-Datei. Keine Konten, keine Tickets, nur Strecken und Einstellungen.
-import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, unlink, stat, utimes, readdir } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 
 export const DEVICE_RE = /^[A-Za-z0-9_-]{16,64}$/;
 export class ValidationError extends Error { constructor(m) { super(m); this.status = 400; } }
 
-export const defaultProfile = () => ({ tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10 }, push: null, updatedAt: 0 });
+export const defaultProfile = () => ({ tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10, pushWindow: false }, push: null, updatedAt: 0 });
 const rid = () => randomBytes(4).toString('hex');
 const isStop = (s) => s && typeof s.id === 'string' && s.id && typeof s.name === 'string' && s.name;
 const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -39,6 +39,24 @@ export class ProfileStore {
     const run = prev.catch(() => {}).then(async () => { const p = await this.load(device); const r = await fn(p); await this.save(device, p); return r ?? p; });
     this.locks.set(device, run);
     try { return await run; } finally { if (this.locks.get(device) === run) this.locks.delete(device); }
+  }
+
+  /** „Zuletzt benutzt“ vermerken (Änderungszeit der Datei), höchstens alle 12 Stunden. */
+  async touch(device) {
+    const f = this.file(device);
+    try { const st = await stat(f); if (this.now() - st.mtimeMs > 12 * 3600e3) { const d = new Date(this.now()); await utimes(f, d, d); } } catch { /* Gerät ohne Profil */ }
+  }
+
+  /** Profile löschen, die seit `days` Tagen nicht benutzt wurden. Gibt die Anzahl zurück. */
+  async purge(days) {
+    if (!(days > 0)) return 0;
+    let n = 0, files = [];
+    try { files = await readdir(this.dir); } catch { return 0; }
+    for (const f of files) {
+      if (!f.endsWith('.json')) continue;
+      try { const st = await stat(join(this.dir, f)); if (this.now() - st.mtimeMs > days * 864e5) { await unlink(join(this.dir, f)); n++; } } catch { /* schon weg */ }
+    }
+    return n;
   }
 
   async remove(device) { try { await unlink(this.file(device)); } catch (e) { if (e.code !== 'ENOENT') throw e; } }
@@ -90,9 +108,14 @@ export function deleteTour(profile, id) {
 }
 
 export function setSettings(profile, body) {
+  if (body.pushThresholdMin === undefined && body.pushWindow === undefined) throw new ValidationError('Keine bekannte Einstellung');
   if (body.pushThresholdMin !== undefined) {
     if (![3, 5, 10].includes(body.pushThresholdMin)) throw new ValidationError('pushThresholdMin muss 3, 5 oder 10 sein');
     profile.settings.pushThresholdMin = body.pushThresholdMin;
+  }
+  if (body.pushWindow !== undefined) {
+    if (typeof body.pushWindow !== 'boolean') throw new ValidationError('pushWindow muss true oder false sein');
+    profile.settings.pushWindow = body.pushWindow;
   }
   return profile.settings;
 }

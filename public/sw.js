@@ -1,5 +1,5 @@
 /* Service Worker: App-Gerüst offline verfügbar. Daten (/api) laufen immer übers Netz; die App hält ihren letzten Stand selbst. */
-const CACHE = 'rego-v37';
+const CACHE = 'rego-v39';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
   ...['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'].map((n) => `/screens/${n}.dc.html`)];
 
@@ -7,7 +7,7 @@ self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
   const r = e.request, u = new URL(r.url);
-  if (r.method !== 'GET' || u.origin !== location.origin || u.pathname.startsWith('/api/')) return;
+  if (r.method !== 'GET' || u.origin !== location.origin || u.pathname.startsWith('/api/') || u.pathname === '/status') return;
   // Sofort aus dem Zwischenspeicher (App startet ohne Netzwerk-Wartezeit), im Hintergrund frisch nachladen.
   // Die neue Version erscheint beim nächsten Start. Erster Start ohne Zwischenspeicher: normal übers Netz.
   e.respondWith((async () => {

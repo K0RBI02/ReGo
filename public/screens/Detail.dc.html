@@ -185,7 +185,7 @@ Zurück</a>
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
 <div style="min-height: 60px; padding: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1.5px solid #ECECEC">
 <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">{{r.label}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">{{r.sub}}</span></span>
-<span style="font-size: 17px; font-weight: 700; white-space: nowrap">{{r.value}} <span style="font-size: 13px; font-weight: 600; color: #4A4747; text-decoration: line-through">{{r.planned}}</span></span>
+<span style="font-size: 17px; font-weight: 700; white-space: nowrap">{{r.value}} <span style="font-size: 13px; font-weight: 600; color: #4A4747">{{r.planned}}</span></span>
 </div>
 </sc-for>
 </div>
@@ -211,6 +211,8 @@ Zurück</a>
 <div style="font-size: 13px; font-weight: 600; color: #5A5448; text-align: center">{{ticket.note}}</div>
 </div>
 </sc-if>
+<a href="https://www.bahn.de/" target="_blank" rel="noopener" style="min-height: 52px; border: 1.5px solid #1C1A1A; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; font-weight: 700">Im DB Navigator ansehen
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></a>
 </div>
 </div>
 </x-dc>
@@ -302,7 +304,7 @@ class Component extends DCLogic {
     out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px';
     out.head = view.head; out.big = view.big; out.sub = view.sub;
     out.icon1 = K.icon[0]; out.icon2 = K.icon[1];
-    out.rows = view.rows || [];
+    out.rows = (view.rows || []).map((r) => Object.assign({}, r, { planned: r.planned ? 'geplant ' + r.planned : '' }));
     out.hasAlt = !!view.alternative;
     out.alt = view.alternative || { title: '', line1: '', line2: '', badge: '' };
     out.hasTicket = !!view.ticketHint;

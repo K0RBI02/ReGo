@@ -12,6 +12,7 @@ COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 COPY server ./server
 COPY public ./public
+COPY rego/config.yaml ./config.yaml
 COPY rego/run.sh /run.sh
 RUN chmod +x /run.sh
 CMD ["/run.sh"]

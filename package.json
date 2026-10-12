@@ -14,7 +14,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "hafas-client": "^6.3.6",
-    "db-vendo-client": "^6.11.3"
+    "hafas-client": "^6.3.6"
   }
 }

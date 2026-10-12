@@ -62,6 +62,8 @@
   function splash() {
     const el = document.getElementById('splash');
     if (!el) return;
+    if (flag('rego.splashSeen')) { el.remove(); return; }      // Beta-Hinweis nur beim allerersten Start
+    flag('rego.splashSeen', true);
     const v = document.getElementById('splash-ver'); if (v && R.version) v.textContent = R.version;
     document.documentElement.style.background = document.body.style.background = BG_SPLASH;
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', BG_SPLASH);

@@ -6,7 +6,7 @@ Node.js ≥ 20. Holt Fahrplandaten aus mehreren Quellen: regionale Verbünde (MV
 `public/` ist die App: dein Design (`public/screens/*.dc.html`) läuft unverändert, `public/js/dc-lite.js` führt es aus, `public/js/rego-live.js` füllt es mit den Backend-Daten. Das Backend liefert die App mit aus, nach `npm start` einfach `http://127.0.0.1:8080/` öffnen. Aufs Handy: im Browser „Zur Startseite hinzufügen“ (Installieren geht nur über https oder localhost).
 - Offline: letzter Stand bleibt im Gerät, Banner „Offline-Modus | Stand: hh:mm“.
 - Tickets und Geräte-ID liegen nur im Gerät (localStorage).
-- Schrift: `Instrument Sans` als `public/fonts/InstrumentSans.woff2` ablegen (kein Google-Fonts-Aufruf, wegen „keine Drittanbieter“). Ohne Datei greift die Systemschrift.
+- Schrift: ReGo nutzt die Systemschrift (keine Drittanbieter). Wer Instrument Sans möchte, legt die Datei als `public/fonts/InstrumentSans.woff2` ab und ergänzt in `public/index.html` eine `@font-face`-Regel.
 - Ticket-Safe: Barcode per Kamera (nur https) oder aus Foto/Screenshot; gespeichert wird der Zuschnitt des Codes als Bild, nur lokal. Wallet-Apps lassen sich aus dem Browser nicht auslesen.
 - Push: VAPID ohne Fremdbibliothek, Push ist leer, der Text kommt vom Backend. Prüfintervall `REGO_NOTIFY_SEC` (60). Nachtruhe 23–4 Uhr.
 
@@ -15,6 +15,12 @@ In Home Assistant: Einstellungen → Add-ons → Add-on-Store → ⋮ → Reposi
 
 ## Handy-Installation
 Siehe `deploy/ANDROID.md` (https über Tailscale, Chrome → „App installieren“). Autostart: `deploy/rego.service`.
+
+## Datenschutz
+Siehe [DATENSCHUTZ.md](DATENSCHUTZ.md). Kurz: keine Konten, keine Tickets auf dem Server, Profile werden nach 180 Tagen ohne Nutzung gelöscht (`REGO_PROFILE_DAYS`).
+
+## Tests
+`npm test` (Server und Fachlogik) und `node scripts/ui-smoke.mjs` (Bildschirmtest, braucht Playwright). Beides läuft vor jedem Build auf GitHub; schlägt ein Test fehl, wird kein Image gebaut.
 
 ## Starten
     npm run demo      # Beispieldaten, ohne Internet
@@ -25,17 +31,18 @@ Siehe `deploy/ANDROID.md` (https über Tailscale, Chrome → „App installieren
 Umgebungsvariablen: `PORT` (8080), `HOST` (127.0.0.1; fürs LAN `0.0.0.0`), `REGO_DATA`, `REGO_PUBLIC`, `REGO_PROVIDER` (`transport-rest`|`mock`), `REGO_DB_URL`, `REGO_OEBB_URL`, `REGO_CORS`.
 
 ## API
-Alle Pfade außer `health` und `stations` brauchen den Header `X-Device: <zufällige ID, 16–64 Zeichen>` (anonym, vom Frontend einmal erzeugt).
+Alle Pfade außer `health` und `status` brauchen den Header `X-Device: <zufällige ID, 16–64 Zeichen>` (anonym, vom Frontend einmal erzeugt).
 
 | Pfad | Zweck |
 |---|---|
 | GET /api/health | Lebenszeichen |
-| GET /api/stations?q= | Haltestellensuche |
+| GET /api/status | Version, Quellenzustand, Anzahl Geräte (ohne persönliche Daten), Seite `/status` |
+| GET /api/stations?q= | Haltestellensuche (braucht die Geräte-ID) |
 | GET /api/state?lat=&lon= | kompletter Zustand (tours, incidents, lines, connection, settings, clock) |
 | POST /api/tours | `{from:{id,name}, to:{id,name}, schedule?, roundTrip?, returnAfter?}` |
 | PATCH /api/tours/:id | `active`, `name`, `schedule` |
 | DELETE /api/tours/:id | Strecke löschen |
-| PUT /api/settings | `{pushThresholdMin: 3｜5｜10}` |
+| PUT /api/settings | `{pushThresholdMin: 3｜5｜10, pushWindow: true｜false}` (Push nur ±20 Min. um die Abfahrt) |
 | GET/PUT/DELETE /api/profile | Profil lesen / ersetzen (Rückgängig) / löschen |
 | PUT /api/push | Push-Abo speichern (schickt eine Test-Meldung), DELETE löscht es |
 | GET /api/push/key | öffentlicher VAPID-Schlüssel |

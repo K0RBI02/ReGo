@@ -1,6 +1,6 @@
 import { HafasClient, ProviderError } from './hafas.mjs';
 import { mockFetch } from './mock.mjs';
-import { createDbClient, createOebbClient } from './lib.mjs';
+import { createOebbClient } from './lib.mjs';
 import { EfaClient, rankOf } from './efa.mjs';
 import { regionOf, distanceKm } from '../lib/geo.mjs';
 
@@ -14,7 +14,7 @@ export function createProviders(config, now = () => Date.now()) {
     const quick = { ...common, timeoutMs: Math.min(common.timeoutMs, 4000), retries: 0 };     // Ausweichquelle: kurz probieren, nicht lange warten
     const restDb = new HafasClient(config.upstream.db, { ...quick, name: 'db' });
     const restOebb = new HafasClient(config.upstream.oebb, { ...quick, name: 'oebb' });
-    const db = withFallback(createDbClient(config.upstream.userAgent), restDb, config);
+    const db = restDb;      // DB sperrt die Bibliothek (OPS_BLOCKED), deshalb nur noch transport.rest
     const oebb = withFallback(createOebbClient(config.upstream.userAgent), restOebb, config);
     return build(db, oebb, false, efas);
   }

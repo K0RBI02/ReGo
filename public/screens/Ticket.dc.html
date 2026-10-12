@@ -138,7 +138,7 @@ Zurück</a>
 <div style="margin: 14px 20px 0; background: #fff; border-radius: 32px; overflow: hidden; display: flex; flex-direction: column">
 <div style="background: #FDF3DC; padding: 14px 22px; display: flex; flex-direction: column; gap: 2px">
 <span style="font-size: 24px; font-weight: 700; letter-spacing: -0.03em">{{name}}</span>
-<span style="font-size: 15px; font-weight: 600; color: #4A4747">{{valid}}</span>
+<span style="font-size: 15px; font-weight: 600; color: #4A4747">{{valid}}<sc-if value="{{expired}}" hint-placeholder-val="{{ false }}"> · <b style="color: #A3231A">abgelaufen</b></sc-if></span>
 </div>
 <div style="padding: 16px 16px 10px; display: grid; place-items: center">
 <sc-if value="{{hasImg}}" hint-placeholder-val="{{ true }}"><img class="rg-code" alt="Ticket-Barcode" src="{{imgSrc}}" style="max-width: 100%; max-height: 300px"></sc-if>
@@ -163,12 +163,19 @@ Zurück</a>
 <span style="font-size: 14px; font-weight: 700; color: #4A4747; padding: 0 4px 2px">Weitere Tickets</span>
 <sc-for list="{{extras}}" as="x" hint-placeholder-count="2">
 <button type="button" class="rg-row" onClick="{{x.pick}}" style="min-height: 56px; background: transparent; text-align: left; padding: 0 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #1C1A1A">
-<span style="display: flex; flex-direction: column; gap: 1px"><span style="{{x.nameStyle}}">{{x.name}}</span><span style="font-size: 13px; font-weight: 600; color: #4A4747">{{x.valid}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 1px"><span style="{{x.nameStyle}}">{{x.name}}</span><span style="font-size: 13px; font-weight: 600; color: #4A4747">{{x.valid}}<sc-if value="{{x.expired}}" hint-placeholder-val="{{ false }}"> · <b style="color: #A3231A">abgelaufen</b></sc-if></span></span>
 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
 </button>
 </sc-for>
 </div>
 </sc-if>
+
+<div style="margin: 18px 20px 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center">
+<button type="button" onClick="{{doExport}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 14px; font-weight: 700; color: #4A4747; text-decoration: underline">Tickets sichern</button>
+<button type="button" onClick="{{pickImport}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 14px; font-weight: 700; color: #4A4747; text-decoration: underline">Tickets wiederherstellen</button>
+<input type="file" id="rg-tfile" accept="application/json,.json" onChange="{{onImport}}" style="display: none">
+</div>
+<div style="margin: 0 20px; font-size: 13px; font-weight: 600; line-height: 1.35; color: #4A4747">Deine Tickets liegen nur auf diesem Gerät. Wer die Browserdaten löscht, verliert sie. Die Sicherungsdatei bleibt bei dir.</div>
 
 </div>
 
@@ -194,6 +201,7 @@ class Component extends DCLogic {
     if (h === '#neu') setTimeout(() => this.setState({ toast: '' }), 3500);
     try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then((l) => { this._lock = l; }, () => {}); } catch (e) {}
   }
+  flash(msg) { clearTimeout(this._tm); this.setState({ toast: msg }); this._tm = setTimeout(() => this.setState({ toast: '' }), 3500); }
   onDestroy() { try { if (this._lock) this._lock.release(); } catch (e) {} }
   pattern(seed) {
     let s = seed >>> 0;
@@ -227,7 +235,7 @@ class Component extends DCLogic {
       return { label: sl[1], on: sel === sl[0], style: pill(sel === sl[0]) + (t || sel === sl[0] ? '' : '; border: 1.5px dashed #9A9A9A'), pick: () => this.setState({ sel: sl[0] }) };
     });
     const extras = T.tickets.filter((t) => !t.slot).map((t) => ({
-      name: t.name, valid: 'Gültig bis ' + t.validUntil,
+      name: t.name, valid: 'Gültig bis ' + t.validUntil, expired: T.actions.ticketExpired(t),
       nameStyle: 'font-size: 17px; font-weight: ' + (sel === t.id ? 700 : 600),
       pick: () => this.setState({ sel: t.id })
     }));
@@ -235,7 +243,10 @@ class Component extends DCLogic {
     return {
       toast: this.state.toast, tabs, extras, hasExtras: extras.length > 0,
       hasCard: !!cur, noCard: !cur, emptyTitle: 'Noch kein ' + missing,
-      name: cur ? cur.name : '', valid: cur ? 'Gültig bis ' + cur.validUntil : '',
+      name: cur ? cur.name : '', valid: cur ? 'Gültig bis ' + cur.validUntil : '', expired: !!(cur && T.actions.ticketExpired(cur)),
+      doExport: () => { const n = T.actions.exportTickets(); this.flash(n ? n + ' Ticket(s) gesichert' : 'Keine Tickets zum Sichern'); },
+      pickImport: () => { const f = document.getElementById('rg-tfile'); if (f) f.click(); },
+      onImport: (e) => { const f = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = ''; if (!f) return; T.actions.importTickets(f).then((n) => { this.flash(n + ' Ticket(s) wiederhergestellt'); this.setState({}); }, (er) => this.flash(er.message || 'Nicht möglich')); },
       code: cur && !cur.image ? this.pattern(cur.barcodeSeed || 1) : '',
       hasImg: !!(cur && cur.image), noImg: !!(cur && !cur.image), imgSrc: cur && cur.image ? (this.state.showOrig && cur.original ? cur.original : cur.image) : '',
       hasOrig: !!(cur && cur.original), origLabel: this.state.showOrig ? 'Neu gezeichneten Code zeigen' : 'Originalfoto zeigen', toggleOrig: () => this.setState({ showOrig: !this.state.showOrig }),

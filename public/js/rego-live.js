@@ -3,7 +3,7 @@
 (function () {
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   };
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 24);
   let device = LS.get('rego.device', null);
@@ -44,7 +44,7 @@
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
-    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Keine aktuellen Daten' : 'Offline-Modus' + (R.errorHint ? ' · ' + R.errorHint : ''), offlineSince: c.lastSync, loading: !!c.loading };
+    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Keine aktuellen Daten' : 'Offline-Modus', offlineSince: c.lastSync, loading: !!c.loading };
   };
   R.isVisible = function (inc) {
     const now = new Date(`${R.clock.date}T${R.clock.now}`).getTime();
@@ -142,15 +142,38 @@
       await R.refresh();
     },
     async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },
+    async updateTour(id, { days, time }) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ schedule: { days, departAfter: time } }) }); await R.refresh(); },
     async removeTour(id) { R._before = await api('/profile'); await api(`/tours/${id}`, { method: 'DELETE' }); await R.refresh(); },
     async undoRemove() { if (R._before) { await api('/profile', { method: 'PUT', body: JSON.stringify(R._before) }); R._before = null; await R.refresh(); } },
     saveTicket(t) {
       const id = t.slot || ('t' + Date.now().toString(36));
       R.tickets = R.tickets.filter((x) => x.id !== id && !(t.slot && x.slot === t.slot));
+      const before = R.tickets.slice();
       R.tickets.push({ id, slot: t.slot || null, name: t.name, validUntil: t.validUntil, image: t.image, original: t.original || '', payload: t.payload || '', format: t.format || '' });
-      LS.set('rego.tickets', R.tickets);
+      if (!LS.set('rego.tickets', R.tickets)) { R.tickets = before; throw new Error('Das Ticket konnte nicht gespeichert werden: Speicher voll oder gesperrt. Entferne ein altes Ticket oder gib dem Browser Speicherplatz.'); }
     },
+    /** Tickets als Datei sichern (bleibt auf dem Gerät) und wieder einlesen */
+    exportTickets() {
+      const blob = new Blob([JSON.stringify({ app: 'ReGo', version: 1, savedAt: new Date().toISOString(), tickets: R.tickets })], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rego-tickets.json'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      return R.tickets.length;
+    },
+    async importTickets(file) {
+      if (!file || file.size > 8 * 1024 * 1024) throw new Error('Datei fehlt oder ist zu groß.');
+      let data; try { data = JSON.parse(await file.text()); } catch (e) { throw new Error('Das ist keine ReGo-Ticketdatei.'); }
+      if (!data || data.app !== 'ReGo' || !Array.isArray(data.tickets)) throw new Error('Das ist keine ReGo-Ticketdatei.');
+      const ok = data.tickets.filter((t) => t && typeof t.id === 'string' && typeof t.name === 'string' && typeof t.validUntil === 'string' && typeof t.image === 'string' && /^data:image\//.test(t.image));
+      if (!ok.length) throw new Error('Keine Tickets in der Datei.');
+      const before = R.tickets.slice();
+      const ids = new Set(ok.map((t) => t.id));
+      R.tickets = R.tickets.filter((x) => !ids.has(x.id)).concat(ok.map((t) => ({ id: t.id.slice(0, 40), slot: ['dt', 'kt'].includes(t.slot) ? t.slot : null, name: t.name.slice(0, 80), validUntil: t.validUntil.slice(0, 10), image: t.image, original: typeof t.original === 'string' && /^data:image\//.test(t.original) ? t.original : '', payload: String(t.payload || ''), format: String(t.format || '') })));
+      if (!LS.set('rego.tickets', R.tickets)) { R.tickets = before; throw new Error('Speicher voll, Tickets nicht übernommen.'); }
+      return ok.length;
+    },
+    ticketExpired(t) { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(t && t.validUntil || ''); if (!m) return false; return new Date(+m[3], +m[2] - 1, +m[1], 23, 59, 59).getTime() < Date.now(); },
     removeTicket(id) { R.tickets = R.tickets.filter((x) => x.id !== id); LS.set('rego.tickets', R.tickets); },
+    async setPushWindow(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushWindow: v }) }); R.settings.pushWindow = v; },
     async setThreshold(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushThresholdMin: v }) }); R.settings.pushThresholdMin = v; },
   };
   /* --- Push --- */

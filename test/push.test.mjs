@@ -120,3 +120,69 @@ test('Push-Test ohne Abo gibt 409, kaputte Adresse 400, große Anfrage 413', asy
     assert.equal((await fetch(base + '/api/tours', { method: 'POST', headers: h, body: 'a'.repeat(100000) })).status, 413);
   } finally { server.close(); }
 });
+
+async function appOn(dir) {
+  const { createApp } = await import('../server/index.mjs');
+  const { server, store } = createApp({ cfg: { ...config, dataDir: dir, provider: 'mock' } });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return { server, store, base: `http://127.0.0.1:${server.address().port}` };
+}
+const H = { 'x-device': 'testdevice0123456789abcdef', 'content-type': 'application/json' };
+
+test('Haltestellensuche braucht Geräte-ID, Header und Status stehen', async () => {
+  const { server, base } = await appOn(await mkdtemp(join(tmpdir(), 'rego-')));
+  try {
+    assert.equal((await fetch(base + '/api/stations?q=Freising')).status, 400);
+    const ok = await fetch(base + '/api/stations?q=Freising', { headers: H });
+    assert.equal(ok.status, 200);
+    assert.match(ok.headers.get('content-security-policy'), /default-src 'self'/);
+    assert.equal(ok.headers.get('x-content-type-options'), 'nosniff');
+    const html = await fetch(base + '/');
+    assert.match(html.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+    const st = await (await fetch(base + '/api/status')).json();
+    assert.equal(st.provider, 'mock'); assert.match(st.version, /\d/); assert.equal(typeof st.devices, 'number');
+    const page = await fetch(base + '/status'); assert.match(await page.text(), /ReGo Status/);
+  } finally { server.close(); }
+});
+
+test('Profile ohne Nutzung werden gelöscht, benutzte bleiben', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rego-'));
+  const { utimes } = await import('node:fs/promises');
+  const store = new ProfileStore(dir);
+  await store.update('altesgeraet0123456789', (p) => { p.tours = []; });
+  await store.update('neuesgeraet0123456789', (p) => { p.tours = []; });
+  const old = new Date(Date.now() - 200 * 864e5);
+  await utimes(join(dir, 'profiles', 'altesgeraet0123456789.json'), old, old);
+  assert.equal(await store.purge(180), 1);
+  assert.equal((await store.load('neuesgeraet0123456789')).updatedAt > 0, true);
+  assert.equal((await store.load('altesgeraet0123456789')).updatedAt, 0);
+  assert.equal(await store.purge(0), 0);
+});
+
+test('Push-Zeitfenster: nur ±20 Min. um die Abfahrt an den Strecken-Tagen', async () => {
+  const { setSettings } = await import('../server/store/profile.mjs');
+  const p = { settings: { pushThresholdMin: 5 } };
+  setSettings(p, { pushWindow: true }); assert.equal(p.settings.pushWindow, true);
+  assert.throws(() => setSettings(p, { pushWindow: 'ja' }));
+  assert.throws(() => setSettings(p, {}));
+});
+
+test('Push-Zeitfenster greift: nur ±20 Min. um die Abfahrt, nur an Strecken-Tagen', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rego-n4-'));
+  const cfg = { ...config, provider: 'mock', dataDir: dir };
+  let t = Date.parse('2026-10-12T12:00:00+02:00');     // Montag, Mittag
+  const now = () => t;
+  const store = new ProfileStore(dir, now);
+  const dev = 'notifygeraet888888';
+  let tourId;
+  await store.update(dev, (p) => { tourId = addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Mo', 'Di'], departAfter: '07:00' } })[0].id; p.push = { endpoint: 'https://fcm.googleapis.com/fcm/send/w' }; p.settings.pushWindow = true; });
+  const incidents = [{ id: 'w1', tourId, kind: 'delay', delayMin: 9, title: 'S1 Freising → München Hbf', summary: 'x', validity: { activeNow: true } }];
+  const service = { getState: async () => ({ connection: { status: 'ok' }, incidents }) };
+  const n = createNotifier({ config: cfg, store, service, vapid: await loadVapid(dir), now, send: async () => 'ok' });
+  assert.equal(await n.checkDevice(dev), 0);           // 12:00, weit weg von 07:00
+  t = Date.parse('2026-10-12T07:15:00+02:00');
+  assert.equal(await n.checkDevice(dev), 1);           // 15 Min. nach Abfahrtszeit
+  await store.update(dev, (p) => { p.notified = {}; p.shownDelay = {}; });
+  t = Date.parse('2026-10-14T07:00:00+02:00');         // Mittwoch, kein Strecken-Tag
+  assert.equal(await n.checkDevice(dev), 0);
+});

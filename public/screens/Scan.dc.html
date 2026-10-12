@@ -363,7 +363,8 @@ class Component extends DCLogic {
       save: () => {
         if (!ok) return;
         const [y, mo, d] = st.valid.split('-');
-        window.REGO.actions.saveTicket({ slot: st.type === 'other' ? null : st.type, name: st.name.trim(), validUntil: d + '.' + mo + '.' + y, image: st.found.code || st.found.image, original: st.found.code ? st.found.image : '', payload: st.found.raw, format: st.found.fmt });
+        try { window.REGO.actions.saveTicket({ slot: st.type === 'other' ? null : st.type, name: st.name.trim(), validUntil: d + '.' + mo + '.' + y, image: st.found.code || st.found.image, original: st.found.code ? st.found.image : '', payload: st.found.raw, format: st.found.fmt }); }
+        catch (e) { this.setState({ info: e.message }); return; }
         window.REGO.navigate('/Ticket#neu');
       }
     };

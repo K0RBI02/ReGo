@@ -27,6 +27,7 @@ export const config = {
   // Ab dieser Verspätung (Minuten) entsteht eine Meldung
   incidentMinDelay: 3,
   vapidSubject: env.REGO_VAPID_SUBJECT || 'mailto:rego@localhost.invalid',
+  profileMaxAgeDays: Number(env.REGO_PROFILE_DAYS || 180),   // Profile von Geräten, die so lange nichts abgefragt haben, werden gelöscht
   notifyEverySec: Number(env.REGO_NOTIFY_SEC || 60),
   verbose: env.REGO_VERBOSE === '1',        // Fehler der Datenquelle ins Protokoll schreiben
   corsOrigin: env.REGO_CORS || '',          // z. B. http://localhost:5173 beim Frontend-Entwickeln

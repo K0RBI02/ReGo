@@ -1,5 +1,18 @@
 # Änderungen
 
+## 0.2.0
+Erste Mini-Version nach der Beta.
+- Strecken lassen sich ändern (Zeit und Wochentage) über "Ändern" an der Strecke.
+- Push nur rund um die Abfahrt: neuer Schalter unter den Push-Einstellungen, ±20 Minuten um die Zeit der Strecke an deren Tagen.
+- Tickets: Meldung, wenn der Speicher voll ist, "Tickets sichern" und "Tickets wiederherstellen" als Datei, abgelaufene Tickets sind markiert.
+- Detailseite: "geplant 00:18" statt durchgestrichener Zeit, "Nächste Verbindung" statt "Alternative", Link "Im DB Navigator ansehen".
+- Offline-Balken kurz: "Offline-Modus | Stand: hh:mm".
+- Beta-Hinweis beim Start nur noch beim allerersten Mal.
+- App-Symbol: Kurzbefehle "Ticket anzeigen" und "Meldungen" (langes Drücken).
+- Statusseite unter `/status`.
+- Sicherheit: Haltestellensuche braucht die Geräte-ID, Sicherheits-Header (CSP u. a.), Profile ohne Nutzung seit 180 Tagen werden gelöscht, DATENSCHUTZ.md.
+- Aufgeräumt: nicht mehr genutzte Bibliothek db-vendo-client entfernt, Schriftdatei-Anfrage (404) entfernt, Bildschirmtest läuft vor jedem Build.
+
 ## 0.1.35-beta
 - "Hinweg" und "Rückweg" stehen nur noch bei echten Hin-und-zurück-Paaren, nicht mehr nach Uhrzeit geraten.
 - Meldungen: Dieselbe Störung auf Hin- und Rückweg erscheint als eine Karte ("beide Richtungen"). "nach Nähe sortiert" steht nur noch, wenn der Standort bekannt ist.

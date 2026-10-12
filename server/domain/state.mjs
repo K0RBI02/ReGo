@@ -101,7 +101,7 @@ export async function buildTour(tour, journeys, ctx) {
           { label: `Abfahrt ${leg.origin.name}`, sub: sub(leg), value: hhmm(leg.dep), planned: hhmm(leg.plannedDep) !== hhmm(leg.dep) ? hhmm(leg.plannedDep) : '' },
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },
         ],
-        alternative: alt ? { title: `Alternative · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : 'pünktlich' } : null,
+        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : 'pünktlich' } : null,
         ticketHint: hint, map,
       },
     });

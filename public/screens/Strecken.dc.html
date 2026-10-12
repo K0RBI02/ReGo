@@ -143,6 +143,7 @@ Zurück</a>
 <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{r.name}}</span>
 <span style="display: flex; align-items: center; gap: 10px; padding-top: 2px">
 <span style="{{r.chipStyle}}">{{r.line}}</span>
+<button type="button" onClick="{{r.edit}}" aria-label="{{r.editLabel}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 15px; font-weight: 600; color: #1C1A1A; text-decoration: underline">Ändern</button>
 <button type="button" onClick="{{r.remove}}" aria-label="{{r.removeLabel}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 15px; font-weight: 600; color: #4A4747; text-decoration: underline">Entfernen</button>
 </span>
 </div>
@@ -161,6 +162,10 @@ Zurück</a>
 <button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
 </sc-for>
 </div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px">
+<span style="font-size: 16px; font-weight: 600; line-height: 1.3">Nur rund um die Abfahrt<br><span style="font-size: 14px; color: #4A4747">±20 Min. um die Zeit deiner Strecke</span></span>
+<button type="button" role="switch" aria-checked="{{pwOn}}" aria-label="Nur rund um die Abfahrtszeit benachrichtigen" onClick="{{togglePw}}" style="{{pwStyle}}"><span style="{{pwKnob}}"></span></button>
+</div>
 </div>
 
 <div style="padding: 0 4px; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? Melde dich bei Korbi<sc-if value="{{hasContact}}" hint-placeholder-val="{{ false }}"> unter <a href="{{contactHref}}" style="color: #1C1A1A; font-weight: 700; text-decoration: underline">{{contact}}</a></sc-if>.</div>
@@ -176,7 +181,9 @@ Strecke hinzufügen</button>
 
 <sc-if value="{{adding}}" hint-placeholder-val="{{ false }}">
 <div class="rg-dockpad rg-under" style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 12px; display: flex; flex-direction: column; gap: 12px">
-<h1 style="margin: 0 0 4px; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Neue<br>Strecke</h1>
+<h1 style="margin: 0 0 4px; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">{{formTitle1}}<br>{{formTitle2}}</h1>
+<sc-if value="{{editing}}" hint-placeholder-val="{{ false }}"><div style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15">{{editName}}</div></sc-if>
+<sc-if value="{{showStops}}" hint-placeholder-val="{{ true }}">
 <div style="position: relative">
 <label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 12px 20px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 14px; font-weight: 600; color: #4A4747">Von
 <input type="text" value="{{from}}" onInput="{{setFrom}}" autocomplete="off" style="border: 0; padding: 0; min-height: 36px; font-size: 24px; font-weight: 700; color: #1C1A1A; background: transparent; width: 100%; box-sizing: border-box">
@@ -201,6 +208,7 @@ Strecke hinzufügen</button>
 </div>
 </sc-if>
 </div>
+</sc-if>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 14px; font-weight: 600; color: #4A4747">Tage</span><span style="display: flex; gap: 4px"><button type="button" onClick="{{daysWork}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Mo–Fr</button><button type="button" onClick="{{daysAll}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Täglich</button></span></div>
 <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px">
@@ -212,6 +220,7 @@ Strecke hinzufügen</button>
 <label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600">Abfahrt ab
 <input type="time" value="{{time}}" onInput="{{setTime}}" style="min-height: 52px; border: 0; padding: 0; font-size: 28px; font-weight: 700; background: transparent; color: #1C1A1A">
 </label>
+<sc-if value="{{showStops}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; gap: 8px">
 <div style="font-size: 14px; font-weight: 600; color: #4A4747">Pendelst du auch zurück?</div>
 <div style="padding: 5px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; display: flex; gap: 4px">
@@ -224,6 +233,7 @@ Strecke hinzufügen</button>
 <label style="background: #FDE3CF; border-radius: 24px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600">Rückweg ab
 <input type="time" value="{{backTime}}" onInput="{{setBackTime}}" style="min-height: 52px; border: 0; padding: 0; font-size: 28px; font-weight: 700; background: transparent; color: #1C1A1A">
 </label>
+</sc-if>
 </sc-if>
 </div>
 <div class="rg-dock" style="padding: 0 20px 28px; display: flex; gap: 10px">
@@ -245,7 +255,7 @@ class Component extends DCLogic {
     super(props);
     this.state = {
       list: this._fromRego(),
-      adding: false, from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
+      adding: false, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
       days: [true, true, true, true, true, false, false],
       trip: 'both', backTime: '16:30', toast: '', prev: null, focus: ''
     };
@@ -273,7 +283,8 @@ class Component extends DCLogic {
       chipStyle: d.line ? 'min-width: 36px; height: 34px; padding: 0 10px; border-radius: 17px; background: ' + d.color + '; color: #fff; display: inline-grid; place-items: center; font-size: 15px; font-weight: 700; box-sizing: border-box' : 'display: none',
       on: d.on, state: d.on ? 'An' : 'Aus',
       label: 'Warnungen für ' + d.name,
-      removeLabel: d.name + ' entfernen',
+      removeLabel: d.name + ' entfernen', editLabel: d.name + ' ändern',
+      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, time: t.schedule.departAfter, days: names.map((n) => t.schedule.days.includes(n)) }); },
       switchStyle: 'width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (d.on ? 'flex-end' : 'flex-start') + '; background: ' + (d.on ? '#1C1A1A' : '#DCDCDC'),
       knobStyle: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
       toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => this.flash('Nicht gespeichert – keine Verbindung', null)); },
@@ -286,14 +297,19 @@ class Component extends DCLogic {
     }));
     const val = (e) => (e && e.target ? e.target.value : '');
     const T = window.REGO;
-    const valid = T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
+    const editing = !!st.editId;
+    const valid = editing || T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
     const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => this.setState({ [st.focus]: q.name, focus: '' }) })) : [];
     const pushChips = [3, 5, 10].map((v) => ({
       label: v + ' Min.', on: st.threshold === v,
       style: 'flex: 1; min-height: 52px; border: 1.5px solid ' + (st.threshold === v ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; font-size: 16px; font-weight: 700; ' + (st.threshold === v ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
       pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => (window.REGO.position ? Promise.resolve() : window.REGO.requestPosition())).then(() => window.REGO.actions.enablePush().then(() => this.flash('Push aktiv ab ' + v + ' Min.', null), (e) => this.flash('Gespeichert. ' + (e && e.message ? e.message : 'Push nicht möglich'), null)), () => this.flash('Nicht gespeichert – keine Verbindung', null)); }
     }));
+    const pwOn = !!window.REGO.settings.pushWindow;
     return {
+      pwOn, pwStyle: 'flex: none; width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (pwOn ? 'flex-end' : 'flex-start') + '; background: ' + (pwOn ? '#1C1A1A' : '#DCDCDC'),
+      pwKnob: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
+      togglePw: () => { window.REGO.settings.pushWindow = !pwOn; this.setState({}); window.REGO.actions.setPushWindow(!pwOn).then(() => this.flash(!pwOn ? 'Push nur rund um die Abfahrt' : 'Push den ganzen Tag', null), () => this.flash('Nicht gespeichert – keine Verbindung', null)); },
       tripOpts: [['one', 'Nur Hinweg'], ['both', 'Hin und zurück']].map((o) => ({
         label: o[1], on: st.trip === o[0],
         style: 'flex: 1; min-height: 52px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (st.trip === o[0] ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A'),
@@ -309,15 +325,25 @@ class Component extends DCLogic {
       saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
       hasContact: !!window.REGO.contact, contact: window.REGO.contact || '', contactHref: /@/.test(window.REGO.contact || '') ? 'mailto:' + window.REGO.contact : (window.REGO.contact || '#'),
       pushChips, routes, days, empty: st.list.length === 0,
-      adding: st.adding, notAdding: !st.adding,
+      adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
+      formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
       from: st.from, to: st.to, time: st.time,
       setFrom: (e) => this.setState({ from: val(e), focus: 'from' }),
       setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
       setTime: (e) => this.setState({ time: val(e) }),
-      openAdd: () => this.setState({ adding: true, focus: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
-      cancelAdd: () => this.setState({ adding: false }),
+      openAdd: () => this.setState({ adding: true, editId: '', focus: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
+      cancelAdd: () => this.setState({ adding: false, editId: '' }),
       saveAdd: () => {
         if (!valid) return;
+        if (st.editId) {
+          const sel = names.filter((n, i) => st.days[i]);
+          if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
+          window.REGO.actions.updateTour(st.editId, { days: sel, time: st.time }).then(
+            () => { this.setState({ adding: false, editId: '', list: this._fromRego() }); this.flash('Änderung gespeichert', null); },
+            (e) => this.flash(e && e.message ? e.message : 'Nicht gespeichert', null)
+          );
+          return;
+        }
         const from = st.from.trim(), to = st.to.trim();
         const sel = names.filter((n, i) => st.days[i]);
         if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
