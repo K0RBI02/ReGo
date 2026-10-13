@@ -1,5 +1,5 @@
 name: "ReGo"
-version: "0.3.0"
+version: "0.3.1"
 slug: rego
 description: "ReGo – minimalistische ÖPNV-App für Pendler (Alpenregion Bayern & Österreich)"
 url: "https://github.com/K0RBI02/ReGo"
@@ -18,9 +18,11 @@ options:
   ts_mode: "off"
   ts_hostname: "rego-beta-app"
   ts_authkey: ""
+  fcm_key: ""
 schema:
   contact: "str?"
   provider: "list(library|transport-rest|mock)"
   ts_mode: "list(off|serve|funnel)"
   ts_hostname: "str?"
   ts_authkey: "password?"
+  fcm_key: "password?"

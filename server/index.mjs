@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { config } from './config.mjs';
 import { createService } from './service.mjs';
 import { loadVapid } from './push.mjs';
+import { loadFcmKey, createFcm } from './fcm.mjs';
 import { createNotifier } from './notifier.mjs';
 import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, DEVICE_RE } from './store/profile.mjs';
 
@@ -23,12 +24,13 @@ export function pushEndpointOk(ep) {
   try { const u = new URL(ep); return u.protocol === 'https:' && PUSH_HOSTS.some((r) => r.test(u.hostname)); } catch { return false; }
 }
 
-export function createApp({ cfg = config, now = () => Date.now(), service, store, pushSender } = {}) {
+export function createApp({ cfg = config, now = () => Date.now(), service, store, pushSender, fcmClient } = {}) {
   store ||= new ProfileStore(cfg.dataDir, now);
   service ||= createService({ config: cfg, store, now });
   let vapidP, notifierP;
   const vapid = () => (vapidP ||= loadVapid(cfg.dataDir));
-  const notifier = async () => (notifierP ||= vapid().then((v) => createNotifier({ config: cfg, store, service, vapid: v, now, ...(pushSender ? { send: pushSender } : {}) })));
+  const fcmP = fcmClient ? Promise.resolve(fcmClient) : loadFcmKey(cfg.dataDir).then((k) => createFcm(k, { log: (...a) => cfg.verbose && console.log(...a) }));
+  const notifier = async () => (notifierP ||= Promise.all([vapid(), fcmP]).then(([v, fcm]) => createNotifier({ config: cfg, store, service, vapid: v, fcm, now, ...(pushSender ? { send: pushSender } : {}) })));
 
   const corsFor = (origin) => (origin && (origin === cfg.corsOrigin || APP_ORIGINS.includes(origin))
     ? { 'access-control-allow-origin': origin, vary: 'origin', 'access-control-allow-headers': 'content-type,x-device', 'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'access-control-max-age': '600' } : {});
@@ -83,7 +85,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/push/test' && m === 'POST') {
       if (!(await store.load(dev)).push) { const e = new ValidationError('Kein Push-Abo für dieses Gerät. Push erst in der App aktivieren.'); e.status = 409; throw e; }
       await (await notifier()).sendTest(dev); return send(res, 200, { ok: true }); }
-    if (path === '/api/push/native' && m === 'PUT') { await store.update(dev, (p) => { p.push = { native: true }; }); return send(res, 200, { subscribed: true, native: true }); }
+    if (path === '/api/push/native' && m === 'PUT') { const body = await readBody(req).catch(() => ({})); const fcm = await fcmP; await store.update(dev, (p) => { p.push = { native: true, ...(typeof body?.token === 'string' && body.token.length > 20 && body.token.length < 400 ? { fcm: body.token } : {}) }; }); return send(res, 200, { subscribed: true, native: true, instant: !!(body?.token && fcm.enabled) }); }
     if (path === '/api/push' && m === 'DELETE') { await store.update(dev, (p) => { p.push = null; }); return send(res, 200, { subscribed: false }); }
     if (path === '/api/push' && m === 'PUT') {
       const b = await readBody(req);

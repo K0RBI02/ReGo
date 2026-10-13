@@ -19,14 +19,22 @@ export function textFor(inc) {
   return { title, body };
 }
 
-export function createNotifier({ config, store, service, vapid, now = () => Date.now(), send = sendPush }) {
+export function createNotifier({ config, store, service, vapid, now = () => Date.now(), send = sendPush, fcm = null }) {
   const subject = config.vapidSubject;
 
   const log = (...a) => config.verbose && console.log(...a);
 
   async function deliver(device, profile) {
     const sub = profile.push;
-    if (sub?.native) return 'ok';                   // Android-App holt die Meldungen selbst ab, kein Web-Push nötig
+    if (sub?.native) {
+      // Android-App: mit Firebase sofort anstoßen, sonst holt sie die Meldungen selbst alle ~15 Min. ab
+      if (sub.fcm && fcm?.enabled) {
+        const r = await fcm.send(sub.fcm);
+        if (r === 'gone') await store.update(device, (p) => { if (p.push?.native) p.push = { native: true }; });
+        return r;
+      }
+      return 'ok';
+    }
     if (!sub?.endpoint) return 'none';
     const r = await send(vapid, subject, sub, undefined, log);
     if (r === 'gone') await store.update(device, (p) => { p.push = null; });

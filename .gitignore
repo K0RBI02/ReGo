@@ -3,3 +3,4 @@ data/
 dist/
 *.zip
 .DS_Store
+android/app/google-services.json

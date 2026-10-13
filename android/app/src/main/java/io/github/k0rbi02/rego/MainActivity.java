@@ -163,18 +163,25 @@ public class MainActivity extends AppCompatActivity {
             pendingGeo.invoke(pendingGeoOrigin, any, false); pendingGeo = null;
         } else if (rc == RC_NOTIF && pendingPush) {
             pendingPush = false;
-            if (ok || Build.VERSION.SDK_INT < 33) finishPush(true); else pushResult(false);
+            if (ok || Build.VERSION.SDK_INT < 33) finishPush(true); else pushResult(false, "");
         }
     }
 
     private void finishPush(boolean ok) {
         getSharedPreferences("rego", MODE_PRIVATE).edit().putBoolean("push", ok).apply();
-        if (ok) PollWorker.schedule(this);
-        pushResult(ok);
+        if (!ok) { pushResult(false, ""); return; }
+        PollWorker.schedule(this);          // Nachfrage alle ~15 Min. bleibt als Rückfall
+        try {                               // Firebase-Kennung holen (nur wenn die App mit Firebase gebaut wurde)
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnCompleteListener(t -> {
+                String tok = t.isSuccessful() && t.getResult() != null ? t.getResult() : "";
+                getSharedPreferences("rego", MODE_PRIVATE).edit().putString("fcm", tok).apply();
+                pushResult(true, tok);
+            });
+        } catch (Throwable e) { pushResult(true, ""); }
     }
 
-    private void pushResult(boolean ok) {
-        runOnUiThread(() -> web.evaluateJavascript("window.__rgPushDone&&window.__rgPushDone(" + ok + ")", null));
+    private void pushResult(boolean ok, String token) {
+        runOnUiThread(() -> web.evaluateJavascript("window.__rgPushDone&&window.__rgPushDone(" + (ok ? "'" + token.replace("'", "") + "'" : "false") + ")", null));
     }
 
     /** Was die Oberfläche von der App aus aufrufen kann (window.RegoNative). */

@@ -50,8 +50,9 @@ public class PollWorker extends Worker {
         }
     }
 
-    @NonNull @Override public Result doWork() {
-        Context c = getApplicationContext();
+    @NonNull @Override public Result doWork() { return fetchAndShow(getApplicationContext()); }
+
+    static Result fetchAndShow(Context c) {
         SharedPreferences sp = c.getSharedPreferences("rego", Context.MODE_PRIVATE);
         String device = sp.getString("device", ""), api = sp.getString("api", "");
         if (device.isEmpty() || api.isEmpty() || !sp.getBoolean("push", false)) return Result.success();

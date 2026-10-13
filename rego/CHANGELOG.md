@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.3.1
+- Sofort-Push per Firebase für die Android-App (Server sendet nur einen leeren Anstoß, Text holt die App selbst). Neue Add-on-Option `fcm_key`.
+
 ## 0.3.0
 - Echte native Android-App (statt Browser-Hülle): Helligkeit beim Ticket, Download-Ordner, eigener Meldungsdienst.
 - Server erlaubt die App-Herkunft (CORS) und kennt nativen Push (`PUT /api/push/native`).

@@ -2,6 +2,11 @@ plugins {
     id 'com.android.application'
 }
 
+// Sofort-Push (Firebase) nur, wenn die Datei google-services.json vorliegt (kommt im Build aus dem GitHub-Geheimnis). Sonst fragt die App alle ~15 Min. nach.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}
+
 // Adresse, unter der ReGo erreichbar ist (ohne https://). Wird beim Bauen übergeben: -PrgHost=...
 def rgHost = (project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net').toString()
 def rgVersionName = (project.findProperty('rgVersionName') ?: '0.2.0').toString()
@@ -68,4 +73,6 @@ dependencies {
     implementation 'androidx.webkit:webkit:1.11.0'
     implementation 'androidx.work:work-runtime:2.9.1'
     implementation 'androidx.core:core:1.13.1'
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-messaging'
 }

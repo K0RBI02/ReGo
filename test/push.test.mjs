@@ -186,3 +186,24 @@ test('Push-Zeitfenster greift: nur ±20 Min. um die Abfahrt, nur an Strecken-Tag
   t = Date.parse('2026-10-14T07:00:00+02:00');         // Mittwoch, kein Strecken-Tag
   assert.equal(await n.checkDevice(dev), 0);
 });
+
+import { createFcm } from '../server/fcm.mjs';
+import { generateKeyPairSync } from 'node:crypto';
+test('FCM: ohne Schlüssel aus, mit Schlüssel sendet Anstoß und erkennt ungültige Token', async () => {
+  assert.equal(createFcm(null).enabled, false);
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const key = { project_id: 'p', client_email: 'x@p.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
+  const calls = [];
+  let status = 200;
+  const fetchFn = async (url, o) => {
+    calls.push(url);
+    if (url.includes('oauth2')) return { ok: true, json: async () => ({ access_token: 'T', expires_in: 3600 }) };
+    return { ok: status === 200, status, text: async () => '{"error":{"status":"UNREGISTERED"}}' };
+  };
+  const f = createFcm(key, { fetchFn });
+  assert.equal(f.enabled, true);
+  assert.equal(await f.send('tok'), 'ok');
+  status = 404;
+  assert.equal(await f.send('tok'), 'gone');
+  assert.equal(calls.filter((u) => u.includes('oauth2')).length, 1);   // Zugangstoken wird wiederverwendet
+});

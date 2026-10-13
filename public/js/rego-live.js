@@ -183,8 +183,8 @@
   R.actions.enablePush = async function () {
     if (window.RegoNative) {      // Android-App: Meldungen holt die App selbst ab
       const ok = await new Promise((res) => { window.__rgPushDone = res; try { window.RegoNative.enablePush(device, window.REGO_API || ''); } catch (e) { res(false); } });
-      if (!ok) throw new Error('Benachrichtigungen sind für ReGo blockiert. Bitte in den Android-Einstellungen erlauben.');
-      await api('/push/native', { method: 'PUT', body: '{}' });
+      if (ok === false) throw new Error('Benachrichtigungen sind für ReGo blockiert. Bitte in den Android-Einstellungen erlauben.');
+      await api('/push/native', { method: 'PUT', body: JSON.stringify(ok ? { token: ok } : {}) });   // ok = Firebase-Kennung (oder leer ohne Firebase)
       LS.set('rego.push', true);
       return true;
     }
