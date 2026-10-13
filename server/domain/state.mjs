@@ -7,6 +7,8 @@ import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
 import { buildMap } from './map.mjs';
 
 export const SCHEMA_VERSION = 1;
+// Namen wie "München, München Hbf" (Ort doppelt) kürzen, auch bei schon gespeicherten Strecken
+export const tidyName = (n = '') => String(n).replace(/(^|→\s*)([^,→]+?),\s*\2\b/gi, '$1$2');
 const localIso = (ms) => { const b = berlin(ms); return `${b.date}T${b.time}`; };
 const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 8);
 const severityOf = (kind, delay) => (kind === 'replacement' ? 3 : kind === 'construction' ? (delay >= 10 ? 2 : 1) : delay >= 10 ? 3 : delay >= 5 ? 2 : 1);
@@ -39,6 +41,14 @@ function ticketHintFor(tour) {
   };
 }
 
+// Weiterführender Link passend zur Strecke: nur Deutschland -> DB, nur Österreich -> ÖBB, grenzüberschreitend -> Hinweis mit Ticketprüfung (ticketHint)
+function appLinkFor(tour) {
+  const a = country(regionOf(tour.from)), b = country(regionOf(tour.to));
+  if (a === 'DE' && b === 'DE') return { label: 'Im DB Navigator ansehen', url: 'https://www.bahn.de/' };
+  if (a === 'AT' && b === 'AT') return { label: 'In der ÖBB-App ansehen', url: 'https://tickets.oebb.at/' };
+  return null;
+}
+
 const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direction}${withPlatform && leg.platform ? ` · Gleis ${leg.platform}` : ''}`;
 
 /**
@@ -54,15 +64,18 @@ export async function buildTour(tour, journeys, ctx) {
     if (!lines[id]) lines[id] = { id, label: id, color: lineColor(l.name, l.product) };
     return id;
   };
-  const legs = journeys.map((j) => j.legs[0]).filter(Boolean).filter((l) => !l.cancelled);
+  // Nur Fahrten, die noch nicht abgefahren sind (2 Min. Nachlauf), nach tatsächlicher Abfahrt sortiert
+  const legs = journeys.map((j) => j.legs[0]).filter(Boolean).filter((l) => !l.cancelled)
+    .filter((l) => !(Date.parse(l.dep) < now - 120000)).sort((a, b) => Date.parse(a.dep) - Date.parse(b.dep));
   const out = {
-    id: tour.id, name: tour.name, lineId: legs[0] ? registerLine(legs[0].line) : '', active: tour.active !== false,
+    id: tour.id, name: tidyName(tour.name), appLink: appLinkFor(tour), lineId: legs[0] ? registerLine(legs[0].line) : '', active: tour.active !== false,
     period: tour.period || 'am', ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}),
     distanceKm: ctx.distanceKm ?? null,
     schedule: tour.schedule || { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' },
     departures: legs.slice(0, 3).map((l) => ({
       plannedTime: hhmm(l.plannedDep), expectedTime: hhmm(l.dep), lineId: registerLine(l.line),
       plannedPlatform: l.plannedPlatform || '', expectedPlatform: l.platform || '', delayMin: l.depDelay,
+      ...(berlin(Date.parse(l.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
     })),
   };
   const incidents = [];

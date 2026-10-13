@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.4.2
+- Abfahrtsliste: bereits abgefahrene Fahrten werden nicht mehr gezeigt, Reihenfolge nach tatsächlicher Abfahrt, Fahrten von morgen sind als „morgen“ markiert.
+- Detailseite: österreichische Strecken verlinken die ÖBB-App statt DB Navigator, grenzüberschreitende nur den Ticket-Hinweis.
+- Namen wie „München, München Hbf“ werden zu „München Hbf“ gekürzt.
+
 ## 0.4.1
 - Eine Detailseite je Strecke: Baustelle, Ersatzverkehr und Verspätung stehen zusammen auf einer Seite, in Meldungen eine Karte je Strecke.
 - Hauptbildschirm: die nächsten drei Fahrten der nächstgelegenen Strecke sind antippbar und öffnen eine eigene Detailseite (Verspätung, Gleis, Karte, danach folgende Fahrt).

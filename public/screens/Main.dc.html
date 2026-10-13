@@ -222,6 +222,7 @@ class Component extends DCLogic {
     const inText = (t) => {
       const d = t.departures[0];
       if (!d) return 'ab ' + t.schedule.departAfter;
+      if (d.nextDay) return 'morgen ' + d.expectedTime;
       const diff = toMin(d.expectedTime) - nowM;
       return diff <= 0 ? 'jetzt' : diff < 60 ? 'in ' + diff + ' Min.' : 'ab ' + d.expectedTime;
     };
@@ -247,7 +248,7 @@ class Component extends DCLogic {
         time: d.expectedTime, line: T.lines[d.lineId].label,
         badgeStyle: 'width: 40px; height: 40px; border-radius: 50%; background: ' + T.lines[d.lineId].color + '; color: #fff; display: grid; place-items: center; overflow: hidden; white-space: nowrap; font-size: ' + (T.lines[d.lineId].label.length > 4 ? 10 : T.lines[d.lineId].label.length > 3 ? 12 : 15) + 'px; font-weight: 700',
         iconD: late ? 'M24 8L7 38h34zM24 19v9' : 'M9 25l9 9 21-22', iconW: late ? 4 : 5,
-        status: late ? '+' + d.delayMin + ' Min.' : 'pünktlich',
+        status: (d.nextDay ? 'morgen · ' : '') + (late ? '+' + d.delayMin + ' Min.' : 'pünktlich'),
         platform: 'Gl. ' + d.expectedPlatform,
         platformStyle: 'font-size: 15px; white-space: nowrap; font-weight: ' + (moved ? 700 : 600) + '; color: ' + (moved ? '#1C1A1A' : '#4A4747')
       };

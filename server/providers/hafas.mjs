@@ -67,6 +67,8 @@ export class HafasClient {
 
 /** "München Hbf Gl.27-36" -> "München Hbf", "Wien Hbf (Bahnsteige 3-12)" -> "Wien Hbf" */
 export function cleanStopName(n = '') {
+  // "München, München Hbf" -> "München Hbf" (Ort doppelt)
+  n = String(n).replace(/^([^,→]+),\s*(\1\b.*)$/i, '$2');
   return String(n).replace(/\s+Gl\.[\w\-–, ]+$/i, '').replace(/\s*\((?:Bahnsteige?|Bstg\.?|Gleis)[^)]*\)\s*$/i, '').trim();
 }
 

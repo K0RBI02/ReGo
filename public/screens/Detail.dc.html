@@ -222,8 +222,8 @@ Zurück</a>
 <div style="font-size: 13px; font-weight: 600; color: #5A5448; text-align: center">{{ticket.note}}</div>
 </div>
 </sc-if>
-<a href="https://www.bahn.de/" target="_blank" rel="noopener" style="min-height: 52px; border: 1.5px solid #1C1A1A; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; font-weight: 700">Im DB Navigator ansehen
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></a>
+<sc-if value="{{hasAppLink}}" hint-placeholder-val="{{ false }}"><a href="{{appLink.url}}" target="_blank" rel="noopener" style="min-height: 52px; border: 1.5px solid #1C1A1A; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; font-weight: 700">{{appLink.label}}
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></a></sc-if>
 </div>
 </div>
 </x-dc>
@@ -333,6 +333,8 @@ class Component extends DCLogic {
     out.rows = (view.rows || []).map((r) => Object.assign({}, r, { planned: r.planned ? 'geplant ' + r.planned : '' }));
     out.hasAlt = !!view.alternative;
     out.alt = view.alternative || { title: '', line1: '', line2: '', badge: '' };
+    out.hasAppLink = !!(tour && tour.appLink);
+    out.appLink = (tour && tour.appLink) || { url: '#', label: '' };
     out.hasTicket = !!view.ticketHint;
     out.ticket = view.ticketHint || { text: '', url: '#', cta: '', note: '' };
     out.backHref = this.state.from === 'l' ? 'Meldungen.dc.html' : 'Main.dc.html';

@@ -142,3 +142,18 @@ test('API: Umzug aufs neue Handy per Einmal-Code', async () => {
     assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code }) })).status, 404);   // nur einmal nutzbar
   } finally { server.close(); }
 });
+
+test('Abfahrten: Vergangenes fliegt raus, sortiert, „morgen“ markiert, passender App-Link', async () => {
+  const { buildTour, tidyName } = await import('../server/domain/state.mjs');
+  const now = Date.parse('2026-10-13T21:20:00Z');            // 23:20 Berlin
+  const leg = (dep) => ({ line: { name: 'RE 5', product: 'regional' }, direction: 'Salzburg', origin: { id: '8000261', name: 'München Hbf' }, destination: { id: '8100002', name: 'Salzburg Hbf' },
+    plannedDep: dep, dep, depDelay: 0, plannedArr: dep, arr: dep, arrDelay: 0, plannedPlatform: '13', platform: '13', stopovers: [], remarks: [] });
+  const tour = { id: 't1', name: 'München, München Hbf → Salzburg Hbf', from: { id: '8000261', name: 'München Hbf' }, to: { id: '8100002', name: 'Salzburg Hbf' }, active: true };
+  const journeys = ['2026-10-14T05:46:00+02:00', '2026-10-13T19:59:00+02:00', '2026-10-14T06:04:00+02:00'].map((d) => ({ legs: [leg(d)] }));
+  const { tour: out } = await buildTour(tour, journeys, { now, minDelay: 3, linesAt: async () => [], lines: {} });
+  assert.deepEqual(out.departures.map((d) => d.expectedTime), ['05:46', '06:04']);
+  assert.ok(out.departures.every((d) => d.nextDay));
+  assert.equal(out.name, 'München Hbf → Salzburg Hbf');
+  assert.equal(out.appLink, null);                          // grenzüberschreitend: nur der Ticket-Hinweis
+  assert.equal(tidyName('Freising → München, München Hbf'), 'Freising → München Hbf');
+});

@@ -102,7 +102,7 @@ test('Durchlauf: Suche und Abfahrten über den Verbund, während die Bahn nicht 
   };
   const dir = await mkdtemp(join(tmpdir(), 'rego-efa-'));
   const cfg = { ...config, provider: 'transport-rest', dataDir: dir, upstream: { ...config.upstream, retries: 0 } };
-  const { server } = createApp({ cfg });
+  const { server } = createApp({ cfg, now: () => Date.parse('2026-10-11T08:55:00Z') });   // fester Zeitpunkt vor den Fahrten der Testdaten
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const h = { 'x-device': 'testgeraet1234567', 'content-type': 'application/json' };
