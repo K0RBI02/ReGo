@@ -1,6 +1,6 @@
 /* Service Worker: App-Gerüst offline verfügbar. Daten (/api) laufen immer übers Netz; die App hält ihren letzten Stand selbst. */
-const CACHE = 'rego-v39';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
+const CACHE = 'rego-v40';
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/native-config.js', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
   ...['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'].map((n) => `/screens/${n}.dc.html`)];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });

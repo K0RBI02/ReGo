@@ -26,6 +26,7 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
 
   async function deliver(device, profile) {
     const sub = profile.push;
+    if (sub?.native) return 'ok';                   // Android-App holt die Meldungen selbst ab, kein Web-Push nötig
     if (!sub?.endpoint) return 'none';
     const r = await send(vapid, subject, sub, undefined, log);
     if (r === 'gone') await store.update(device, (p) => { p.push = null; });
@@ -47,7 +48,7 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
 
   async function checkDevice(device) {
     const profile = await store.load(device);
-    if (!profile.push?.endpoint || !profile.tours.some((t) => t.active !== false)) return 0;
+    if (!profile.push || !profile.tours.some((t) => t.active !== false)) return 0;
     const hour = Number(berlin(now()).time.slice(0, 2));
     if (hour < 4 || hour >= 23) return 0;                       // nachts Ruhe
     const state = await service.getState(device);

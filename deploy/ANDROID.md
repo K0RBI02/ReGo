@@ -1,7 +1,11 @@
 # ReGo auf dem Android-Handy
 
 ## Variante A: echte App (APK)
-Die APK ist eine schlanke Hülle um ReGo (Trusted Web Activity): eigenes App-Symbol, keine Browserleiste, eigener Eintrag in der App-Liste. Die Oberfläche kommt weiter von deinem Server, deshalb braucht jede ReGo-Änderung nur das Add-on-Update, nicht eine neue APK. Push und die lokal gespeicherten Tickets bleiben wie bei der PWA.
+Eine native Android-App: Die Oberfläche steckt in der App (eigenes Fenster, kein Browser), die Daten kommen von deinem ReGo-Server. Dafür kann sie Dinge, die eine PWA nicht kann: beim Ticket die Helligkeit auf Maximum und den Bildschirm anlassen, Dateien in „Download“ speichern, Meldungen über einen eigenen Hintergrunddienst abholen. Nach einer ReGo-Änderung am Aussehen braucht es eine neue APK (Workflow unten), Server-Änderungen kommen weiter per Add-on-Update.
+
+**Meldungen:** Die App fragt etwa alle 15 Minuten beim Server nach (mehr erlaubt Android für Hintergrundarbeit nicht). Sofort-Push wäre nur mit Google Firebase möglich.
+
+**Tickets:** Die App hat einen eigenen Speicher. Tickets aus Browser/PWA vorher mit „Tickets sichern“ sichern und in der App mit „wiederherstellen“ einspielen.
 
 **Einmal einrichten (GitHub, Repo K0RBI02/ReGo → Settings → Secrets and variables → Actions)**
 1. Secret `ANDROID_KEYSTORE_B64`: Inhalt der Datei `rego-keystore-b64.txt` (Signierschlüssel).
@@ -10,9 +14,9 @@ Die APK ist eine schlanke Hülle um ReGo (Trusted Web Activity): eigenes App-Sym
 
 **APK bauen:** Repo → Actions → „Android-App (APK) bauen“ → Run workflow. Nach etwa 5 Minuten liegt die Datei unter Releases (`app-v<Version>`).
 
-**Installieren:** Auf dem Handy im Browser die Release-Seite öffnen, `rego-<Version>.apk` laden und antippen (einmal „Aus dieser Quelle installieren“ erlauben). Die alte PWA vorher deinstallieren oder einfach daneben lassen. Die Tickets bleiben erhalten, weil sie im Chrome-Speicher derselben Adresse liegen.
+**Installieren:** Auf dem Handy im Browser die Release-Seite öffnen, `rego-<Version>.apk` laden und antippen (einmal „Aus dieser Quelle installieren“ erlauben). Eine vorherige TWA-Version (0.2.1) vorher deinstallieren.
 
-**Wichtig:** Der Signierschlüssel darf nie verloren gehen und nie ins Repo. Mit einem anderen Schlüssel lässt sich eine neue APK nicht über die alte installieren, und die Adressprüfung (`public/.well-known/assetlinks.json`, hinterlegt ist der Fingerabdruck des Schlüssels) schlägt fehl, dann erscheint oben eine Browserleiste.
+**Wichtig:** Der Signierschlüssel darf nie verloren gehen und nie ins Repo. Mit einem anderen Schlüssel lässt sich eine neue APK nicht über die alte installieren, kann nicht darüber installiert werden.
 
 ## Variante B: PWA über Chrome
 ReGo ist eine PWA: Chrome macht daraus eine App mit eigenem Icon, ohne Browserleiste und ohne Play Store.

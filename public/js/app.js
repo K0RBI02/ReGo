@@ -20,6 +20,7 @@
     const bg = getComputedStyle(root).backgroundColor;
     document.documentElement.style.background = bg; document.body.style.background = bg;
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', bg);
+    try { window.RegoNative && window.RegoNative.setBars(bg); } catch (e) {}
   }
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(syncBars, 50)); } catch (e) {}
 
@@ -145,5 +146,5 @@
   window.addEventListener('online', tick);
   window.addEventListener('offline', () => R.onChange());
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && !window.RegoNative) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();

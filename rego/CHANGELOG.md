@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.3.0
+- Echte native Android-App (statt Browser-Hülle): Helligkeit beim Ticket, Download-Ordner, eigener Meldungsdienst.
+- Server erlaubt die App-Herkunft (CORS) und kennt nativen Push (`PUT /api/push/native`).
+
 ## 0.2.1
 - Android-App (APK) als Hülle um ReGo: Projekt unter `android/`, GitHub baut sie (Workflow "Android-App (APK) bauen"), Anleitung in `deploy/ANDROID.md`.
 - Server liefert `/.well-known/assetlinks.json` aus, damit die App ohne Browserleiste läuft.

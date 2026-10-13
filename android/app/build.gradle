@@ -3,51 +3,65 @@ plugins {
 }
 
 // Adresse, unter der ReGo erreichbar ist (ohne https://). Wird beim Bauen übergeben: -PrgHost=...
-def rgHost = (project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net').toString()
-def rgVersionName = (project.findProperty('rgVersionName') ?: '0.2.0').toString()
-def rgVersionCode = (project.findProperty('rgVersionCode') ?: '1').toString().toInteger()
+def rgHost = project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net'
 
 android {
-    namespace = 'io.github.k0rbi02.rego'
-    compileSdk = 34
+    namespace 'io.github.k0rbi02.rego'
+    compileSdk 34
 
     defaultConfig {
-        applicationId = 'io.github.k0rbi02.rego'
-        minSdk = 23
-        targetSdk = 34
-        versionCode = rgVersionCode
-        versionName = rgVersionName
-        manifestPlaceholders = [hostName: rgHost]
+        applicationId 'io.github.k0rbi02.rego'
+        minSdk 29
+        targetSdk 34
+        versionCode (project.findProperty('rgVersionCode') ?: '1') as int
+        versionName project.findProperty('rgVersionName') ?: '0.2.0'
     }
 
-    // Schlüssel kommt aus dem Build (GitHub-Geheimnisse). Ohne ihn wird mit dem Debug-Schlüssel signiert.
-    def ksPath = System.getenv('RG_KEYSTORE')
-    def hasKeystore = ksPath != null && !ksPath.isEmpty()
-
     signingConfigs {
-        if (hasKeystore) {
-            create('rego') {
-                storeFile = file(ksPath)
-                storePassword = System.getenv('RG_KEYSTORE_PASSWORD')
-                keyAlias = 'rego'
-                keyPassword = System.getenv('RG_KEYSTORE_PASSWORD')
+        release {
+            // Schlüssel kommt aus dem Build (GitHub-Geheimnisse). Ohne ihn wird mit dem Debug-Schlüssel signiert.
+            def ks = System.getenv('RG_KEYSTORE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('RG_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('RG_KEY_ALIAS') ?: 'rego'
+                keyPassword System.getenv('RG_KEYSTORE_PASSWORD')
             }
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled = false
-            signingConfig = hasKeystore ? signingConfigs.getByName('rego') : signingConfigs.getByName('debug')
+            minifyEnabled false
+            signingConfig System.getenv('RG_KEYSTORE') ? signingConfigs.release : signingConfigs.debug
         }
     }
 
+    sourceSets {
+        main { assets.srcDirs += "$buildDir/generated/rego-assets" }
+    }
+
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
+// Die Oberfläche (../public) wird in die App kopiert; native-config.js trägt die Serveradresse ein.
+tasks.register('copyWebUi', Copy) {
+    from("$rootDir/../public") { exclude 'js/native-config.js', '.well-known/**', 'sw.js', 'status.html' }
+    into("$buildDir/generated/rego-assets")
+    doLast {
+        def f = new File("$buildDir/generated/rego-assets/js/native-config.js")
+        f.parentFile.mkdirs()
+        f.text = "window.REGO_API = 'https://${rgHost}';\n"
+    }
+}
+preBuild.dependsOn 'copyWebUi'
+
 dependencies {
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.work:work-runtime:2.9.1'
+    implementation 'androidx.core:core:1.13.1'
 }

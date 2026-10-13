@@ -199,10 +199,11 @@ class Component extends DCLogic {
     try { h = window.location.hash || ''; } catch (e) {}
     this.state = { sel: 'dt', toast: h === '#neu' ? 'Ticket hinzugefügt' : '' };
     if (h === '#neu') setTimeout(() => this.setState({ toast: '' }), 3500);
+    try { if (window.RegoNative) { window.RegoNative.setBrightness(1.0); window.RegoNative.keepScreenOn(true); } } catch (e) {}
     try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then((l) => { this._lock = l; }, () => {}); } catch (e) {}
   }
   flash(msg) { clearTimeout(this._tm); this.setState({ toast: msg }); this._tm = setTimeout(() => this.setState({ toast: '' }), 3500); }
-  onDestroy() { try { if (this._lock) this._lock.release(); } catch (e) {} }
+  onDestroy() { try { if (window.RegoNative) { window.RegoNative.setBrightness(-1); window.RegoNative.keepScreenOn(false); } } catch (e) {} try { if (this._lock) this._lock.release(); } catch (e) {} }
   pattern(seed) {
     let s = seed >>> 0;
     const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };

@@ -33,7 +33,7 @@
   R.stations = stationCache;
 
   const api = async (path, opt = {}) => {
-    const res = await fetch(`/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, opt.headers || {}) }));
+    const res = await fetch(`${window.REGO_API || ''}/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, opt.headers || {}) }));
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status });
     return body;
@@ -154,7 +154,9 @@
     },
     /** Tickets als Datei sichern (bleibt auf dem Gerät) und wieder einlesen */
     exportTickets() {
-      const blob = new Blob([JSON.stringify({ app: 'ReGo', version: 1, savedAt: new Date().toISOString(), tickets: R.tickets })], { type: 'application/json' });
+      const json = JSON.stringify({ app: 'ReGo', version: 1, savedAt: new Date().toISOString(), tickets: R.tickets });
+      if (window.RegoNative) { try { const b64 = btoa(unescape(encodeURIComponent(json))); window.RegoNative.saveFile('rego-tickets.json', 'application/json', b64); } catch (e) {} return R.tickets.length; }
+      const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rego-tickets.json'; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       return R.tickets.length;
@@ -179,6 +181,13 @@
   /* --- Push --- */
   const b64ToU8 = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
   R.actions.enablePush = async function () {
+    if (window.RegoNative) {      // Android-App: Meldungen holt die App selbst ab
+      const ok = await new Promise((res) => { window.__rgPushDone = res; try { window.RegoNative.enablePush(device, window.REGO_API || ''); } catch (e) { res(false); } });
+      if (!ok) throw new Error('Benachrichtigungen sind für ReGo blockiert. Bitte in den Android-Einstellungen erlauben.');
+      await api('/push/native', { method: 'PUT', body: '{}' });
+      LS.set('rego.push', true);
+      return true;
+    }
     if (!window.isSecureContext || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Push braucht eine sichere Verbindung (https).');
     if (Notification.permission === 'denied') throw new Error('Benachrichtigungen sind für ReGo blockiert.');
     const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();

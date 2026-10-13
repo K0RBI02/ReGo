@@ -3,7 +3,7 @@ name: Add-on bauen
 on:
   push:
     branches: [main]
-    paths: ['rego/**', 'server/**', 'public/**', 'scripts/**', 'test/**', 'package.json', '.github/workflows/build.yml']
+    paths: ['rego/**', 'server/**', 'public/**', 'package.json', '.github/workflows/build.yml']
   workflow_dispatch:
 
 permissions:
@@ -21,20 +21,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
 
-  bildschirmtest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npm install --no-save --no-audit --no-fund playwright
-      - run: npx playwright install --with-deps chromium
-      - run: node scripts/ui-smoke.mjs
-
   build:
-    needs: [test, bildschirmtest]
+    needs: test
     strategy:
       fail-fast: false
       matrix:

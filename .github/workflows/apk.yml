@@ -8,7 +8,7 @@ on:
         required: false
   push:
     branches: [main]
-    paths: ['android/**', 'public/.well-known/**', '.github/workflows/apk.yml']
+    paths: ['android/**', 'public/**', '.github/workflows/apk.yml']
 
 permissions:
   contents: write
@@ -34,9 +34,6 @@ jobs:
           echo "version=$(sed -n 's/^version: "\(.*\)"/\1/p' rego/config.yaml)" >> "$GITHUB_OUTPUT"
           HOST="${{ inputs.host }}"; [ -z "$HOST" ] && HOST="${{ vars.REGO_HOST }}"; [ -z "$HOST" ] && HOST="rego-beta-app.tail2a5f03.ts.net"
           echo "host=$HOST" >> "$GITHUB_OUTPUT"
-
-      - name: Adresse eintragen
-        run: sh android/prepare.sh "${{ steps.meta.outputs.host }}"
 
       - name: Signierschlüssel bereitstellen
         env:

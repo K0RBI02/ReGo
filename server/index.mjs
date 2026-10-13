@@ -13,6 +13,8 @@ const SEC = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY',
   'permissions-policy': 'camera=(self), geolocation=(self), microphone=(), payment=()',
 };
+// Die Android-App lädt ihre Oberfläche von dieser virtuellen Adresse und fragt die API von dort ab.
+const APP_ORIGINS = ['https://appassets.androidplatform.net'];
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon' };
 
 // Nur bekannte Push-Dienste der Browser; sonst könnte jemand das Backend Anfragen an beliebige Adressen schicken lassen.
@@ -28,9 +30,11 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   const vapid = () => (vapidP ||= loadVapid(cfg.dataDir));
   const notifier = async () => (notifierP ||= vapid().then((v) => createNotifier({ config: cfg, store, service, vapid: v, now, ...(pushSender ? { send: pushSender } : {}) })));
 
+  const corsFor = (origin) => (origin && (origin === cfg.corsOrigin || APP_ORIGINS.includes(origin))
+    ? { 'access-control-allow-origin': origin, vary: 'origin', 'access-control-allow-headers': 'content-type,x-device', 'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'access-control-max-age': '600' } : {});
   const send = (res, status, body, headers = {}) => {
     const data = typeof body === 'string' ? body : JSON.stringify(body);
-    res.writeHead(status, { ...SEC, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(cfg.corsOrigin ? { 'access-control-allow-origin': cfg.corsOrigin, 'access-control-allow-headers': 'content-type,x-device', 'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS' } : {}), ...headers });
+    res.writeHead(status, { ...SEC, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...corsFor(res.req?.headers?.origin), ...headers });
     res.end(data);
   };
   const readBody = (req) => new Promise((resolve, reject) => {
@@ -79,6 +83,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/push/test' && m === 'POST') {
       if (!(await store.load(dev)).push) { const e = new ValidationError('Kein Push-Abo für dieses Gerät. Push erst in der App aktivieren.'); e.status = 409; throw e; }
       await (await notifier()).sendTest(dev); return send(res, 200, { ok: true }); }
+    if (path === '/api/push/native' && m === 'PUT') { await store.update(dev, (p) => { p.push = { native: true }; }); return send(res, 200, { subscribed: true, native: true }); }
     if (path === '/api/push' && m === 'DELETE') { await store.update(dev, (p) => { p.push = null; }); return send(res, 200, { subscribed: false }); }
     if (path === '/api/push' && m === 'PUT') {
       const b = await readBody(req);
