@@ -5,6 +5,7 @@ import { config } from './config.mjs';
 import { createService } from './service.mjs';
 import { loadVapid } from './push.mjs';
 import { loadFcmKey, createFcm } from './fcm.mjs';
+import { randomInt } from 'node:crypto';
 import { createNotifier } from './notifier.mjs';
 import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, DEVICE_RE } from './store/profile.mjs';
 
@@ -53,6 +54,10 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
 
   let versionP;
   const version = () => (versionP ||= (async () => { for (const f of [join(cfg.root, 'rego/config.yaml'), join(cfg.root, 'config.yaml')]) { try { const m = (await readFile(f, 'utf8')).match(/^version:\s*"?([^"\n]+)"?/m); if (m) return m[1].trim(); } catch { /* nächste Stelle */ } } return 'unbekannt'; })());
+  // Umzug auf ein neues Handy: Einmal-Code (10 Min.), der Strecken und Einstellungen aufs neue Gerät kopiert
+  const transfers = new Map(); let claimFails = [];
+  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
   const startedAt = now();
   async function status() {
     let devices = 0, pushes = 0;
@@ -79,6 +84,25 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     const tm = path.match(/^\/api\/tours\/([\w-]{1,32})$/);
     if (tm && m === 'PATCH') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => patchTour(p, tm[1], b))); }
     if (tm && m === 'DELETE') return send(res, 200, await store.update(dev, (p) => deleteTour(p, tm[1])));
+    if (path === '/api/transfer' && m === 'POST') {
+      for (const [c, v] of transfers) if (v.exp < now() || v.device === dev) transfers.delete(c);
+      let code; do { code = newCode(); } while (transfers.has(code));
+      transfers.set(code, { device: dev, exp: now() + 10 * 60e3 });
+      return send(res, 200, { code, minutes: 10 });
+    }
+    if (path === '/api/transfer/claim' && m === 'POST') {
+      const b = await readBody(req);
+      claimFails = claimFails.filter((t) => t > now() - 60e3);
+      if (claimFails.length >= 10) { const e = new ValidationError('Zu viele Versuche. Bitte eine Minute warten.'); e.status = 429; throw e; }
+      const code = String(b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const t = transfers.get(code);
+      if (!t || t.exp < now()) { claimFails.push(now()); const e = new ValidationError('Code ungültig oder abgelaufen'); e.status = 404; throw e; }
+      if (t.device === dev) throw new ValidationError('Das ist dieses Gerät. Gib den Code auf dem neuen Handy ein.');
+      transfers.delete(code);
+      const src = await store.load(t.device);
+      const n = await store.update(dev, (p) => { p.tours = JSON.parse(JSON.stringify(src.tours)); p.settings = { ...p.settings, ...src.settings }; return p.tours.length; });
+      return send(res, 200, { tours: n });
+    }
     if (path === '/api/settings' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => setSettings(p, b))); }
     if (path === '/api/push/key' && m === 'GET') return send(res, 200, { publicKey: (await vapid()).publicKey });
     if (path === '/api/notifications' && m === 'GET') return send(res, 200, { notifications: await (await notifier()).takeOutbox(dev) });

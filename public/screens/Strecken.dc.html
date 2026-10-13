@@ -168,7 +168,21 @@ Zurück</a>
 </div>
 </div>
 
-<div style="padding: 0 4px; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? Melde dich bei Korbi<sc-if value="{{hasContact}}" hint-placeholder-val="{{ false }}"> unter <a href="{{contactHref}}" style="color: #1C1A1A; font-weight: 700; text-decoration: underline">{{contact}}</a></sc-if>.</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: #F3F3F3">
+<span style="font-size: 17px; font-weight: 700">Neues Handy?</span>
+<span style="font-size: 14px; font-weight: 600; line-height: 1.35; color: #4A4747">Code hier erzeugen, auf dem neuen Handy eingeben: Strecken und Einstellungen kommen mit. Tickets bitte über „Tickets sichern“ übertragen.</span>
+<sc-if value="{{hasCode}}" hint-placeholder-val="{{ false }}">
+<div style="font-size: 34px; font-weight: 800; letter-spacing: 6px; text-align: center; padding: 6px 0">{{code}}</div>
+<span style="font-size: 13px; font-weight: 600; text-align: center; color: #4A4747">10 Minuten gültig, nur einmal nutzbar</span>
+</sc-if>
+<button type="button" onClick="{{makeCode}}" style="min-height: 52px; border: 0; border-radius: 999px; background: #1C1A1A; color: #fff; font-size: 16px; font-weight: 700">Code erzeugen</button>
+<div style="display: flex; gap: 8px">
+<input type="text" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Code vom alten Handy" value="{{claim}}" onInput="{{setClaim}}" style="flex: 1; min-width: 0; min-height: 52px; border: 1.5px solid #E8E8E8; border-radius: 26px; padding: 0 18px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A">
+<button type="button" onClick="{{doClaim}}" style="flex: none; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">Übernehmen</button>
+</div>
+</div>
+
+<div style="padding: 0 4px; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <a href="{{contactHref}}" style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</a>.</div>
 
 </div>
 
@@ -323,6 +337,9 @@ class Component extends DCLogic {
       daysAll: () => this.setState({ days: [true, true, true, true, true, true, true] }),
       saveBlocked: !valid,
       saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
+      hasCode: !!st.code, code: st.code || '', claim: st.claim || '', setClaim: (e) => this.setState({ claim: val(e) }),
+      makeCode: () => window.REGO.actions.transferCode().then((c) => this.setState({ code: c }), (e) => this.flash(e && e.message ? e.message : 'Keine Verbindung', null)),
+      doClaim: () => { if (!(st.claim || '').trim()) return; window.REGO.actions.claimTransfer(st.claim).then((n) => { this.setState({ claim: '', list: this._fromRego() }); this.flash(n + ' Strecke(n) übernommen', null); }, (e) => this.flash(e && e.message ? e.message : 'Nicht möglich', null)); },
       hasContact: !!window.REGO.contact, contact: window.REGO.contact || '', contactHref: /@/.test(window.REGO.contact || '') ? 'mailto:' + window.REGO.contact : (window.REGO.contact || '#'),
       pushChips, routes, days, empty: st.list.length === 0,
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,

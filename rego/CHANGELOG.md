@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.4.0
+- Neues Handy: unter Strecken Code erzeugen und auf dem neuen Gerät eingeben, Strecken und Einstellungen werden kopiert (Code 10 Min. gültig, einmal nutzbar).
+- Rückmeldung: Link öffnet ein vorbefülltes GitHub-Formular.
+
 ## 0.3.2
 - Standardadresse der App und des Tailnet-Namens: `rego` (https://rego.tail2a5f03.ts.net).
 

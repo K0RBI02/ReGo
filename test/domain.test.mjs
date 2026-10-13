@@ -121,3 +121,24 @@ test('Echte Antworten (Mitschnitt 10.10.2026): Umwandlung und Meldungen', async 
   assert.equal(b.incidents[0].delayMin, 32);
   assert.equal(b.incidents[0].view.big, '+32 Min.');
 });
+
+test('API: Umzug aufs neue Handy per Einmal-Code', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rego-'));
+  const { server } = createApp({ cfg: { ...config, provider: 'mock', dataDir: dir } });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const alt = { 'x-device': 'altesgeraet123456', 'content-type': 'application/json' };
+  const neu = { 'x-device': 'neuesgeraet123456', 'content-type': 'application/json' };
+  try {
+    await fetch(`${base}/api/tours`, { method: 'POST', headers: alt, body: JSON.stringify({ from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }) });
+    const { code } = await (await fetch(`${base}/api/transfer`, { method: 'POST', headers: alt, body: '{}' })).json();
+    assert.match(code, /^[A-Z2-9]{6}$/);
+    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: alt, body: JSON.stringify({ code }) })).status, 400);   // nicht auf demselben Gerät
+    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code: 'XXXXXX' }) })).status, 404);
+    const r = await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code: code.toLowerCase() }) });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).tours, 1);
+    assert.equal((await (await fetch(`${base}/api/state`, { headers: neu })).json()).tours.length, 1);
+    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code }) })).status, 404);   // nur einmal nutzbar
+  } finally { server.close(); }
+});

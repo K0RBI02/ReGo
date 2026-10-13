@@ -40,7 +40,7 @@
   };
 
   R.version = 'Beta';
-  R.contact = 'https://github.com/K0RBI02/ReGo/issues';   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
+  R.contact = 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent('Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\nGerät: ' + (window.RegoNative ? 'Android-App' : 'Browser/PWA'));   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
@@ -178,6 +178,10 @@
     async setPushWindow(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushWindow: v }) }); R.settings.pushWindow = v; },
     async setThreshold(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushThresholdMin: v }) }); R.settings.pushThresholdMin = v; },
   };
+  /* --- Umzug auf ein neues Handy --- */
+  R.actions.transferCode = async function () { return (await api('/transfer', { method: 'POST', body: '{}' })).code; };
+  R.actions.claimTransfer = async function (code) { const r = await api('/transfer/claim', { method: 'POST', body: JSON.stringify({ code }) }); await R.refresh(); return r.tours; };
+
   /* --- Push --- */
   const b64ToU8 = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
   R.actions.enablePush = async function () {
