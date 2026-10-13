@@ -18,23 +18,25 @@ android {
         manifestPlaceholders = [hostName: rgHost]
     }
 
+    // Schlüssel kommt aus dem Build (GitHub-Geheimnisse). Ohne ihn wird mit dem Debug-Schlüssel signiert.
+    def ksPath = System.getenv('RG_KEYSTORE')
+    def hasKeystore = ksPath != null && !ksPath.isEmpty()
+
     signingConfigs {
-        release {
-            // Schlüssel kommt aus dem Build (GitHub-Geheimnisse). Ohne ihn wird mit dem Debug-Schlüssel signiert.
-            def ks = System.getenv('RG_KEYSTORE')
-            if (ks) {
-                storeFile file(ks)
-                storePassword System.getenv('RG_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('RG_KEY_ALIAS') ?: 'rego'
-                keyPassword System.getenv('RG_KEYSTORE_PASSWORD')
+        if (hasKeystore) {
+            create('rego') {
+                storeFile = file(ksPath)
+                storePassword = System.getenv('RG_KEYSTORE_PASSWORD')
+                keyAlias = 'rego'
+                keyPassword = System.getenv('RG_KEYSTORE_PASSWORD')
             }
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled false
-            signingConfig System.getenv('RG_KEYSTORE') ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled = false
+            signingConfig = hasKeystore ? signingConfigs.getByName('rego') : signingConfigs.getByName('debug')
         }
     }
 
