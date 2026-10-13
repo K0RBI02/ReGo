@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Adresse, unter der ReGo erreichbar ist (ohne https://). Wird beim Bauen übergeben: -PrgHost=...
+def rgHost = project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net'
+
+android {
+    namespace 'io.github.k0rbi02.rego'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.k0rbi02.rego'
+        minSdk 23
+        targetSdk 34
+        versionCode (project.findProperty('rgVersionCode') ?: '1') as int
+        versionName project.findProperty('rgVersionName') ?: '0.2.0'
+        manifestPlaceholders = [hostName: rgHost]
+    }
+
+    signingConfigs {
+        release {
+            // Schlüssel kommt aus dem Build (GitHub-Geheimnisse). Ohne ihn wird mit dem Debug-Schlüssel signiert.
+            def ks = System.getenv('RG_KEYSTORE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('RG_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('RG_KEY_ALIAS') ?: 'rego'
+                keyPassword System.getenv('RG_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('RG_KEYSTORE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

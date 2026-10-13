@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.2.1
+- Android-App (APK) als Hülle um ReGo: Projekt unter `android/`, GitHub baut sie (Workflow "Android-App (APK) bauen"), Anleitung in `deploy/ANDROID.md`.
+- Server liefert `/.well-known/assetlinks.json` aus, damit die App ohne Browserleiste läuft.
+
 ## 0.2.0
 Erste Mini-Version nach der Beta.
 - Strecken lassen sich ändern (Zeit und Wochentage) über "Ändern" an der Strecke.

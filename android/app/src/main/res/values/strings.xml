@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ReGo</string>
+    <!-- __HOST__ ersetzt der Build durch die Adresse der App (Skript android/prepare.sh) -->
+    <string name="asset_statements">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://__HOST__\"}}]</string>
+</resources>

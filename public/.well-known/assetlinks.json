@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "io.github.k0rbi02.rego",
+    "sha256_cert_fingerprints": ["58:04:94:17:25:1F:79:5B:35:4C:7F:1A:77:53:16:1A:1E:B7:50:E8:83:90:07:C8:6A:70:C3:BE:CC:67:A3:1B"]
+  }
+}]
