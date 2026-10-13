@@ -3,18 +3,20 @@ plugins {
 }
 
 // Adresse, unter der ReGo erreichbar ist (ohne https://). Wird beim Bauen übergeben: -PrgHost=...
-def rgHost = project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net'
+def rgHost = (project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net').toString()
+def rgVersionName = (project.findProperty('rgVersionName') ?: '0.2.0').toString()
+def rgVersionCode = (project.findProperty('rgVersionCode') ?: '1').toString().toInteger()
 
 android {
-    namespace 'io.github.k0rbi02.rego'
-    compileSdk 34
+    namespace = 'io.github.k0rbi02.rego'
+    compileSdk = 34
 
     defaultConfig {
-        applicationId 'io.github.k0rbi02.rego'
-        minSdk 23
-        targetSdk 34
-        versionCode (project.findProperty('rgVersionCode') ?: '1') as int
-        versionName project.findProperty('rgVersionName') ?: '0.2.0'
+        applicationId = 'io.github.k0rbi02.rego'
+        minSdk = 23
+        targetSdk = 34
+        versionCode = rgVersionCode
+        versionName = rgVersionName
         manifestPlaceholders = [hostName: rgHost]
     }
 
@@ -41,8 +43,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

@@ -58,7 +58,7 @@ jobs:
             -PrgHost="${{ steps.meta.outputs.host }}" \
             -PrgVersionName="${{ steps.meta.outputs.version }}" \
             -PrgVersionCode="${{ github.run_number }}" 2>&1 | tee build.log \
-          || { echo "::error::Gradle fehlgeschlagen: $(grep -E 'error:|ERROR|FAILED|What went wrong|Caused by|Could not' -A2 build.log | head -n 25 | tr '\n' '|' | cut -c1-1500)"; exit 1; }
+          || { echo "::error::Gradle fehlgeschlagen: $(grep -E 'error:|ERROR|FAILED|What went wrong|Caused by|Could not|build.gradle|Execution failed' -A2 build.log | head -n 40 | tr '\n' '|' | cut -c1-2500)"; exit 1; }
 
       - name: Datei benennen
         run: |
