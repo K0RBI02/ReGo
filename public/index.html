@@ -25,6 +25,9 @@ html,body{margin:0;height:100%;background:#F7F7F7;-webkit-text-size-adjust:100%}
 .rg-top a,.rg-top button{pointer-events:auto}
 .rg-under{margin-top:-68px;padding-top:76px !important}
 .rg-dockpad{padding-bottom:calc(120px + env(safe-area-inset-bottom)) !important}
+/* Beim Scrollen läuft der Inhalt oben weich aus statt hart unter der Kopfzeile abgeschnitten zu werden */
+.rg-dockpad.rg-scrolled,.rg-fade.rg-scrolled{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px);mask-image:linear-gradient(to bottom,transparent 0,#000 18px)}
+.rg-under.rg-scrolled{-webkit-mask-image:linear-gradient(to bottom,transparent 0,transparent 44px,#000 80px);mask-image:linear-gradient(to bottom,transparent 0,transparent 44px,#000 80px)}
 /* Illustrationen weichen, wenn der Platz fehlt (kleine Handys), statt über den Text zu rutschen */
 .rg-code{background:#fff !important;border-radius:10px;padding:8px;box-sizing:border-box}
 .rg-illu{container-type:size}

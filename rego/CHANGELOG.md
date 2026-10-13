@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.4.4
+- Beim Scrollen läuft der Inhalt oben weich aus (Hauptbildschirm, Meldungen, Strecken) statt hart unter der Kopfzeile zu verschwinden.
+
 ## 0.4.3
 - Meldungen: jede Meldung ist wieder eine eigene Karte (Übersicht), alle führen auf die gemeinsame Seite ihrer Strecke.
 

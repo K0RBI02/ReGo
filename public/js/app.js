@@ -109,6 +109,7 @@
     if (h === '#' || h === '') { e.preventDefault(); return; }
     if (/^[A-Za-z0-9]+\.dc\.html(#.*)?$/.test(h)) { e.preventDefault(); go('/' + h.replace('.dc.html', ''), true); }
   });
+  document.addEventListener('scroll', (e) => { const t = e.target; if (t && t.classList && (t.classList.contains('rg-dockpad') || t.classList.contains('rg-fade'))) t.classList.toggle('rg-scrolled', t.scrollTop > 4); }, true);
   window.addEventListener('popstate', () => go(location.href, false));
 
   R.navigate = (url) => go(url, true);
