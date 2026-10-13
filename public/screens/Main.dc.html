@@ -156,12 +156,12 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <span style="background: #1C1A1A; color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 700; white-space: nowrap">{{near.inText}}</span>
 </a>
 <sc-for list="{{departures}}" as="d" hint-placeholder-count="3">
-<div style="display: grid; grid-template-columns: 70px 40px 1fr auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
+<a href="{{d.href}}" style="display: grid; grid-template-columns: 70px 40px 1fr auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
 <span style="font-size: 27px; font-weight: 700; letter-spacing: -0.03em">{{d.time}}</span>
 <span style="{{d.badgeStyle}}">{{d.line}}</span>
 <span style="display: flex; align-items: center; gap: 6px; font-size: 17px; font-weight: 700"><svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
 <span style="{{d.platformStyle}}">{{d.platform}}</span>
-</div>
+</a>
 </sc-for>
 </div>
 
@@ -209,10 +209,16 @@ class Component extends DCLogic {
     const toMin = (t) => { const p = t.split(':'); return +p[0] * 60 + +p[1]; };
     const nowM = toMin(T.clock.now);
     const period = nowM < 12 * 60 ? 'am' : 'pm';
-    const tours = T.tours.filter((t) => t.active).sort((a, b) => ((a.period === period ? 0 : 1) - (b.period === period ? 0 : 1)) || ((a.distanceKm ?? 0) - (b.distanceKm ?? 0)));
+    const bucket = (t) => (t.distanceKm == null ? null : Math.round(t.distanceKm / 2));   // ~2-km-Stufen: bei gleicher Nähe entscheidet die Tageszeit (Hinweg morgens, Rückweg abends)
+    const tours = T.tours.filter((t) => t.active).sort((a, b) => {
+      const da = bucket(a), db = bucket(b);
+      if (da != null && db != null && da !== db) return da - db;
+      return ((a.period === period ? 0 : 1) - (b.period === period ? 0 : 1)) || ((a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+    });
+    const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
     const incidents = T.incidents.filter((i) => tours.some((t) => t.id === i.tourId) && T.isVisible(i));
     const activeFor = (t) => incidents.filter((i) => i.tourId === t.id && i.validity.activeNow).sort((a, b) => b.severity - a.severity)[0];
-    const target = (t) => { const i = activeFor(t); return 'Detail.dc.html#' + (i ? i.id : t.id) + '-m'; };
+    const target = (t) => 'Detail.dc.html#' + t.id + '-m';            // eine Seite je Strecke, mit allen Meldungen
     const inText = (t) => {
       const d = t.departures[0];
       if (!d) return 'ab ' + t.schedule.departAfter;
@@ -224,17 +230,19 @@ class Component extends DCLogic {
     const common = { clockNow: T.clock.now };
     if (T.connection.loading) return Object.assign({ hasTours: false, noTours: false, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } }, common);
     if (!near) return Object.assign({ clockNow: T.clock.now },{ hasTours: false, noTours: true, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } });
+    const activeAll = incidents.filter((i) => i.tourId === near.id && i.validity.activeNow);
     const top = activeFor(near);
     const kind = T.theme.kinds[top ? top.kind : 'ok'];
     const view = top ? top.view : (near.view || { head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
     const ticker = {
-      href: target(near), head: view.head, big: view.big, sub: view.sub, icon1: kind.icon[0], icon2: kind.icon[1],
+      href: target(near), head: view.head, big: view.big, sub: view.sub + (activeAll.length > 1 ? ' · +' + (activeAll.length - 1) + ' weitere' : ''), icon1: kind.icon[0], icon2: kind.icon[1],
       style: 'margin: 10px 20px 0; background: ' + kind.bg + '; border-radius: 32px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px'
     };
     const nd = near.departures.slice(0, 3);
     const departures = nd.map((d, idx) => {
       const late = d.delayMin > 0, moved = d.plannedPlatform !== d.expectedPlatform;
       return {
+        href: 'Detail.dc.html#' + near.id + '.' + idx + '-m',
         border: idx === nd.length - 1 ? '0 solid transparent' : '1.5px solid #E3E3E3',
         time: d.expectedTime, line: T.lines[d.lineId].label,
         badgeStyle: 'width: 40px; height: 40px; border-radius: 50%; background: ' + T.lines[d.lineId].color + '; color: #fff; display: grid; place-items: center; overflow: hidden; white-space: nowrap; font-size: ' + (T.lines[d.lineId].label.length > 4 ? 10 : T.lines[d.lineId].label.length > 3 ? 12 : 15) + 'px; font-weight: 700',
@@ -248,7 +256,7 @@ class Component extends DCLogic {
     const bc = incidents.length;      // genau das, was unter Meldungen steht
     return {
       clockNow: T.clock.now, hasTours: true, noTours: false, ticker, departures, others,
-      near: { name: near.name, sub: sub(near), inText: inText(near), href: target(near) },
+      near: { name: near.name, sub: sub(near) + (near.distanceKm == null ? '' : ' · ' + km(near.distanceKm)), inText: inText(near), href: target(near) },
       hasBadge: bc > 0, badgeCount: bc
     };
   }

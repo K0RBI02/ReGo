@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.4.1
+- Eine Detailseite je Strecke: Baustelle, Ersatzverkehr und Verspätung stehen zusammen auf einer Seite, in Meldungen eine Karte je Strecke.
+- Hauptbildschirm: die nächsten drei Fahrten der nächstgelegenen Strecke sind antippbar und öffnen eine eigene Detailseite (Verspätung, Gleis, Karte, danach folgende Fahrt).
+- Sortierung nach Standort: Entfernung zuerst (Tageszeit nur bei gleicher Nähe), Entfernung steht unter der Strecke. Die Android-App fragt beim Start nach der Standortfreigabe, der Browser einmal ab zwei Strecken.
+
 ## 0.4.0
 - Neues Handy: unter Strecken Code erzeugen und auf dem neuen Gerät eingeben, Strecken und Einstellungen werden kopiert (Code 10 Min. gültig, einmal nutzbar).
 - Rückmeldung: Link öffnet ein vorbefülltes GitHub-Formular.

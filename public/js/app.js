@@ -121,16 +121,21 @@
 
   // Standort nur nutzen, wenn schon erlaubt (kein Dialog beim Start). Letzten Standort merken, bei jedem Öffnen der App neu holen.
   try { const c = JSON.parse(localStorage.getItem('rego.pos') || 'null'); if (c && c.lat && Date.now() - c.at < 12 * 3600 * 1000) R.position = { lat: c.lat, lon: c.lon }; } catch (e) {}
+  const fix = () => navigator.geolocation.getCurrentPosition((pos) => {
+    const n = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) };
+    const changed = !R.position || R.position.lat !== n.lat || R.position.lon !== n.lon;
+    R.position = n; try { localStorage.setItem('rego.pos', JSON.stringify({ ...n, at: Date.now() })); } catch (e) {}
+    if (changed) R.refresh();
+  }, () => {}, { maximumAge: 600000, timeout: 20000 });
   const locate = () => {
     try {
+      // App: Android fragt beim ersten Mal selbst nach der Freigabe, danach geht es still
+      if (window.RegoNative) { setTimeout(fix, 1200); return; }
       navigator.permissions && navigator.permissions.query({ name: 'geolocation' }).then((p) => {
-        if (p.state !== 'granted') return;
-        navigator.geolocation.getCurrentPosition((pos) => {
-          const n = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) };
-          const changed = !R.position || R.position.lat !== n.lat || R.position.lon !== n.lon;
-          R.position = n; try { localStorage.setItem('rego.pos', JSON.stringify({ ...n, at: Date.now() })); } catch (e) {}
-          if (changed) R.refresh();
-        }, () => {}, { maximumAge: 600000, timeout: 20000 });
+        if (p.state === 'granted') { fix(); return; }
+        // Noch nie gefragt: einmal fragen, sobald es mindestens zwei Strecken gibt (erst dann hilft „nächste zuerst“)
+        let asked = false; try { asked = !!localStorage.getItem('rego.posAsked'); } catch (e) {}
+        if (p.state === 'prompt' && !asked) setTimeout(() => { if (R.tours && R.tours.filter((t) => t.active).length >= 2) { try { localStorage.setItem('rego.posAsked', '1'); } catch (e) {} fix(); } }, 3000);
       });
     } catch (e) {}
   };

@@ -72,6 +72,23 @@ export async function buildTour(tour, journeys, ctx) {
   const hint = ticketHintFor(tour);
   const dest = tour.to.name;
 
+  // Detailansicht je Abfahrt (die ersten drei): „zwei Bahnen später“ lässt sich einzeln öffnen
+  for (let k = 0; k < out.departures.length; k++) {
+    const l = legs[k], nxt = legs[k + 1], isLate = l.depDelay >= minDelay;
+    const platformChg = l.plannedPlatform && l.platform && l.plannedPlatform !== l.platform;
+    const rows = [{ label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' }];
+    if (platformChg) rows.push({ label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` });
+    rows.push({ label: `Ankunft ${dest}`, sub: l.line.name, value: hhmm(l.arr), planned: l.arrDelay ? hhmm(l.plannedArr) : '' });
+    const kmap = await buildMap(l, linesAt, { halo: isLate, registerLine });
+    out.departures[k].view = {
+      kind: isLate ? 'delay' : 'ok',
+      head: `${isLate ? 'Verspätung' : 'Pünktlich'} · ${l.line.name} ab ${hhmm(l.dep)}`,
+      big: isLate ? `+${l.depDelay} Min.` : 'pünktlich', sub: sub(l, false), rows,
+      alternative: nxt ? { title: 'Danach', line1: `${nxt.line.name} ab ${hhmm(nxt.dep)}${nxt.platform ? ` · Gleis ${nxt.platform}` : ''}`, line2: `An ${dest} ${hhmm(nxt.arr)}`, badge: nxt.depDelay >= minDelay ? `+${nxt.depDelay} Min.` : 'pünktlich' } : null,
+      ticketHint: hint, map: kmap,
+    };
+  }
+
   // 1) Ereignisse aus Hinweisen (Ersatzverkehr, Baustelle) – einmal je Text
   const seen = new Set();
   for (const leg of legs) for (const r of leg.remarks) {

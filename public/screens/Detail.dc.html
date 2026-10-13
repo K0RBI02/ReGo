@@ -201,6 +201,17 @@ Zurück</a>
 </div>
 </sc-if>
 
+<sc-for list="{{more}}" as="m" hint-placeholder-count="1">
+<div style="{{m.style}}">
+<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere">
+<span style="font-size: 14px; font-weight: 700">{{m.head}}</span>
+<span style="font-size: 18px; font-weight: 700; line-height: 1.2">{{m.sub}}</span>
+<span style="font-size: 15px; font-weight: 600; line-height: 1.3">{{m.detail}}</span>
+</div>
+<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap; flex: none">{{m.big}}</span>
+</div>
+</sc-for>
+
 <sc-if value="{{hasTicket}}" hint-placeholder-val="{{ false }}">
 <div style="background: #FDF3DC; border-radius: 24px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px">
 <div style="font-size: 16px; font-weight: 600; line-height: 1.3">{{ticket.text}}</div>
@@ -232,9 +243,23 @@ class Component extends DCLogic {
   renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
   _rv() {
     const T = window.REGO;
-    const inc = T.incidents.find((i) => i.id === this.state.id);
-    const tour = inc ? T.tours.find((t) => t.id === inc.tourId) : T.tours.find((t) => t.id === this.state.id);
-    const view = inc ? inc.view : (tour && tour.view) || T.incidents[1].view;
+    // Adresse: <Strecke>-m | <Strecke>.<n>-m (n-te Abfahrt) | <Meldung>-m (alte Links)
+    const id = this.state.id;
+    const dotted = id.split('.');
+    const byId = T.incidents.find((i) => i.id === id);
+    const tour = T.tours.find((t) => t.id === dotted[0]) || (byId ? T.tours.find((t) => t.id === byId.tourId) : null);
+    const depIdx = dotted.length > 1 ? parseInt(dotted[1], 10) : -1;
+    const dep = tour && depIdx >= 0 ? tour.departures[depIdx] : null;
+    // Alle sichtbaren Meldungen der Strecke auf einer Seite, die schwerste (oder die angetippte) oben
+    const list = tour && !dep ? T.incidents.filter((i) => i.tourId === tour.id && T.isVisible(i)).sort((a, b) => ((b.id === id) - (a.id === id)) || b.severity - a.severity) : [];
+    const inc = list[0] || null;
+    const view = (dep && dep.view) || (inc ? inc.view : (tour && tour.view) || (T.incidents[0] && T.incidents[0].view) || { kind: 'ok', head: '', big: '', sub: '', rows: [], map: null });
+    const more = list.slice(1).map((m) => { const k = T.theme.kinds[m.kind]; return {
+      style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px',
+      head: k.label + ' · ' + m.validity.label, sub: m.view.sub || m.summary,
+      detail: (m.view.rows || []).map((r) => r.label + ' ' + r.value).join(' · ') + (m.view.alternative ? ' · ' + m.view.alternative.line1 : ''),
+      big: m.kind === 'delay' ? '+' + m.delayMin + ' Min.' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
+    }; });
     const kindKey = view.kind || 'ok';
     const K = T.theme.kinds[kindKey];
     const M = view.map || { stations: [], connections: [], disrupted: null, alternative: null, haloIndex: -1, hubIndex: -1 };
@@ -267,6 +292,7 @@ class Component extends DCLogic {
     }
 
     const out = {
+      more,
       mapBg: kindKey === 'ok' ? '#DCEFB8' : '#EEF1F2',
       mainD, disD, haloD, altD, chip,
       smallD: st.filter((q) => !q.big).map((q) => circ([q.x, Y], 8)).join(''),
