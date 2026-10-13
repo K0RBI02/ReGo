@@ -143,6 +143,7 @@ Zurück</a>
 <div style="flex: 1; min-width: 0; padding: 14px 8px 8px 20px; display: flex; flex-direction: column; gap: 2px">
 <span style="font-size: 14px; font-weight: 600; color: #4A4747">{{r.when}}</span>
 <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{r.name}}</span>
+<span style="{{r.noteStyle}}">{{r.note}}</span>
 <span style="display: flex; align-items: center; gap: 10px; padding-top: 2px">
 <span style="{{r.chipStyle}}">{{r.line}}</span>
 <button type="button" onClick="{{r.edit}}" aria-label="{{r.editLabel}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 15px; font-weight: 600; color: #1C1A1A; text-decoration: underline">Ändern</button>
@@ -189,7 +190,7 @@ Zurück</a>
 <sc-if value="{{claimWarn}}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size: 14px; font-weight: 700; line-height: 1.35">{{claimWarnText}}</span></sc-if>
 </div>
 
-<div style="padding: 0 4px; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <a href="{{contactHref}}" style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</a>.</div>
+<a href="{{contactHref}}" style="display: block; padding: 12px 4px; min-height: 44px; box-sizing: border-box; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</span>.</a>
 
 </div>
 
@@ -286,7 +287,9 @@ class Component extends DCLogic {
     return R.tours.map((t) => {
       const d = t.schedule.days, work = d.length === 5 && names.slice(0, 5).every((n) => d.includes(n));
       const L = R.lines[t.lineId];
-      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ab ' + t.schedule.departAfter, name: t.name, line: L.label, color: L.color, on: t.active };
+      // Aktive Strecke ohne Abfahrt: kurz sagen warum (die Hauptseite zeigt dasselbe groß)
+      const b = t.view && t.view.big, note = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : 'Keine Direktverbindung';
+      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ab ' + t.schedule.departAfter, name: t.name, line: L.label, color: L.color, on: t.active, note };
     });
   }
   onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
@@ -300,7 +303,8 @@ class Component extends DCLogic {
     const st = this.state;
     const names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     const routes = st.list.map((d, i) => ({
-      when: d.when, name: d.name, line: d.line,
+      when: d.when, name: d.name, line: d.line, note: d.on ? d.note || '' : '',
+      noteStyle: d.on && d.note ? 'font-size: 14px; font-weight: 600; line-height: 1.3; color: #4A4747' : 'display: none',
       chipStyle: d.line ? 'min-width: 36px; height: 34px; padding: 0 10px; border-radius: 17px; background: ' + d.color + '; color: #fff; display: inline-grid; place-items: center; font-size: 15px; font-weight: 700; box-sizing: border-box' : 'display: none',
       on: d.on, state: d.on ? 'An' : 'Aus',
       label: 'Warnungen für ' + d.name,

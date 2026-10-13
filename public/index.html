@@ -11,8 +11,13 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="preload" href="/fonts/InstrumentSans-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="/fonts/InstrumentSans-Bold.ttf" as="font" type="font/ttf" crossorigin>
 <style>
-/* Schrift: Instrument Sans lokal (Datei nach /fonts/ legen, siehe README); ohne Datei greift die Systemschrift. */
+/* Schrift: Instrument Sans (SIL Open Font License, Lizenztext liegt in /fonts/), mitgeliefert statt von einem Drittanbieter geladen.
+   Es gibt zwei Schnitte: 400/500 nutzt Regular, 600 bis 800 nutzt Bold. Fehlt die Datei, greift die Systemschrift. */
+@font-face{font-family:'Instrument Sans';src:url('/fonts/InstrumentSans-Regular.ttf') format('truetype');font-weight:400 500;font-style:normal;font-display:swap}
+@font-face{font-family:'Instrument Sans';src:url('/fonts/InstrumentSans-Bold.ttf') format('truetype');font-weight:600 800;font-style:normal;font-display:swap}
 html,body{margin:0;height:100%;background:#F7F7F7;-webkit-text-size-adjust:100%}
 @media (prefers-color-scheme: dark){html,body{background:#121212}}
 #app{position:fixed;top:0;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;overflow:hidden}

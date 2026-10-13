@@ -1,5 +1,5 @@
 name: "ReGo"
-version: "0.5.0"
+version: "0.5.1"
 slug: rego
 description: "ReGo – minimalistische ÖPNV-App für Pendler (Alpenregion Bayern & Österreich)"
 url: "https://github.com/K0RBI02/ReGo"
@@ -12,6 +12,7 @@ ports:
   8080/tcp: 8080
 ports_description:
   8080/tcp: "ReGo Web-App und API (nur http, im Heimnetz)"
+watchdog: "http://[HOST]:[PORT:8080]/api/health"
 options:
   contact: ""
   provider: "library"

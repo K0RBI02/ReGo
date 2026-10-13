@@ -4,7 +4,7 @@ import { berlin, hhmm, shortDate, fromBerlin } from '../lib/time.mjs';
 import { lineLabel, lineColor, productName } from '../lib/lines.mjs';
 import { regionOf, country, distanceKm } from '../lib/geo.mjs';
 import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
-import { buildMap } from './map.mjs';
+import { buildMap, shortName } from './map.mjs';
 
 export const SCHEMA_VERSION = 1;
 // Namen wie "München, München Hbf" (Ort doppelt) kürzen, auch bei schon gespeicherten Strecken
@@ -19,8 +19,20 @@ export const THEME = {
     replacement:  { label: 'Ersatzverkehr', bg: '#F9D6D2', icon: ['M8 12c0-2 1.4-3.6 3.6-3.6h24.8c2.2 0 3.6 1.6 3.6 3.6v20c0 1.8-1.2 3-3 3H11c-1.8 0-3-1.2-3-3z', 'M8 26h32M14 40v-4M34 40v-4'] },
     construction: { label: 'Baustelle',     bg: '#FDF3DC', icon: ['M17 24l9 9-5 6c-2 2-5 2-7 0l-2-2c-2-2-2-5 0-7z', 'M26 29L38 13M33 8l9 7'] },
     ok:           { label: 'Pünktlich',     bg: '#EAF6CF', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M14 25l8 8 14-17'] },
+    none:         { label: 'Keine Daten',   bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M24 21v13M24 14.5v.1'] },
   },
 };
+
+/** Ansicht für eine Strecke ohne Abfahrt: ehrlich sagen, warum (keine Daten, Fahrten fallen aus, keine Direktverbindung), nie „pünktlich“. */
+function noDeparturesView(tour, journeys, stale) {
+  const cancelled = journeys.some((j) => j.legs[0] && j.legs[0].cancelled);
+  const [big, sub] = stale ? ['Keine Daten', 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
+    : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
+      : ['Keine', 'Keine Direktverbindung gefunden. ReGo zeigt nur Fahrten ohne Umstieg.'];
+  // Karte: Start und Ziel, verbunden mit einer gepunkteten Linie (wie bei einer Störung)
+  const stations = [tour.from, tour.to].map((s) => ({ id: s.id, name: shortName(s.name) }));
+  return { kind: 'none', head: 'Nächste Abfahrt', big, sub, rows: [], alternative: null, ticketHint: null, map: { stations, hubIndex: -1, haloIndex: -1, connections: [], disrupted: { from: 0, to: 1 }, alternative: null } };
+}
 
 function validityLabel(from, until, now) {
   const f = berlin(from).date, u = berlin(until).date, today = berlin(now).date;
@@ -54,7 +66,7 @@ const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direc
 /**
  * @param tour     Profil-Tour { id,name,from,to,active,period,returnId?,returnOf?,schedule }
  * @param journeys normalisierte Journeys (Direktverbindungen)
- * @param ctx      { now, minDelay, linesAt, lines (Registry), graceMin }
+ * @param ctx      { now, minDelay, linesAt, lines (Registry), graceMin, stale (Daten stammen aus dem Zwischenspeicher oder fehlen wegen Störung) }
  * @returns { tour, incidents }
  */
 export async function buildTour(tour, journeys, ctx) {
@@ -79,7 +91,7 @@ export async function buildTour(tour, journeys, ctx) {
     })),
   };
   const incidents = [];
-  if (!legs.length) return { tour: out, incidents };
+  if (!legs.length) { out.view = noDeparturesView(tour, journeys, ctx.stale); return { tour: out, incidents }; }
 
   const first = legs[0];
   const hint = ticketHintFor(tour);

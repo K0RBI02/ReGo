@@ -185,6 +185,51 @@ test('Quelle hängt oder ist aus: Strecke wartet höchstens die Frist, alte Fahr
   t += 20 * 60e3; mode = 'down'; assert.equal((await s2.getState(dev)).tours[0].departures.length, 1);       // 20 Min. alt: ok
   t += 20 * 60e3; const late = await s2.getState(dev);                                                         // 40 Min. alt: zu alt
   assert.equal(late.tours[0].departures.length, 0); assert.equal(late.tours[0].stale, true);
+  assert.equal(late.tours[0].view.kind, 'none'); assert.equal(late.tours[0].view.big, 'Keine Daten');          // ehrlich statt „pünktlich“
+});
+
+test('Strecke ohne Abfahrt: eigene Ansicht „keine“, nie „pünktlich“ (keine Direktverbindung, Ausfall, keine Daten)', async () => {
+  const tour = { id: 't1', name: 'München Hbf → Salzburg Hbf', from: MH, to: { id: '8100002', name: 'Salzburg Hbf' }, active: true };
+  const now = Date.parse('2026-10-14T07:00:00+02:00');
+  const ctx = (o = {}) => ({ now, minDelay: 3, linesAt: async () => [], lines: {}, ...o });
+  // 1) Quelle antwortet, aber es gibt keine Fahrt ohne Umstieg
+  let r = await buildTour(tour, [], ctx());
+  assert.deepEqual(r.incidents, []);
+  assert.equal(r.tour.lineId, ''); assert.deepEqual(r.tour.departures, []);
+  assert.equal(r.tour.view.kind, 'none'); assert.equal(r.tour.view.big, 'Keine'); assert.match(r.tour.view.sub, /Direktverbindung/);
+  assert.deepEqual(r.tour.view.rows, []); assert.equal(r.tour.view.alternative, null); assert.equal(r.tour.view.ticketHint, null);
+  // die Karte zeigt Start und Ziel mit gepunkteter Linie, damit die Detailseite nicht leer ist
+  assert.deepEqual(r.tour.view.map.stations.map((x) => x.name), ['München Hbf', 'Salzburg Hbf']);
+  assert.deepEqual(r.tour.view.map.disrupted, { from: 0, to: 1 }); assert.deepEqual(r.tour.view.map.connections, []);
+  // 2) alle nächsten Fahrten fallen aus
+  r = await buildTour(tour, [{ legs: [leg('2026-10-14T07:20:00+02:00', { cancelled: true })] }], ctx());
+  assert.equal(r.tour.view.big, 'Fällt aus'); assert.deepEqual(r.tour.departures, []);
+  // 3) alte Daten (Quelle gestört): „Keine Daten“ hat Vorrang
+  r = await buildTour(tour, [], ctx({ stale: true }));
+  assert.equal(r.tour.view.big, 'Keine Daten'); assert.match(r.tour.view.sub, /antwortet gerade nicht/);
+  // 4) mit Abfahrt gibt es weiterhin die „pünktlich“-Ansicht
+  r = await buildTour(tour, [{ legs: [leg('2026-10-14T07:20:00+02:00')] }], ctx());
+  assert.equal(r.tour.view.kind, 'ok');
+  // Die Farbe der Ansicht steht im Vertrag
+  const { THEME } = await import('../server/domain/state.mjs');
+  assert.ok(THEME.kinds.none.bg && THEME.kinds.none.icon.length === 2);
+});
+
+test('API (Beispieldaten): Strecke ohne Direktverbindung bleibt in der Liste und hat eine Ansicht', async () => {
+  const { server, base } = await appOn(await tmp());
+  const h = hdr('leergeraet1234567890');
+  try {
+    const find = async (q) => (await (await fetch(`${base}/api/stations?q=${encodeURIComponent(q)}`, { headers: h })).json()).stations[0];
+    const [fs, sa, mu] = [await find('Freising'), await find('Salzburg'), await find('München Hbf')];
+    await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: fs, to: sa }) });
+    await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: fs, to: mu }) });
+    const s = await (await fetch(`${base}/api/state`, { headers: h })).json();
+    assert.equal(s.tours.length, 2);
+    const leer = s.tours.find((t) => t.name.includes('Salzburg')), voll = s.tours.find((t) => t.name.includes('München'));
+    assert.equal(leer.departures.length, 0); assert.equal(leer.view.kind, 'none'); assert.equal(leer.view.big, 'Keine');
+    assert.ok(voll.departures.length > 0); assert.notEqual(voll.view?.kind, 'none');
+    assert.equal(s.connection.status, 'ok');                       // eine Strecke ohne Direktverbindung ist keine Störung
+  } finally { server.close(); }
 });
 
 // ---------- Push ----------

@@ -17,7 +17,7 @@ const SEC = {
 };
 // Die Android-App lädt ihre Oberfläche von dieser virtuellen Adresse und fragt die API von dort ab.
 const APP_ORIGINS = ['https://appassets.androidplatform.net'];
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 
 // Nur bekannte Push-Dienste der Browser; sonst könnte jemand das Backend Anfragen an beliebige Adressen schicken lassen.
 const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)push\.apple\.com$/, /(^|\.)notify\.windows\.com$/];
@@ -145,7 +145,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     catch { if (extname(rel)) return send(res, 404, { error: 'Nicht gefunden' }); file = join(cfg.publicDir, 'index.html'); }   // Pfade ohne Endung gehören der App (Router)
     try {
       const body = await readFile(file);
-      res.writeHead(200, { ...SEC, 'content-type': MIME[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
+      // Schriften ändern sich nie: eine Woche zwischenspeichern spart bei jedem Start 140 KB Mobilfunk; alles andere wird immer neu geprüft
+      res.writeHead(200, { ...SEC, 'content-type': MIME[extname(file)] || 'application/octet-stream', 'cache-control': /^\.(ttf|woff2)$/.test(extname(file)) ? 'public, max-age=604800' : 'no-cache' });
       res.end(body);
     } catch { send(res, 404, { error: 'Nicht gefunden' }); }
   }

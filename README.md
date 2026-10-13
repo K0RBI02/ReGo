@@ -6,7 +6,7 @@ Node.js ≥ 20. Holt Fahrplandaten aus mehreren Quellen: regionale Verbünde (MV
 Die Oberfläche läuft als PWA im Browser und eingebaut in einer echten Android-App (`android/`, gebaut von GitHub, siehe `deploy/ANDROID.md`). `public/` ist die gemeinsame Oberfläche: dein Design (`public/screens/*.dc.html`) läuft unverändert, `public/js/dc-lite.js` führt es aus, `public/js/rego-live.js` füllt es mit den Backend-Daten. Das Backend liefert die App mit aus, nach `npm start` einfach `http://127.0.0.1:8080/` öffnen. Aufs Handy: im Browser „Zur Startseite hinzufügen“ (Installieren geht nur über https oder localhost).
 - Offline: letzter Stand bleibt im Gerät, Banner „Offline-Modus | Stand: hh:mm“.
 - Tickets und Geräte-ID liegen nur im Gerät (localStorage).
-- Schrift: ReGo nutzt die Systemschrift (keine Drittanbieter). Wer Instrument Sans möchte, legt die Datei als `public/fonts/InstrumentSans.woff2` ab und ergänzt in `public/index.html` eine `@font-face`-Regel.
+- Schrift: Instrument Sans (SIL Open Font License) liegt in `public/fonts/` und wird von dort geladen, nichts von Drittanbietern. Schnitte: Regular für 400/500, Bold für 600 bis 800.
 - Ticket-Safe: Barcode per Kamera (nur https) oder aus Foto/Screenshot; gespeichert wird der Zuschnitt des Codes als Bild, nur lokal. Wallet-Apps lassen sich aus dem Browser nicht auslesen.
 - Push: VAPID ohne Fremdbibliothek, Push ist leer, der Text kommt vom Backend. Prüfintervall `REGO_NOTIFY_SEC` (60). Nachtruhe 23–4 Uhr.
 

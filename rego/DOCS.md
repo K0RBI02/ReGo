@@ -35,5 +35,6 @@ Beschädigte Profildateien legt ReGo als `<ID>.json.corrupt-<Zeit>` zur Seite un
 - `http://<pi-ip>:8080/status` zeigt Version, Zustand der Datenquellen und die Zahl der Geräte (ohne persönliche Daten).
 - Im Protokoll des Add-ons steht beim Start ein Netztest (bahn.de, MVV). Fehler der Datenquellen stehen dort ebenfalls.
 - Sind die Fahrplandaten gestört, zeigt die App den letzten Stand (höchstens 30 Minuten alt) mit dem Hinweis „Keine aktuellen Daten“.
+- Hängt ReGo einmal, startet Home Assistant es selbst neu, wenn du bei ReGo unter „Info“ den Schalter **Watchdog** einschaltest (die Prüfadresse `/api/health` ist hinterlegt).
 - Weitere Einstellungen (Umgebungsvariablen) stehen in der `README.md`.
 

@@ -20,7 +20,10 @@
     replacement: { label: 'Ersatzverkehr', bg: '#F9D6D2', icon: ['M8 12c0-2 1.4-3.6 3.6-3.6h24.8c2.2 0 3.6 1.6 3.6 3.6v20c0 1.8-1.2 3-3 3H11c-1.8 0-3-1.2-3-3z', 'M8 26h32M14 40v-4M34 40v-4'] },
     construction: { label: 'Baustelle', bg: '#FDF3DC', icon: ['M17 24l9 9-5 6c-2 2-5 2-7 0l-2-2c-2-2-2-5 0-7z', 'M26 29L38 13M33 8l9 7'] },
     ok: { label: 'Pünktlich', bg: '#EAF6CF', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M14 25l8 8 14-17'] },
+    none: { label: 'Keine Daten', bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M24 21v13M24 14.5v.1'] },
   } };
+  // Strecke ohne Abfahrt: der Server liefert eine genaue Ansicht; ein älterer Server (oder ein alter Zwischenstand) nicht, dann gilt diese – nie „pünktlich“
+  const NONE_VIEW = { kind: 'none', head: 'Nächste Abfahrt', big: 'Keine', sub: 'Keine Abfahrten gefunden.', rows: [], alternative: null, ticketHint: null, map: null };
 
   const R = window.REGO = {
     schemaVersion: 1, theme: THEME, lines: linesProxy({}), tours: [], incidents: [],
@@ -107,7 +110,12 @@
 
   /* --- Zustand holen --- */
   function apply(state, status, lastSync) {
-    R.tours = (state.tours || []).map((t) => Object.assign({}, t, { name: R.shortRoute(t.name) })); R.incidents = state.incidents || [];
+    R.tours = (state.tours || []).map((t) => {
+      const o = Object.assign({}, t, { name: R.shortRoute(t.name) });
+      if (o.active !== false && !(o.departures || []).length && !o.view) o.view = NONE_VIEW;
+      return o;
+    });
+    R.incidents = state.incidents || [];
     R.lines = linesProxy(state.lines || {}); R.settings = Object.assign({}, R.settings, state.settings || {});
     R.connection = { status, loading: false, lastSync };
   }

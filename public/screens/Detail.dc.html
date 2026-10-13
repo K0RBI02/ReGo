@@ -203,12 +203,12 @@ Zurück</a>
 
 <sc-for list="{{more}}" as="m" hint-placeholder-count="1">
 <div style="{{m.style}}">
-<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere">
-<span style="font-size: 14px; font-weight: 700">{{m.head}}</span>
-<span style="font-size: 18px; font-weight: 700; line-height: 1.2">{{m.sub}}</span>
-<span style="font-size: 15px; font-weight: 600; line-height: 1.3">{{m.detail}}</span>
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<span style="font-size: 14px; font-weight: 700; line-height: 1.3; min-width: 0; padding-top: 4px">{{m.head}}</span>
+<span style="font-size: 30px; line-height: 1.05; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap; flex: none">{{m.big}}</span>
 </div>
-<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap; flex: none">{{m.big}}</span>
+<span style="font-size: 18px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere">{{m.sub}}</span>
+<sc-for list="{{m.lines}}" as="ln"><span style="font-size: 15px; font-weight: 600; line-height: 1.3">{{ln.text}}</span></sc-for>
 </div>
 </sc-for>
 
@@ -257,14 +257,22 @@ class Component extends DCLogic {
     const inc = list[0] || null;
     // Nichts gefunden: beim ersten Laden noch leer lassen, danach ehrlich sagen, dass es die Meldung nicht mehr gibt (alte Push-Meldung, Strecke entfernt) – nie die Meldung einer fremden Strecke zeigen
     const nothing = T.connection && T.connection.loading ? { kind: 'ok', head: '', big: '', sub: '', rows: [], map: null }
+      : tour && tour.active === false ? { kind: 'none', head: 'Strecke', big: 'Pausiert', sub: 'Diese Strecke ist ausgeschaltet. Unter „Strecken“ schaltest du sie wieder ein.', rows: [], map: null }
       : { kind: 'ok', head: 'Meldung', big: 'Beendet', sub: 'Diese Meldung ist nicht mehr aktuell oder die Strecke wurde entfernt.', rows: [], map: null };
     const view = (dep && dep.view) || (inc && inc.view) || (tour && (tour.view || (tour.departures[0] && tour.departures[0].view))) || nothing;
-    const more = list.slice(1).map((m) => { const k = T.theme.kinds[m.kind]; return {
-      style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px',
-      head: k.label + ' · ' + m.validity.label, sub: m.view.sub || m.summary,
-      detail: (m.view.rows || []).map((r) => r.label + ' ' + r.value).join(' · ') + (m.view.alternative ? ' · ' + m.view.alternative.line1 : ''),
-      big: m.kind === 'delay' ? '+' + m.delayMin + ' Min.' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
-    }; });
+    // Weitere Meldungen der Strecke: Überschrift, Text der Meldung, darunter je eine kurze Zeile („ab 01:12 (geplant 01:00)“, „an 02:30“, „Nächster Zug: …“)
+    const more = list.slice(1).map((m) => {
+      const k = T.theme.kinds[m.kind] || T.theme.kinds.ok, rows = m.view.rows || [];
+      const dr = rows.find((r) => /^Abfahrt/.test(r.label)), ar = rows.find((r) => /^Ankunft/.test(r.label));
+      const at = (r) => r.value + (r.planned && r.planned !== r.value ? ' (geplant ' + r.planned + ')' : '');
+      const alt = m.view.alternative;
+      return {
+        style: 'background: ' + k.bg + '; border-radius: 28px; padding: 14px 20px 16px; display: flex; flex-direction: column; gap: 4px',
+        head: k.label + ' · ' + m.validity.label, sub: m.summary || m.view.sub,
+        lines: [dr ? 'ab ' + at(dr) : '', ar ? 'an ' + at(ar) : '', alt ? alt.title.split(' · ')[0] + ': ' + alt.line1 : ''].filter(Boolean).map((text) => ({ text })),
+        big: m.kind === 'delay' ? '+' + m.delayMin + ' Min.' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
+      };
+    });
     const kindKey = view.kind || 'ok';
     const K = T.theme.kinds[kindKey];
     const M = view.map || { stations: [], connections: [], disrupted: null, alternative: null, haloIndex: -1, hubIndex: -1 };
@@ -333,10 +341,11 @@ class Component extends DCLogic {
 
     const mainConn = (M.connections || []).find((c) => c.dir === 'right');      // Linie der angezeigten Meldung, nicht die erste Linie der Strecke
     const rl = T.lines[mainConn ? mainConn.lineId : (tour ? tour.lineId : '')] || { label: '', color: '#5B5B58' };
+    const badge = !!rl.label;      // ohne Linie (Strecke ohne Abfahrt) kein leerer grauer Punkt
     out.route = {
       line: rl.label, text: tour ? tour.name : '',
-      s: 'position: absolute; left: 20px; top: 78px; max-width: calc(100% - 40px); box-sizing: border-box; background: #fff; border-radius: 999px; padding: 5px 16px 5px 5px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)' + (tour ? '' : '; display: none'),
-      bs: 'min-width: 34px; height: 34px; border-radius: 17px; padding: 0 6px; box-sizing: border-box; background: ' + rl.color + '; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700'
+      s: 'position: absolute; left: 20px; top: 78px; max-width: calc(100% - 40px); box-sizing: border-box; background: #fff; border-radius: 999px; padding: ' + (badge ? '5px 16px 5px 5px' : '10px 18px') + '; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)' + (tour ? '' : '; display: none'),
+      bs: badge ? 'min-width: 34px; height: 34px; border-radius: 17px; padding: 0 6px; box-sizing: border-box; background: ' + rl.color + '; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700' : 'display: none'
     };
     out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px';
     out.head = view.head; out.big = view.big; out.sub = view.sub;

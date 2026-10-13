@@ -60,7 +60,7 @@ export function createService({ config, store, now = () => Date.now(), providers
       const linesAtBudget = (id) => (Date.now() - started > MAP_BUDGET_MS ? Promise.resolve([]) : withDeadline(linesAt(id), Math.max(300, MAP_BUDGET_MS - (Date.now() - started)), () => []));
       const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
-      const built = await buildTour(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin });
+      const built = await buildTour(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale });
       if (tourStale) built.tour.stale = true;                  // diese Strecke zeigt alte Daten (oder gar keine)
       tours[i] = { out: built.tour, inc: built.incidents };
     }));

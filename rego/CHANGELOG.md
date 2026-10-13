@@ -1,5 +1,15 @@
 # Änderungen
 
+## 0.5.1 – ehrlich bei fehlenden Abfahrten
+- **Strecke ohne Abfahrt:** Gab es für eine Strecke keine Direktverbindung (oder gerade keine Daten), stand auf dem Hauptbildschirm trotzdem „Alles pünktlich“, die Strecke fehlte in der Liste, und die Detailseite sagte „Beendet“. Jetzt steht dort ehrlich „Nächste Abfahrt: Keine“ mit dem Grund (keine Direktverbindung gefunden, Fahrten fallen aus, Quelle antwortet nicht). Die Strecke bleibt in der Liste, die Detailseite zeigt Start und Ziel, und unter „Strecken“ steht ein kurzer Hinweis.
+- Eine ausgeschaltete Strecke zeigt auf der Detailseite „Pausiert“ statt „Beendet“.
+- **Schrift:** Instrument Sans (SIL Open Font License) ist jetzt in der App und im Add-on enthalten. Vorher fiel die App auf die Systemschrift zurück, weil die Schriftdatei nie mitgeliefert wurde. Die Schrift wird eine Woche zwischengespeichert.
+- Weitere Meldungen einer Strecke: Überschrift mit der Verspätung rechts oben, Text der Meldung und darunter je eine kurze Zeile („ab 01:12 (geplant 01:00)“, „an 02:30“, „Nächster Zug: …“) statt einer langen, umbrechenden Zeile.
+- Detailseite: Bei Strecken ohne Linie gibt es keinen leeren grauen Punkt mehr.
+- „Rückmeldung senden“ unter „Strecken“: der ganze Satz ist antippbar (größere Fläche).
+- Add-on: Die Adresse für den Watchdog ist hinterlegt. Schaltest du in Home Assistant bei ReGo unter „Info“ den Schalter „Watchdog“ ein, startet Home Assistant ReGo bei einem Hänger selbst neu. Die Kennung gegenüber den Fahrplan-Diensten nennt jetzt die Projektadresse.
+- Aufgeräumt: die Datei für die frühere Browser-Variante der App (`assetlinks.json`) ist entfernt.
+
 ## 0.5.0 – große Fehlersuche
 Die ganze App wurde auf Fehler durchgesehen. Das Wichtigste:
 

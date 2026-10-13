@@ -184,6 +184,55 @@ await check('Mehrere Meldungen einer Strecke', async () => {
   if (!/Beendet/.test(gone) || /RE 5|S1|Freising/.test(gone)) problems.push('Streckenseite: unbekannte Meldung zeigt keine ehrliche Anzeige');
 });
 
+// Strecke ohne Direktverbindung (Beispieldaten: Freising → Salzburg gibt es nicht): ehrliche Anzeige statt „Alles pünktlich“, die Strecke bleibt sichtbar
+await check('Strecke ohne Direktverbindung', async () => {
+  const sa = (await j('/api/stations?q=Salzburg')).stations[0];
+  const mk = async (dev) => {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await c.addInitScript(([d]) => { try { if (!localStorage.getItem('rego.device')) { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); } } catch (e) {} }, [dev]);
+    const post = (to) => fetch(base + '/api/tours', { method: 'POST', headers: { 'x-device': dev, 'content-type': 'application/json' }, body: JSON.stringify({ from: st, to }) });
+    return { c, post, pg: await c.newPage() };
+  };
+  const text = (pg) => pg.evaluate(() => document.querySelector('#screen').innerText);
+  // A: nur die Strecke ohne Direktverbindung
+  const a = await mk('smokeleera0123456789abcd');
+  await a.post(sa);
+  await a.pg.goto(base + '/'); await a.pg.waitForTimeout(1800);
+  let t = await text(a.pg);
+  if (/Alles pünktlich|Pünktlich/.test(t)) problems.push('Ohne Direktverbindung: Hauptbildschirm sagt „pünktlich“');
+  if (!/Nächste Abfahrt/.test(t) || !/Keine Direktverbindung/.test(t)) problems.push('Ohne Direktverbindung: Hauptbildschirm erklärt nicht, warum es keine Abfahrt gibt');
+  if (/ · \s*(\n|$)|\s·\s*·/.test(t)) problems.push('Ohne Direktverbindung: hängender Trennpunkt im Hauptbildschirm');
+  await a.pg.goto(base + '/Strecken'); await a.pg.waitForTimeout(1200);
+  t = await text(a.pg);
+  if (!/Keine Direktverbindung/.test(t)) problems.push('Ohne Direktverbindung: Streckenliste hat keinen Hinweis');
+  const tid = (await (await fetch(base + '/api/profile', { headers: { 'x-device': 'smokeleera0123456789abcd' } })).json()).tours[0].id;
+  await a.pg.goto(base + '/Detail#' + tid + '-m'); await a.pg.waitForTimeout(1500);
+  t = await text(a.pg);
+  if (/Beendet|nicht mehr aktuell/.test(t)) problems.push('Ohne Direktverbindung: Detailseite sagt „Beendet“');
+  if (!/Keine Direktverbindung/.test(t)) problems.push('Ohne Direktverbindung: Detailseite erklärt nichts');
+  const dot = await a.pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /min-width: 34px/.test(e.getAttribute('style') || '') && getComputedStyle(e).display !== 'none' && !e.textContent.trim()).length);
+  if (dot) problems.push('Ohne Direktverbindung: Detailseite zeigt einen leeren Linienpunkt');
+  await a.c.close();
+  // B: normale Strecke zuerst, die ohne Direktverbindung bleibt trotzdem in der Liste auf dem Hauptbildschirm
+  const b = await mk('smokeleerb0123456789abcd');
+  await b.post(mu); await b.post(sa);
+  await b.pg.goto(base + '/'); await b.pg.waitForTimeout(1800);
+  t = await text(b.pg);
+  if (!/Salzburg/.test(t) || !/keine Abfahrt/.test(t)) problems.push('Ohne Direktverbindung: Strecke fehlt in der Liste des Hauptbildschirms');
+  await b.c.close();
+});
+
+// Schrift: Instrument Sans kommt vom eigenen Server (beide Schnitte laden, kein Fehler)
+await check('Schrift', async () => {
+  await page.goto(base + '/'); await page.waitForTimeout(1200);
+  const faces = await page.evaluate(async () => {
+    const fs = [...document.fonts].filter((x) => x.family.replace(/["']/g, '') === 'Instrument Sans');
+    await Promise.all(fs.map((f) => f.load().catch(() => null)));
+    return fs.map((f) => `${f.weight}:${f.status}`);
+  });
+  if (faces.length !== 2 || faces.some((f) => !f.endsWith(':loaded'))) problems.push(`Schrift: Instrument Sans nicht geladen (${faces.join(', ') || 'keine Schnitte'})`);
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Bildschirmtest FEHLGESCHLAGEN:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke).');
+console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift).');

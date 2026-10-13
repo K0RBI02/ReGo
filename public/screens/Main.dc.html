@@ -221,20 +221,21 @@ class Component extends DCLogic {
     const target = (t) => 'Detail.dc.html#' + t.id + '-m';            // eine Seite je Strecke, mit allen Meldungen
     const inText = (t) => {
       const d = t.departures[0];
-      if (!d) return 'ab ' + t.schedule.departAfter;
+      if (!d) return t.stale ? 'keine Daten' : 'keine Abfahrt';
       if (d.nextDay) return 'morgen ' + d.expectedTime;
       const diff = toMin(d.expectedTime) - nowM;
       return diff <= 0 ? 'jetzt' : diff < 60 ? 'in ' + diff + ' Min.' : 'ab ' + d.expectedTime;
     };
-    const sub = (t) => (t.returnId ? 'Hinweg · ' : t.returnOf ? 'Rückweg · ' : '') + T.lines[t.lineId].label;
+    const parts = (...a) => a.filter(Boolean).join(' · ');            // leere Teile (z. B. keine Linie, weil keine Abfahrt) lassen keinen hängenden „ · “ zurück
+    const sub = (t) => parts(t.returnId ? 'Hinweg' : t.returnOf ? 'Rückweg' : '', T.lines[t.lineId].label);
     const near = tours[0];
     const common = { clockNow: T.clock.now };
     if (T.connection.loading) return Object.assign({ hasTours: false, noTours: false, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } }, common);
     if (!near) return Object.assign({ clockNow: T.clock.now },{ hasTours: false, noTours: true, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } });
     const activeAll = incidents.filter((i) => i.tourId === near.id && i.validity.activeNow);
     const top = activeFor(near);
-    const kind = T.theme.kinds[top ? top.kind : 'ok'];
-    const view = top ? top.view : (near.view || { head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
+    const view = top ? top.view : (near.view || { kind: 'ok', head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
+    const kind = T.theme.kinds[view.kind] || T.theme.kinds.ok;
     const ticker = {
       href: target(near), head: view.head, big: view.big, sub: view.sub + (activeAll.length > 1 ? ' · +' + (activeAll.length - 1) + ' weitere' : ''), icon1: kind.icon[0], icon2: kind.icon[1],
       style: 'margin: 10px 20px 0; background: ' + kind.bg + '; border-radius: 32px; padding: 18px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px'
@@ -253,11 +254,11 @@ class Component extends DCLogic {
         platformStyle: 'font-size: 15px; white-space: nowrap; font-weight: ' + (moved ? 700 : 600) + '; color: ' + (moved ? '#1C1A1A' : '#4A4747')
       };
     });
-    const others = tours.slice(1).filter((t) => !t.hideOnDashboard && t.departures.length > 0).map((t) => ({ name: t.name, sub: sub(t) + ' · ' + inText(t), href: target(t) }));
+    const others = tours.slice(1).filter((t) => !t.hideOnDashboard).map((t) => ({ name: t.name, sub: parts(sub(t), inText(t)), href: target(t) }));
     const bc = T.meldungen().length;      // genau das, was unter Meldungen steht (Hin- und Rückweg derselben Meldung zählen einmal)
     return {
       clockNow: T.clock.now, hasTours: true, noTours: false, ticker, departures, others,
-      near: { name: near.name, sub: sub(near) + (near.distanceKm == null ? '' : ' · ' + km(near.distanceKm)), inText: inText(near), href: target(near) },
+      near: { name: near.name, sub: parts(sub(near), near.distanceKm == null ? '' : km(near.distanceKm)), inText: inText(near), href: target(near) },
       hasBadge: bc > 0, badgeCount: bc
     };
   }
