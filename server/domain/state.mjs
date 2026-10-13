@@ -120,7 +120,7 @@ export async function buildTour(tour, journeys, ctx) {
     const arrExpected = hhmm(new Date(Date.parse(leg.plannedArr) + delay * 60000).toISOString());
     const map = await buildMap(leg, linesAt, { segment: seg, alternative: alt ? { label: `Alternative · ${alt.line.name} ${hhmm(alt.dep)}` } : null, registerLine });
     incidents.push({
-      id: `i${hash(`${tour.id}|${key}`)}`, tourId: tour.id, kind, severity: severityOf(kind, delay), delayMin: delay,
+      id: `i${hash(`${tour.id}|${key}`)}`, tourId: tour.id, kind, severity: severityOf(kind, delay), delayMin: delay, lineName: leg.line.name,
       validity: { label, activeNow: from <= now && now <= until, from: localIso(from), until: localIso(until) },
       title: `${leg.line.name} ${leg.origin.name} → ${leg.destination.name}`,
       summary: r.summary || (kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'),
@@ -150,7 +150,7 @@ export async function buildTour(tour, journeys, ctx) {
     rows.push({ label: `Ankunft ${dest}`, sub: late.line.name, value: hhmm(late.arr), planned: hhmm(late.plannedArr) });
     const map = await buildMap(late, linesAt, { halo: true, registerLine });
     incidents.push({
-      id: `i${hash(`${tour.id}|delay|${late.line.name}|${hhmm(late.plannedDep)}`)}`, tourId: tour.id, kind: 'delay', severity: severityOf('delay', late.depDelay), delayMin: late.depDelay,
+      id: `i${hash(`${tour.id}|delay|${late.line.name}|${berlin(Date.parse(late.plannedDep)).date}|${hhmm(late.plannedDep)}`)}`, tourId: tour.id, kind: 'delay', severity: severityOf('delay', late.depDelay), delayMin: late.depDelay, lineName: late.line.name,
       validity: { label: 'heute', activeNow: true, from: localIso(now), until: localIso(until) },
       title: `${late.line.name} ${late.origin.name} → ${late.destination.name}`, summary,
       view: {

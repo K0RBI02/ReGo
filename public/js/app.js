@@ -13,14 +13,20 @@
     return SCREENS.includes(n) ? n : 'Main';
   }
 
+  // „rgb(247, 247, 247)“ -> „#f7f7f7“ (die Statusleiste der App und theme-color verstehen nur die Hex-Schreibweise)
+  const hexOf = (c) => { const m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(c || ''); return m ? '#' + [m[1], m[2], m[3]].map((v) => Math.min(255, +v).toString(16).padStart(2, '0')).join('') : (c || ''); };
+  // Seitenhintergrund, Browser-Leiste (theme-color) und in der App Status- und Navigationsleiste in einer Farbe
+  function paint(color) {
+    document.documentElement.style.background = color; document.body.style.background = color;
+    const hex = hexOf(color);
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', hex);
+    try { window.RegoNative && window.RegoNative.setBars(hex); } catch (e) {}
+  }
   // Statusleiste und Hintergrund nehmen die Farbe des Screens an, damit kein Rand sichtbar bleibt
   function syncBars() {
     if (document.querySelector('#app > [role=status][style*="z-index:60"]')) return;
     const root = host.firstElementChild; if (!root) return;
-    const bg = getComputedStyle(root).backgroundColor;
-    document.documentElement.style.background = bg; document.body.style.background = bg;
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', bg);
-    try { window.RegoNative && window.RegoNative.setBars(bg); } catch (e) {}
+    paint(getComputedStyle(root).backgroundColor);
   }
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(syncBars, 50)); } catch (e) {}
 
@@ -54,8 +60,7 @@
       });
       outageEl.querySelector('[data-ticket]').addEventListener('click', (e) => { e.preventDefault(); go('/Ticket', true); });
     }
-    document.documentElement.style.background = document.body.style.background = '#F9D6D2';
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', '#F9D6D2');
+    paint('#F9D6D2');
   }
 
   // Beta-Hinweis: bei jedem Start 3 Sekunden, Tippen überspringt
@@ -66,8 +71,7 @@
     if (flag('rego.splashSeen')) { el.remove(); return; }      // Beta-Hinweis nur beim allerersten Start
     flag('rego.splashSeen', true);
     const v = document.getElementById('splash-ver'); if (v && R.version) v.textContent = R.version;
-    document.documentElement.style.background = document.body.style.background = BG_SPLASH;
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', BG_SPLASH);
+    paint(BG_SPLASH);
     let gone = false;
     const close = () => {
       if (gone) return; gone = true; el.style.opacity = '0'; el.style.pointerEvents = 'none';
@@ -77,16 +81,21 @@
     setTimeout(close, 3000);
   }
 
-  async function show(name) {
+  // Seiten nacheinander einhängen: Wer zweimal schnell navigiert, soll nicht erleben, dass die ältere Seite später fertig wird und die neuere überschreibt
+  let chain = Promise.resolve();
+  function show(name) {
     const my = ++token;
-    if (current) { window.RLOG && RLOG('destroy ' + currentName); current.destroy(); }
-    const m = await window.DC.mount(name, host, styleEl);
-    if (my !== token) { m.destroy(); return; }
-    current = m; currentName = name; window.RLOG && RLOG('mount ' + name);
-    document.title = TITLES[name] || 'ReGo';
-    syncBars();
-    syncOutage();
-    host.scrollTop = 0;
+    chain = chain.then(async () => {
+      if (my !== token) return;                                 // inzwischen wurde schon eine neuere Seite angefordert
+      if (current) { window.RLOG && RLOG('destroy ' + currentName); current.destroy(); current = null; }
+      const m = await window.DC.mount(name, host, styleEl);
+      current = m; currentName = name; window.RLOG && RLOG('mount ' + name);
+      document.title = TITLES[name] || 'ReGo';
+      syncBars();
+      syncOutage();
+      host.scrollTop = 0;
+    }).catch((e) => { window.RLOG && RLOG('Seite ' + name + ' nicht geladen: ' + (e && e.message)); });
+    return chain;
   }
 
   async function go(url, push = true) {

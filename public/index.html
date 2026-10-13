@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de" style="background:#EAF6CF">
+<html lang="de">
 <head>
 <meta charset="utf-8">
 <title>ReGo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#EAF6CF">
+<meta name="theme-color" content="#F7F7F7">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -40,8 +40,9 @@ a:focus-visible,button:focus-visible{outline:3px solid #2F6BFF;outline-offset:2p
 </style>
 <style id="screen-style"></style>
 </head>
-<body style="background:#EAF6CF">
+<body>
 <div id="app"><div id="screen"></div><div id="splash" role="status" style="position:fixed;inset:0;max-width:520px;margin:0 auto;z-index:60;background:#EAF6CF;color:#1C1A1A;font-family:'Instrument Sans','Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:24px;box-sizing:border-box;transition:opacity .35s ease;cursor:pointer"><svg width="420" height="420" viewBox="0 0 64 64" fill="none" style="position:absolute;left:-78px;top:30px;opacity:.3;pointer-events:none;transform:rotate(10deg)" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M27 17l-5-8M37 17l5-8M18 34l-8-4M18 42l-9 2M19 50l-7 6M46 34l8-4M46 42l9 2M45 50l7 6"></path><ellipse cx="32" cy="38" rx="14" ry="17" fill="#fff"></ellipse><path d="M22 25a10 9 0 0 1 20 0z" fill="#1C1A1A"></path><path d="M32 26v29"></path><circle cx="24.5" cy="38" r="2" fill="#1C1A1A" stroke="none"></circle><circle cx="39.5" cy="38" r="2" fill="#1C1A1A" stroke="none"></circle><circle cx="26" cy="48" r="1.6" fill="#1C1A1A" stroke="none"></circle><circle cx="38" cy="48" r="1.6" fill="#1C1A1A" stroke="none"></circle></svg><svg width="420" height="420" viewBox="0 0 64 64" fill="none" style="position:absolute;left:148px;top:635px;opacity:.3;pointer-events:none;transform:rotate(10deg)" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M27 17l-5-8M37 17l5-8M18 34l-8-4M18 42l-9 2M19 50l-7 6M46 34l8-4M46 42l9 2M45 50l7 6"></path><ellipse cx="32" cy="38" rx="14" ry="17" fill="#fff"></ellipse><path d="M22 25a10 9 0 0 1 20 0z" fill="#1C1A1A"></path><path d="M32 26v29"></path><circle cx="24.5" cy="38" r="2" fill="#1C1A1A" stroke="none"></circle><circle cx="39.5" cy="38" r="2" fill="#1C1A1A" stroke="none"></circle><circle cx="26" cy="48" r="1.6" fill="#1C1A1A" stroke="none"></circle><circle cx="38" cy="48" r="1.6" fill="#1C1A1A" stroke="none"></circle></svg><div style="position:relative;display:flex;align-items:flex-start;gap:14px;top:40px"><div style="font-size:84px;line-height:.9;font-weight:700;letter-spacing:-0.06em;text-box:trim-both cap alphabetic">ReGo</div><div id="splash-ver" class="rg-beta" style="background:#1C1A1A;color:#fff;border-radius:15px;padding:8px 18px;font-size:20px;font-weight:700;margin-top:9px">Beta</div></div><p style="position:relative;top:40px;margin:0;font-size:20px;font-weight:600;line-height:1.3;max-width:300px">Du testest eine frühe Version. Wenn etwas hakt, sag uns Bescheid, das hilft.</p></div></div>
+<script>try{if(localStorage.getItem('rego.splashSeen')==='1'){var sp=document.getElementById('splash');if(sp)sp.remove();}}catch(e){}</script>
 <noscript>ReGo braucht JavaScript.</noscript>
 <script src="/js/native-config.js"></script>
 <script src="/js/rlog.js"></script>

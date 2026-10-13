@@ -45,6 +45,7 @@ a:active,button:active{transform:scale(.97)}
 [style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
 [style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
 [style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+[style*="background: rgb(243, 243, 243)"]{background:#181818 !important}
 [style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
 [style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
 [style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
@@ -87,6 +88,7 @@ html.rg-dark [style*="solid rgb(236, 236, 236)"]{border-color:#333333 !important
 html.rg-dark [style*="solid rgb(239, 239, 239)"]{border-color:#333333 !important}
 html.rg-dark [style*="solid rgb(233, 233, 233)"]{border-color:#333333 !important}
 html.rg-dark [style*="background: rgb(217, 217, 217)"]{background:#3A3A3A !important}
+html.rg-dark [style*="background: rgb(243, 243, 243)"]{background:#181818 !important}
 html.rg-dark [style*="background: rgb(220, 220, 220)"]{background:#3A3A3A !important}
 html.rg-dark [style*="background: rgb(238, 241, 242)"]{background:#1A2124 !important}
 html.rg-dark [style*="background: rgb(220, 239, 184)"]{background:#22301A !important}
@@ -156,7 +158,11 @@ Zurück</a>
 <div style="font-size: 15px; font-weight: 600; color: #4A4747; line-height: 1.35; padding: 0 4px">Pendel-Push kommt nur für Strecken, die an sind. Im Urlaub einfach ausschalten.</div>
 
 <div style="background: #fff; border-radius: 28px; padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 17px; font-weight: 700">Push ab Verspätung von</span>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<span style="font-size: 17px; font-weight: 700">Push-Meldungen</span>
+<button type="button" role="switch" aria-checked="{{pushOn}}" aria-label="Push-Meldungen" onClick="{{togglePush}}" style="{{pushStyle}}"><span style="{{pushKnob}}"></span></button>
+</div>
+<span style="font-size: 17px; font-weight: 700; padding-top: 4px">Push ab Verspätung von</span>
 <div style="display: flex; gap: 8px">
 <sc-for list="{{pushChips}}" as="c" hint-placeholder-count="3">
 <button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
@@ -178,8 +184,9 @@ Zurück</a>
 <button type="button" onClick="{{makeCode}}" style="min-height: 52px; border: 0; border-radius: 999px; background: #1C1A1A; color: #fff; font-size: 16px; font-weight: 700">Code erzeugen</button>
 <div style="display: flex; gap: 8px">
 <input type="text" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Code eingeben" value="{{claim}}" onInput="{{setClaim}}" style="flex: 1; min-width: 0; min-height: 52px; border: 1.5px solid #E8E8E8; border-radius: 26px; padding: 0 18px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A">
-<button type="button" onClick="{{doClaim}}" style="flex: none; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">Übernehmen</button>
+<button type="button" onClick="{{doClaim}}" style="flex: none; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">{{claimLabel}}</button>
 </div>
+<sc-if value="{{claimWarn}}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size: 14px; font-weight: 700; line-height: 1.35">{{claimWarnText}}</span></sc-if>
 </div>
 
 <div style="padding: 0 4px; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <a href="{{contactHref}}" style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</a>.</div>
@@ -252,7 +259,7 @@ Strecke hinzufügen</button>
 </div>
 <div class="rg-dock" style="padding: 0 20px 28px; display: flex; gap: 10px">
 <button type="button" onClick="{{cancelAdd}}" style="flex: 1; min-height: 72px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; border-radius: 999px; font-size: 19px; font-weight: 700">Abbrechen</button>
-<button type="button" onClick="{{saveAdd}}" aria-disabled="{{saveBlocked}}" style="{{saveStyle}}">Speichern</button>
+<button type="button" onClick="{{saveAdd}}" aria-disabled="{{saveBlocked}}" style="{{saveStyle}}">{{saveLabel}}</button>
 </div>
 </sc-if>
 <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
@@ -301,8 +308,8 @@ class Component extends DCLogic {
       edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, time: t.schedule.departAfter, days: names.map((n) => t.schedule.days.includes(n)) }); },
       switchStyle: 'width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (d.on ? 'flex-end' : 'flex-start') + '; background: ' + (d.on ? '#1C1A1A' : '#DCDCDC'),
       knobStyle: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
-      toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => this.flash('Nicht gespeichert – keine Verbindung', null)); },
-      remove: () => { this.setState({ list: st.list.filter((x, j) => j !== i) }); this.flash('Strecke entfernt', st.list); window.REGO.actions.removeTour(d.id).catch(() => this.flash('Nicht gespeichert – keine Verbindung', null)); }
+      toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
+      remove: () => { this.setState({ list: st.list.filter((x, j) => j !== i) }); this.flash('Strecke entfernt', st.list); window.REGO.actions.removeTour(d.id).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
     }));
     const days = names.map((n, i) => ({
       label: n, on: st.days[i],
@@ -317,29 +324,47 @@ class Component extends DCLogic {
     const pushChips = [3, 5, 10].map((v) => ({
       label: v + ' Min.', on: st.threshold === v,
       style: 'flex: 1; min-height: 52px; border: 1.5px solid ' + (st.threshold === v ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; font-size: 16px; font-weight: 700; ' + (st.threshold === v ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
-      pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => (window.REGO.position ? Promise.resolve() : window.REGO.requestPosition())).then(() => window.REGO.actions.enablePush().then(() => this.flash('Push aktiv ab ' + v + ' Min.', null), (e) => this.flash('Gespeichert. ' + (e && e.message ? e.message : 'Push nicht möglich'), null)), () => this.flash('Nicht gespeichert – keine Verbindung', null)); }
+      // Die Schwelle ändert nur die Schwelle: wer Push mit dem Schalter ausgemacht hat, bekommt ihn hier nicht heimlich wieder an
+      pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => this.flash(window.REGO.pushActive() ? 'Push aktiv ab ' + v + ' Min.' : 'Gespeichert. Push ist aus (Schalter oben).', null), () => { this.setState({ threshold: window.REGO.settings.pushThresholdMin }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
     }));
     const pwOn = !!window.REGO.settings.pushWindow;
+    const pushOn = window.REGO.pushActive();
+    const saving = !!this._saving;
+    const sw = (on) => 'flex: none; width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (on ? 'flex-end' : 'flex-start') + '; background: ' + (on ? '#1C1A1A' : '#DCDCDC');
     return {
-      pwOn, pwStyle: 'flex: none; width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (pwOn ? 'flex-end' : 'flex-start') + '; background: ' + (pwOn ? '#1C1A1A' : '#DCDCDC'),
+      pwOn, pwStyle: sw(pwOn),
       pwKnob: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
-      togglePw: () => { window.REGO.settings.pushWindow = !pwOn; this.setState({}); window.REGO.actions.setPushWindow(!pwOn).then(() => this.flash(!pwOn ? 'Push nur rund um die Abfahrt' : 'Push den ganzen Tag', null), () => this.flash('Nicht gespeichert – keine Verbindung', null)); },
+      togglePw: () => { window.REGO.settings.pushWindow = !pwOn; this.setState({}); window.REGO.actions.setPushWindow(!pwOn).then(() => this.flash(!pwOn ? 'Push nur rund um die Abfahrt' : 'Push den ganzen Tag', null), () => { window.REGO.settings.pushWindow = pwOn; this.setState({}); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
+      pushOn, pushStyle: sw(pushOn), pushKnob: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
+      togglePush: () => {
+        if (this._pushBusy) return; this._pushBusy = true;
+        const R = window.REGO, on = R.pushActive(), done = () => { this._pushBusy = false; this.setState({}); };
+        (on ? R.actions.disablePush() : R.actions.enablePush()).then(() => { done(); this.flash(on ? 'Push ist aus' : 'Push ist an', null); }, (e) => { done(); this.flash(e && e.message ? e.message : (on ? 'Nicht abgemeldet – keine Verbindung' : 'Push nicht möglich'), null); });
+      },
       tripOpts: [['one', 'Nur Hinweg'], ['both', 'Hin und zurück']].map((o) => ({
         label: o[1], on: st.trip === o[0],
         style: 'flex: 1; min-height: 52px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (st.trip === o[0] ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A'),
         pick: () => this.setState({ trip: o[0] })
       })),
       both: st.trip === 'both', backTime: st.backTime, setBackTime: (e) => this.setState({ backTime: val(e) }),
-      toast: st.toast, undo: () => { if (st.prev) { this.setState({ list: st.prev }); window.REGO.actions.undoRemove().catch(() => {}); } clearTimeout(this._tm); this.setState({ toast: '', prev: null }); },
+      toast: st.toast, undo: () => { const had = st.prev; clearTimeout(this._tm); this.setState({ toast: '', prev: null }); if (had) { this.setState({ list: had }); window.REGO.actions.undoRemove().catch(() => { this.setState({ list: this._fromRego() }); this.flash('Rückgängig nicht möglich – keine Verbindung', null); }); } },
       undoStyle: 'min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; font-size: 15px; font-weight: 700' + (st.prev ? '' : '; display: none'),
       sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
       daysWork: () => this.setState({ days: [true, true, true, true, true, false, false] }),
       daysAll: () => this.setState({ days: [true, true, true, true, true, true, true] }),
-      saveBlocked: !valid,
-      saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
-      hasCode: !!st.code, code: st.code || '', claim: st.claim || '', setClaim: (e) => this.setState({ claim: val(e) }),
+      saveBlocked: !valid || saving, saveLabel: saving ? 'Speichert …' : 'Speichern',
+      saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid && !saving ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
+      hasCode: !!st.code, code: st.code || '', claim: st.claim || '', setClaim: (e) => this.setState({ claim: val(e), confirmClaim: false }),
+      claimWarn: !!st.confirmClaim && st.list.length > 0, claimLabel: st.confirmClaim ? 'Ja, ersetzen' : 'Übernehmen',
+      claimWarnText: 'Achtung: Deine ' + st.list.length + ' vorhandenen Strecken werden durch die vom alten Handy ersetzt.',
       makeCode: () => window.REGO.actions.transferCode().then((c) => this.setState({ code: c }), (e) => this.flash(e && e.message ? e.message : 'Keine Verbindung', null)),
-      doClaim: () => { if (!(st.claim || '').trim()) return; window.REGO.actions.claimTransfer(st.claim).then((n) => { this.setState({ claim: '', list: this._fromRego() }); this.flash(n + ' Strecke(n) übernommen', null); }, (e) => this.flash(e && e.message ? e.message : 'Nicht möglich', null)); },
+      doClaim: () => {
+        const code = (st.claim || '').trim();
+        if (!code || this._claiming) return;
+        if (st.list.length && !st.confirmClaim) { this.setState({ confirmClaim: true }); return; }          // vorhandene Strecken gehen verloren: erst nachfragen
+        this._claiming = true; this.setState({ confirmClaim: false });
+        window.REGO.actions.claimTransfer(code).then((n) => { this._claiming = false; this.setState({ claim: '', list: this._fromRego() }); this.flash(n + ' Strecke(n) übernommen', null); }, (e) => { this._claiming = false; this.setState({}); this.flash(e && e.message ? e.message : 'Nicht möglich', null); });
+      },
       hasContact: !!window.REGO.contact, contact: window.REGO.contact || '', contactHref: /@/.test(window.REGO.contact || '') ? 'mailto:' + window.REGO.contact : (window.REGO.contact || '#'),
       pushChips, routes, days, empty: st.list.length === 0,
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
@@ -351,22 +376,22 @@ class Component extends DCLogic {
       openAdd: () => this.setState({ adding: true, editId: '', focus: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
       cancelAdd: () => this.setState({ adding: false, editId: '' }),
       saveAdd: () => {
-        if (!valid) return;
+        if (!valid || this._saving) return;                       // schon unterwegs: ein zweiter Tipp darf nichts doppelt anlegen
+        const sel = names.filter((n, i) => st.days[i]);
+        if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
+        const end = () => { this._saving = false; };
+        this._saving = true; this.setState({});
         if (st.editId) {
-          const sel = names.filter((n, i) => st.days[i]);
-          if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
           window.REGO.actions.updateTour(st.editId, { days: sel, time: st.time }).then(
-            () => { this.setState({ adding: false, editId: '', list: this._fromRego() }); this.flash('Änderung gespeichert', null); },
-            (e) => this.flash(e && e.message ? e.message : 'Nicht gespeichert', null)
+            () => { end(); this.setState({ adding: false, editId: '', list: this._fromRego() }); this.flash('Änderung gespeichert', null); },
+            (e) => { end(); this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null); }
           );
           return;
         }
         const from = st.from.trim(), to = st.to.trim();
-        const sel = names.filter((n, i) => st.days[i]);
-        if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
         window.REGO.actions.addTour({ from, to, days: sel, time: st.time, trip: st.trip, backTime: st.backTime }).then(
-          () => { this.setState({ adding: false, list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
-          (e) => this.flash(e && e.message ? e.message : 'Nicht gespeichert', null)
+          () => { end(); this.setState({ adding: false, list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
+          (e) => { end(); this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null); }
         );
       }
     };

@@ -5,10 +5,22 @@ import { distanceKm, regionOf } from './lib/geo.mjs';
 import { buildTour, stillVisible, THEME, SCHEMA_VERSION } from './domain/state.mjs';
 import { createProviders } from './providers/index.mjs';
 
+/** Wartet höchstens ms auf p. Danach gilt fallback() (falls es etwas liefert), sonst ein Fehler. Der Abruf selbst läuft weiter und füllt den Cache. */
+function withDeadline(p, ms, fallback) {
+  let timer;
+  const timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => { const f = fallback && fallback(); if (f) resolve(f); else reject(new Error('Zeitüberschreitung')); }, ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
 const sortTours = (a, b) => (a.active === b.active ? (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9) : a.active ? -1 : 1);
 
 export function createService({ config, store, now = () => Date.now(), providers = createProviders(config, now), cache = new TtlCache(now) }) {
   const log = (...a) => config.verbose && console.log(...a);
+  const DEADLINE_MS = config.tourDeadlineMs || 12000;          // so lange darf eine Strecke höchstens auf ihre Daten warten
+  const MAP_BUDGET_MS = config.mapBudgetMs || 5000;            // und so lange das Nachschlagen weiterer Linien für die Karte
+  const STALE_MAX_SEC = config.staleMaxSec?.journeys ?? 30 * 60;   // ältere Fahrten zeigen wir bei Störung nicht mehr
 
   async function searchStations(q) {
     const query = String(q || '').trim();
@@ -35,15 +47,21 @@ export function createService({ config, store, now = () => Date.now(), providers
     await Promise.all(profile.tours.map(async (tour, i) => {
       if (tour.active === false) { tours[i] = { out: { id: tour.id, name: tour.name, lineId: '', active: false, period: tour.period, ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}), distanceKm: null, schedule: tour.schedule, departures: [] }, inc: [] }; return; }
       const client = (providers.forTourSafe || providers.forTour).call(providers, tour.from, tour.to);
-      let journeys = [];
+      let journeys = [], tourStale = false;
+      const key = `jl:${tour.from.id}:${tour.to.id}`;
       try {
-        const r = await cache.get(`jl:${tour.from.id}:${tour.to.id}`, config.ttl.journeys, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(t).toISOString(), results: 5 }));
+        const r = await withDeadline(
+          cache.get(key, config.ttl.journeys, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(t).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
+          DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         journeys = r.value; hadData = true;
-        if (r.stale) { stale = true; oldest = Math.min(oldest, r.at); }
-      } catch (err) { failed++; stale = true; log('Abruf fehlgeschlagen', tour.id, err.message); }
-      const fromStop = { ...tour.from, ...(await stopCoords(tour.from)) };
+        if (r.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r.at); }
+      } catch (err) { failed++; stale = true; tourStale = true; log('Abruf fehlgeschlagen', tour.id, err.message); }
+      const started = Date.now();
+      const linesAtBudget = (id) => (Date.now() - started > MAP_BUDGET_MS ? Promise.resolve([]) : withDeadline(linesAt(id), Math.max(300, MAP_BUDGET_MS - (Date.now() - started)), () => []));
+      const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
-      const built = await buildTour(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin });
+      const built = await buildTour(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin });
+      if (tourStale) built.tour.stale = true;                  // diese Strecke zeigt alte Daten (oder gar keine)
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
 

@@ -42,7 +42,7 @@ function route(fromId, toId) {
   return null;
 }
 
-// Zeitpunkt wählt das Szenario: kurz nach "jetzt" gibt es Verspätung auf der S1 und Baustellen auf der RE 5.
+// Zeitpunkt wählt das Szenario: kurz nach "jetzt" gibt es Verspätung auf der S1 sowie Ersatzverkehr und Verspätung auf der RE 5.
 function journeysFor({ from, to, departure, results = 5, now }) {
   const hit = route(from, to);
   if (!hit) return [];
@@ -56,11 +56,11 @@ function journeysFor({ from, to, departure, results = 5, now }) {
   const out = [];
   for (let i = 0; i < results; i++) {
     const plan = first + i * step;
-    const late = r.name === 'S1' && i === 0 ? 8 : r.name === 'S1' && i === 1 ? 4 : 0;
+    const late = r.name === 'S1' && i === 0 ? 8 : r.name === 'S1' && i === 1 ? 4 : r.name === 'RE 5' && i === 0 ? 12 : 0;   // RE 5: Ersatzverkehr UND Verspätung (zwei Meldungen, eine Streckenseite)
     const planArr = plan + total * 60000;
     const iso = (ms) => new Date(ms).toISOString();
     const remarks = [];
-    if (late) remarks.push({ type: 'status', code: 'delay', summary: 'Stellwerksstörung', text: 'Wegen einer Stellwerksstörung kommt es zu Verspätungen und Teilausfällen.', validFrom: iso(now - 3600000), validUntil: iso(now + 5400000), priority: 80 });
+    if (late) remarks.push({ type: 'status', code: 'delay', summary: r.name === 'S1' ? 'Stellwerksstörung' : 'Fahrzeugstörung', text: r.name === 'S1' ? 'Wegen einer Stellwerksstörung kommt es zu Verspätungen und Teilausfällen.' : 'Wegen einer Fahrzeugstörung verspätet sich der Zug.', validFrom: iso(now - 3600000), validUntil: iso(now + 5400000), priority: 80 });
     if (r.replacement && i < 2) remarks.push({ type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Rosenheim und Prien Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: iso(now - 86400000), validUntil: iso(now + 3 * 86400000), priority: 90 });
     out.push({
       type: 'journey',

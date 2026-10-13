@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Farben vor dem ersten Bild der Oberfläche; die Oberfläche selbst ändert Leiste und Hintergrund danach je Seite -->
+    <color name="window_bg">#F7F7F7</color>
     <color name="status_bar">#F7F7F7</color>
     <color name="splash">#E4F4D0</color>
     <color name="ic_launcher_background">#E4F4D0</color>

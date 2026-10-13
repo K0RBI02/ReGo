@@ -94,9 +94,11 @@
     const screen = await loadScreen(name);
     styleEl.textContent = screen.css;
     const instance = new screen.Component({});
+    let dead = false;                                    // nach destroy() nichts mehr zeichnen (sonst überschreibt ein Nachzügler die neue Seite)
     const m = {
       instance,
       update() {
+        if (dead) return;
         const vals = instance.renderVals();
         const out = [];
         for (const c of screen.template.childNodes) build(c, vals, out);
@@ -104,7 +106,7 @@
         for (const n of out) frag.appendChild(n);
         morph(host, frag);
       },
-      destroy() { clearTimeout(instance._tm); try { if (typeof instance.onDestroy === 'function') instance.onDestroy(); } catch (e) {} instance.__mount = null; },
+      destroy() { if (dead) return; dead = true; clearTimeout(instance._tm); try { if (typeof instance.onDestroy === 'function') instance.onDestroy(); } catch (e) {} instance.__mount = null; },
     };
     instance.__mount = m;
     host.textContent = '';

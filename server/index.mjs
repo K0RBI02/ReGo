@@ -26,7 +26,7 @@ export function pushEndpointOk(ep) {
 }
 
 export function createApp({ cfg = config, now = () => Date.now(), service, store, pushSender, fcmClient } = {}) {
-  store ||= new ProfileStore(cfg.dataDir, now);
+  store ||= new ProfileStore(cfg.dataDir, now, { maxProfiles: cfg.maxProfiles });
   service ||= createService({ config: cfg, store, now });
   let vapidP, notifierP;
   const vapid = () => (vapidP ||= loadVapid(cfg.dataDir));
@@ -43,7 +43,13 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   const readBody = (req) => new Promise((resolve, reject) => {
     let n = 0; const chunks = [];
     req.on('data', (c) => { n += c.length; if (n > 64 * 1024) { if (n - c.length <= 64 * 1024) { const e = new ValidationError('Anfrage zu groß'); e.status = 413; reject(e); } } else chunks.push(c); });
-    req.on('end', () => { if (n > 64 * 1024) return; try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new ValidationError('Kein gültiges JSON')); } });
+    req.on('end', () => {
+      if (n > 64 * 1024) return;
+      let b = {};
+      try { if (chunks.length) b = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return reject(new ValidationError('Kein gültiges JSON')); }
+      if (!b || typeof b !== 'object' || Array.isArray(b)) return reject(new ValidationError('Erwartet wird ein JSON-Objekt'));      // z. B. „null“ oder eine Zahl
+      resolve(b);
+    });
     req.on('error', reject);
   });
   const device = (req, url) => {
@@ -59,7 +65,12 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
   const startedAt = now();
-  async function status() {
+  let statusCache = null;                                        // Statusseite ist öffentlich: höchstens alle 30 s die Profile durchzählen
+  const status = async () => {
+    if (statusCache && now() - statusCache.at < 30e3) return { ...statusCache.value, uptimeMin: Math.round((now() - startedAt) / 60000), time: new Date(now()).toISOString() };
+    const value = await statusNow(); statusCache = { at: now(), value }; return value;
+  };
+  async function statusNow() {
     let devices = 0, pushes = 0;
     try { for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) { devices++; try { if ((await store.load(f.slice(0, -5))).push) pushes++; } catch { /* beschädigte Datei überspringen */ } } } catch { /* noch keine Profile */ }
     const p = service.providers;
@@ -73,11 +84,12 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/health' && m === 'GET') return send(res, 200, { ok: true, provider: cfg.provider, time: new Date(now()).toISOString() });
     if (path === '/api/status' && m === 'GET') return send(res, 200, await status());
     const dev = device(req, url);
+    store.seen(dev).catch(() => {});                                // „zuletzt gesehen“ für Aufräumen und Leerlauf-Erkennung
     if (path === '/api/stations' && m === 'GET') {
       try { return send(res, 200, { stations: await service.searchStations(url.searchParams.get('q')) }); }
       catch (e) { return send(res, 502, { error: 'Haltestellensuche gerade nicht erreichbar', detail: e.message }); }
     }
-    if (path === '/api/state' && m === 'GET') { store.touch(dev).catch(() => {}); return send(res, 200, await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') })); }
+    if (path === '/api/state' && m === 'GET') return send(res, 200, await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') }));
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
     if (path === '/api/tours' && m === 'POST') { const b = await readBody(req); const created = await store.update(dev, (p) => addTours(p, b)); return send(res, 201, { tours: created }); }
@@ -86,6 +98,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (tm && m === 'DELETE') return send(res, 200, await store.update(dev, (p) => deleteTour(p, tm[1])));
     if (path === '/api/transfer' && m === 'POST') {
       for (const [c, v] of transfers) if (v.exp < now() || v.device === dev) transfers.delete(c);
+      if (transfers.size >= 500) { const e = new ValidationError('Gerade sind zu viele Codes offen. Bitte in ein paar Minuten noch einmal versuchen.'); e.status = 429; throw e; }
       let code; do { code = newCode(); } while (transfers.has(code));
       transfers.set(code, { device: dev, exp: now() + 10 * 60e3 });
       return send(res, 200, { code, minutes: 10 });
@@ -114,7 +127,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/push' && m === 'PUT') {
       const b = await readBody(req);
       if (!pushEndpointOk(b?.endpoint)) throw new ValidationError('Unbekannter Push-Dienst');
-      const first = await store.update(dev, (p) => { const isNew = p.push?.endpoint !== b.endpoint; p.push = { endpoint: String(b.endpoint), keys: b.keys || null }; return isNew; });
+      const k = b.keys, keys = k && typeof k.p256dh === 'string' && typeof k.auth === 'string' && k.p256dh.length < 200 && k.auth.length < 100 ? { p256dh: k.p256dh, auth: k.auth } : null;
+      const first = await store.update(dev, (p) => { const isNew = p.push?.endpoint !== b.endpoint; p.push = { endpoint: String(b.endpoint), keys }; return isNew; });
       if (first === true) (await notifier()).sendTest(dev).catch(() => {});
       return send(res, 200, { subscribed: true });
     }
@@ -154,6 +168,9 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // Ein vergessener Fehler in einem Hintergrundvorgang soll das Backend nicht beenden
+  process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));
+  process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
   const { server, notifier, store } = createApp();
   server.listen(config.port, config.host, () => console.log(`ReGo-Backend läuft auf http://${config.host}:${config.port} (Quelle: ${config.provider})`));
   const purge = () => store.purge(config.profileMaxAgeDays).then((n) => n && console.log(`Aufräumen: ${n} Profil(e) ohne Nutzung seit ${config.profileMaxAgeDays} Tagen gelöscht`)).catch((e) => console.error('Aufräumen:', e.message));

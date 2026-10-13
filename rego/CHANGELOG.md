@@ -1,5 +1,42 @@
 # Änderungen
 
+## 0.5.0 – große Fehlersuche
+Die ganze App wurde auf Fehler durchgesehen. Das Wichtigste:
+
+**Meldungen und Push**
+- Der Push-Titel stimmt jetzt auch bei Linien mit Leerzeichen („RE 5 +8 Min.“ statt nur „RE“), ebenso die „behoben“-Meldung im Browser.
+- Derselbe verspätete Zug an einem anderen Tag wird wieder gemeldet; lange Baustellen werden nicht mehr alle drei Tage neu gemeldet.
+- Fällt die Datenquelle bei einer Strecke aus, pausieren nur die Meldungen dieser Strecke. Die anderen laufen weiter.
+- App-Geräte, von denen 21 Tage nichts kam (App gelöscht), werden nicht mehr geprüft.
+
+**Server**
+- Ungültige Anfragen (kein JSON-Objekt) ergeben „400“ statt eines Serverfehlers.
+- Eine Strecke, die doppelt gesendet wird (doppelt getippt), wird nur einmal angelegt.
+- „Rückgängig“ behält die Koordinaten der Haltestellen und überschreibt keine Einstellungen.
+- Eine beschädigte Profildatei sperrt das Gerät nicht mehr, sie wird zur Seite gelegt.
+- Bei Störung einer Datenquelle wartet die App höchstens 12 Sekunden je Strecke, die Quelle wird danach kurz in Ruhe gelassen, und alte Fahrten werden höchstens 30 Minuten lang gezeigt.
+- Obergrenzen gegen Missbrauch: Zwischenspeicher, offene Umzugscodes (500), Anzahl Profile (2000). Die öffentliche Statusseite wird 30 Sekunden zwischengespeichert.
+- Ein vergessener Fehler in einem Hintergrundvorgang beendet das Backend nicht mehr.
+
+**Oberfläche**
+- Eine neu angelegte Strecke ging manchmal unter, wenn gleichzeitig aktualisiert wurde. Doppeltes Tippen auf „Speichern“ legte sie doppelt an. Beides behoben (der Knopf zeigt „Speichert …“).
+- Schlägt Speichern, Entfernen, Rückgängig oder Umschalten fehl, springt die Anzeige zurück, statt etwas Falsches zu zeigen.
+- „Neues Handy“: Vor dem Ersetzen vorhandener Strecken fragt die App nach.
+- Neuer Schalter „Push-Meldungen“ unter Strecken (an/aus). Die Schwelle (3/5/10 Min.) ändert nur noch die Schwelle.
+- Streckenseite: Die angetippte Meldung steht oben, die Zahl am Meldungs-Knopf zählt wie die Liste, eine nicht mehr vorhandene Meldung zeigt „Beendet“ (statt einer fremden Strecke), die Karte passt auf schmale Handys, Linienbeschriftungen liegen nicht mehr auf der Alternativ-Linie.
+- Dunkelmodus: Die Karte „Neues Handy?“ ist lesbar.
+- Große Schrift: weniger Überlappungen bei Abfahrtsliste und Statuskarte. Onboarding lässt sich auf kleinen Bildschirmen scrollen.
+- Ticket: Der Bildschirm bleibt auch nach dem Zurückkommen in die App an (Browser). Fehlt das Code-Bild, steht dort ein ehrlicher Hinweis statt eines erfundenen Zufallscodes.
+- Offline wird kein Stand mehr gezeigt, der älter als 6 Stunden ist. Beim Start kein grünes Aufblitzen mehr, und schnelles Navigieren überschreibt keine neuere Seite.
+
+**Android-App**
+- Farben von Status- und Navigationsleiste werden richtig übernommen, der Dunkelmodus folgt dem Handy.
+- Stürzt die Webansicht ab (zu wenig Speicher), erholt sich die App, statt sich zu schließen. Beim Drehen oder Moduswechsel bleibt der Stand erhalten.
+- Für die Sortierung nach Nähe reicht der ungefähre Standort.
+
+**Entwicklung**
+- 14 neue Server-Tests. Der Bildschirmtest prüft jetzt zusätzlich Doppeltippen, Rückgängig, Code übernehmen, kleines Handy, Dunkelmodus und mehrere Meldungen je Strecke. Er läuft wieder vor jedem Build (war seit 0.3.0 versehentlich aus dem Ablauf gefallen).
+
 ## 0.4.4
 - Beim Scrollen läuft der Inhalt oben weich aus (Hauptbildschirm, Meldungen, Strecken) statt hart unter der Kopfzeile zu verschwinden.
 

@@ -1,5 +1,5 @@
 /* Service Worker: App-Gerüst offline verfügbar. Daten (/api) laufen immer übers Netz; die App hält ihren letzten Stand selbst. */
-const CACHE = 'rego-v45';
+const CACHE = 'rego-v46';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/js/native-config.js', '/js/rlog.js', '/js/dc-lite.js', '/js/rego-live.js', '/js/ticketcode.js', '/js/barcode-read.js', '/js/scan-client.js', '/js/scan-worker.js', '/js/app.js', '/icons/icon.svg', '/icons/icon-192.png', '/icons/badge.png',
   ...['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'].map((n) => `/screens/${n}.dc.html`)];
 
@@ -41,7 +41,9 @@ self.addEventListener('push', (e) => {
       if (n.clear) {
         // Vorfall vorbei: die vorhandene Meldung kurz zu "behoben" umschreiben (stumm) und dann schließen
         for (const x of await self.registration.getNotifications({ tag: n.tag })) {
-          await self.registration.showNotification(String(x.title).split(' ')[0] + ' · behoben', { ...base, body: x.body, tag: n.tag, silent: true, data: x.data });
+          // „RE 5 +8 Min.“ -> „RE 5“, „Ersatzverkehr · RE 5“ -> „Ersatzverkehr“ (Liniennamen können ein Leerzeichen enthalten)
+          const was = String(x.title).replace(/\s\+\d+\sMin\.$/, '').split(' · ')[0];
+          await self.registration.showNotification(was + ' · behoben', { ...base, body: x.body, tag: n.tag, silent: true, data: x.data });
           closing.push(n.tag); shown++;
         }
         continue;

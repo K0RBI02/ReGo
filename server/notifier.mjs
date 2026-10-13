@@ -12,17 +12,21 @@ export function relevant(inc, threshold) {
   return inc.validity?.activeNow !== false;
 }
 
+// Linienname kommt aus lineName (z. B. „RE 5“, „S 1“ mit Leerzeichen); ältere Meldungen ohne das Feld: erstes Wort des Titels
 export function textFor(inc) {
-  const title = inc.kind === 'delay' ? `${inc.title.split(' ')[0]} +${inc.delayMin} Min.`
-    : `${inc.kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${inc.title.split(' ')[0]}`;
-  const body = `${inc.title.replace(/^\S+\s/, '')} · ${inc.summary}`;
-  return { title, body };
+  const full = String(inc.title || '');
+  const named = !!inc.lineName && full.startsWith(`${inc.lineName} `);
+  const line = named ? inc.lineName : full.split(' ')[0];
+  const route = named ? full.slice(inc.lineName.length + 1) : full.replace(/^\S+\s/, '');
+  const title = inc.kind === 'delay' ? `${line} +${inc.delayMin} Min.` : `${inc.kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${line}`;
+  return { title, body: `${route} · ${inc.summary}` };
 }
 
 export function createNotifier({ config, store, service, vapid, now = () => Date.now(), send = sendPush, fcm = null }) {
   const subject = config.vapidSubject;
 
   const log = (...a) => config.verbose && console.log(...a);
+  const idleMs = (config.notifyIdleDays ?? 21) * DAY;
 
   async function deliver(device, profile) {
     const sub = profile.push;
@@ -57,20 +61,27 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
   async function checkDevice(device) {
     const profile = await store.load(device);
     if (!profile.push || !profile.tours.some((t) => t.active !== false)) return 0;
+    // App deinstalliert oder Handy verschwunden: die App meldet sich sonst alle ~15 Min. von selbst, bei Funkstille nicht mehr prüfen
+    if (profile.push.native && profile.lastSeen && now() - profile.lastSeen > idleMs) return 0;
     const hour = Number(berlin(now()).time.slice(0, 2));
     if (hour < 4 || hour >= 23) return 0;                       // nachts Ruhe
     const state = await service.getState(device);
-    if (state.connection.status === 'error') return 0;
+    const hasTours = Array.isArray(state.tours);
+    if (state.connection.status === 'error' && !hasTours) return 0;
+    // Strecken ohne frische Daten (Quelle gestört): keine neuen Meldungen daraus, und Wegfall nicht beurteilen. Andere Strecken laufen normal weiter.
+    const stale = new Set(hasTours ? state.tours.filter((t) => t.stale).map((t) => t.id) : []);
     const tourOf = Object.fromEntries(profile.tours.map((t) => [t.id, t]));
-    const cur = new Map(state.incidents.filter((i) => relevant(i, profile.settings.pushThresholdMin) && (!profile.settings.pushWindow || inWindow(tourOf[i.tourId], now()))).map((i) => [i.id, i]));
+    const usable = state.incidents.filter((i) => !stale.has(i.tourId));
+    const cur = new Map(usable.filter((i) => relevant(i, profile.settings.pushThresholdMin) && (!profile.settings.pushWindow || inWindow(tourOf[i.tourId], now()))).map((i) => [i.id, i]));
+    const present = new Set(state.incidents.map((i) => i.id));
     const notified = profile.notified || {}, shown = profile.shownDelay || {}, gone = profile.goneCount || {};
     const fresh = [...cur.values()].filter((i) => !notified[i.id]);
     // Verspätung hat sich geändert: bestehende Meldung leise aktualisieren
     const updates = [...cur.values()].filter((i) => notified[i.id] && i.kind === 'delay' && shown[i.id] != null && i.delayMin !== shown[i.id]);
     // Vorfall ist weg (Verspätung vorbei, Zug abgefahren): Meldung entfernen
     const nextGone = {};
-    for (const id of Object.keys(notified)) if (!cur.has(id)) nextGone[id] = (gone[id] || 0) + 1;
-    const cleared = Object.keys(nextGone).filter((id) => nextGone[id] >= GONE_TICKS && now() - notified[id] < CLEAR_WINDOW);
+    for (const id of Object.keys(notified)) if (!cur.has(id)) { const c = (gone[id] || 0) + (stale.size ? 0 : 1); if (c) nextGone[id] = c; }
+    const cleared = stale.size ? [] : Object.keys(nextGone).filter((id) => nextGone[id] >= GONE_TICKS && now() - notified[id] < CLEAR_WINDOW);
     const goneChanged = JSON.stringify(nextGone) !== JSON.stringify(gone);
     if (!fresh.length && !updates.length && !cleared.length) {
       if (goneChanged) await store.update(device, (p) => { p.goneCount = nextGone; });
@@ -79,8 +90,9 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     const stamp = now();
     const snap = { notified: { ...notified }, shown: { ...shown }, gone: { ...gone } };
     await store.update(device, (p) => {
-      p.notified = Object.fromEntries(Object.entries(p.notified || {}).filter(([, ts]) => now() - ts < 3 * DAY));
-      p.shownDelay = p.shownDelay || {};
+      // Gemerkt bleibt, was jünger als 3 Tage ist oder noch besteht (lange Baustellen sollen nicht alle 3 Tage neu gemeldet werden)
+      p.notified = Object.fromEntries(Object.entries(p.notified || {}).filter(([id, ts]) => now() - ts < 3 * DAY || present.has(id)));
+      p.shownDelay = Object.fromEntries(Object.entries(p.shownDelay || {}).filter(([id]) => id in p.notified));
       p.outbox = (p.outbox || []).slice(-19);
       for (const i of fresh) { p.notified[i.id] = now(); if (i.kind === 'delay') p.shownDelay[i.id] = i.delayMin; p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id) }); }
       for (const i of updates) { p.shownDelay[i.id] = i.delayMin; p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id), update: true }); }
@@ -97,15 +109,20 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     return fresh.length + updates.length + cleared.length;
   }
 
+  let ticking = false;
   async function tick() {
-    let files = [];
-    try { files = await readdir(join(config.dataDir, 'profiles')); } catch { return 0; }
-    let n = 0;
-    for (const f of files) {
-      if (!f.endsWith('.json')) continue;
-      try { n += await checkDevice(f.slice(0, -5)); } catch (e) { if (config.verbose) console.error('notifier', e.message); }
-    }
-    return n;
+    if (ticking) return 0;                                      // der letzte Durchlauf ist noch nicht fertig (z. B. Quelle antwortet langsam)
+    ticking = true;
+    try {
+      let files = [];
+      try { files = await readdir(join(config.dataDir, 'profiles')); } catch { return 0; }
+      let n = 0;
+      for (const f of files) {
+        if (!f.endsWith('.json')) continue;
+        try { n += await checkDevice(f.slice(0, -5)); } catch (e) { if (config.verbose) console.error('notifier', e.message); }
+      }
+      return n;
+    } finally { ticking = false; }
   }
 
   async function sendTest(device, text = { title: 'ReGo', body: 'Push ist eingerichtet.' }) {

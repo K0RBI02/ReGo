@@ -12,11 +12,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Base64;
-import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -30,11 +31,14 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /** ReGo als App: die Oberfläche steckt in der App, nur die Daten kommen vom ReGo-Server. */
 public class MainActivity extends AppCompatActivity {
@@ -48,7 +52,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean pendingPush;
     private static final int RC_PERM = 11, RC_FILE = 12, RC_NOTIF = 13, RC_GEO = 14;
 
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -56,6 +59,21 @@ public class MainActivity extends AppCompatActivity {
                 .setDomain(HOST)
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
+        setupWebView();
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() {
+                if (web != null && web.canGoBack()) web.goBack(); else { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); }
+            }
+        });
+        // Meldungen weiter abholen, wenn sie schon einmal eingeschaltet wurden
+        SharedPreferences sp = getSharedPreferences("rego", MODE_PRIVATE);
+        if (sp.getBoolean("push", false)) PollWorker.schedule(this);
+        // Nach Drehen, Dunkelmodus-Wechsel o. Ä. den alten Stand wiederherstellen; gelingt das nicht, normal starten
+        if (b == null || web.restoreState(b) == null) web.loadUrl("https://" + HOST + startPath(getIntent()));
+    }
+
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    private void setupWebView() {
         web = new WebView(this);
         setContentView(web);
         WebSettings s = web.getSettings();
@@ -64,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
-        web.setBackgroundColor(Color.parseColor("#E4F4D0"));
+        web.setBackgroundColor(ContextCompat.getColor(this, R.color.window_bg));
         web.addJavascriptInterface(new Bridge(), "RegoNative");
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
@@ -83,10 +101,22 @@ public class MainActivity extends AppCompatActivity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { /* keine App dafür */ }
                 return true;
             }
+            // Der Web-Prozess wurde beendet (zu wenig Speicher oder Absturz). Ohne diese Methode würde die ganze App mit abstürzen.
+            @Override public boolean onRenderProcessGone(WebView v, RenderProcessGoneDetail detail) {
+                if (v != web) return true;
+                ViewGroup parent = (ViewGroup) web.getParent();
+                if (parent != null) parent.removeView(web);
+                web.destroy();
+                web = null;
+                setupWebView();
+                web.loadUrl("https://" + HOST + "/");
+                return true;
+            }
         });
         web.setWebChromeClient(new WebChromeClient() {
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback cb) {
-                if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION)) { cb.invoke(origin, true, false); return; }
+                // „Ungefähr“ reicht (ReGo rundet den Standort ohnehin auf etwa einen Kilometer)
+                if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION) || hasPerm(Manifest.permission.ACCESS_COARSE_LOCATION)) { cb.invoke(origin, true, false); return; }
                 pendingGeo = cb; pendingGeoOrigin = origin;
                 ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, RC_GEO);
             }
@@ -107,16 +137,6 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override public void handleOnBackPressed() {
-                if (web.canGoBack()) web.goBack(); else { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); }
-            }
-        });
-        // Meldungen weiter abholen, wenn sie schon einmal eingeschaltet wurden
-        SharedPreferences sp = getSharedPreferences("rego", MODE_PRIVATE);
-        if (sp.getBoolean("push", false)) PollWorker.schedule(this);
-        if (b == null) web.loadUrl("https://" + HOST + startPath(getIntent()));
-        else web.restoreState(b);
     }
 
     private String startPath(Intent i) {
@@ -127,13 +147,21 @@ public class MainActivity extends AppCompatActivity {
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
         String p = i.getStringExtra("path");
-        if (p != null && p.startsWith("/")) web.loadUrl("https://" + HOST + p);
+        if (p != null && p.startsWith("/") && web != null) web.loadUrl("https://" + HOST + p);
     }
 
-    @Override protected void onSaveInstanceState(Bundle o) { super.onSaveInstanceState(o); web.saveState(o); }
-    @Override protected void onResume() { super.onResume(); web.onResume(); PollWorker.clearBadge(this); }
-    @Override protected void onPause() { web.onPause(); super.onPause(); }
-    @Override protected void onDestroy() { if (web != null) { web.destroy(); } super.onDestroy(); }
+    @Override protected void onSaveInstanceState(Bundle o) { super.onSaveInstanceState(o); if (web != null) web.saveState(o); }
+    @Override protected void onResume() { super.onResume(); if (web != null) web.onResume(); PollWorker.clearBadge(this); }
+    @Override protected void onPause() { if (web != null) web.onPause(); super.onPause(); }
+    @Override protected void onDestroy() {
+        if (web != null) {
+            ViewGroup parent = (ViewGroup) web.getParent();
+            if (parent != null) parent.removeView(web);
+            web.destroy();
+            web = null;
+        }
+        super.onDestroy();
+    }
 
     private boolean hasPerm(String p) { return ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED; }
 
@@ -181,7 +209,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void pushResult(boolean ok, String token) {
-        runOnUiThread(() -> web.evaluateJavascript("window.__rgPushDone&&window.__rgPushDone(" + (ok ? "'" + token.replace("'", "") + "'" : "false") + ")", null));
+        runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.__rgPushDone&&window.__rgPushDone(" + (ok ? "'" + token.replace("'", "") + "'" : "false") + ")", null); });
+    }
+
+    /** CSS-Farbe aus der Oberfläche („#rrggbb“, „rgb(247, 247, 247)“, „rgba(…)“) in eine Android-Farbe; null, wenn nicht lesbar. */
+    static Integer cssColor(String s) {
+        if (s == null) return null;
+        String v = s.trim().toLowerCase(Locale.ROOT);
+        try {
+            if (v.startsWith("rgb")) {
+                String[] p = v.substring(v.indexOf('(') + 1, v.indexOf(')')).trim().split("[,\\s/]+");
+                return Color.rgb(Math.round(Float.parseFloat(p[0])), Math.round(Float.parseFloat(p[1])), Math.round(Float.parseFloat(p[2])));
+            }
+            return Color.parseColor(v);
+        } catch (Exception e) { return null; }
     }
 
     /** Was die Oberfläche von der App aus aufrufen kann (window.RegoNative). */
@@ -197,15 +238,16 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> { if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); });
         }
         @JavascriptInterface public void setBars(String color) {
+            Integer parsed = cssColor(color);
+            if (parsed == null) return;
+            final int c = parsed;
             runOnUiThread(() -> {
                 try {
-                    int c = Color.parseColor(color);
                     getWindow().setStatusBarColor(c); getWindow().setNavigationBarColor(c);
                     boolean light = (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) > 150;
-                    int f = getWindow().getDecorView().getSystemUiVisibility();
-                    f = light ? (f | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR) : (f & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-                    if (Build.VERSION.SDK_INT >= 26) f = light ? (f | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR) : (f & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-                    getWindow().getDecorView().setSystemUiVisibility(f);
+                    WindowInsetsControllerCompat ic = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+                    ic.setAppearanceLightStatusBars(light);
+                    ic.setAppearanceLightNavigationBars(light);
                 } catch (Exception ignored) { }
             });
         }

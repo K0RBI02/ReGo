@@ -156,10 +156,10 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <span style="background: #1C1A1A; color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 700; white-space: nowrap">{{near.inText}}</span>
 </a>
 <sc-for list="{{departures}}" as="d" hint-placeholder-count="3">
-<a href="{{d.href}}" style="display: grid; grid-template-columns: 70px 40px 1fr auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
+<a href="{{d.href}}" style="display: grid; grid-template-columns: minmax(70px, auto) 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
 <span style="font-size: 27px; font-weight: 700; letter-spacing: -0.03em">{{d.time}}</span>
 <span style="{{d.badgeStyle}}">{{d.line}}</span>
-<span style="display: flex; align-items: center; gap: 6px; font-size: 17px; font-weight: 700"><svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
+<span style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 700"><svg style="flex: none" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
 <span style="{{d.platformStyle}}">{{d.platform}}</span>
 </a>
 </sc-for>
@@ -237,7 +237,7 @@ class Component extends DCLogic {
     const view = top ? top.view : (near.view || { head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
     const ticker = {
       href: target(near), head: view.head, big: view.big, sub: view.sub + (activeAll.length > 1 ? ' · +' + (activeAll.length - 1) + ' weitere' : ''), icon1: kind.icon[0], icon2: kind.icon[1],
-      style: 'margin: 10px 20px 0; background: ' + kind.bg + '; border-radius: 32px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px'
+      style: 'margin: 10px 20px 0; background: ' + kind.bg + '; border-radius: 32px; padding: 18px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px'
     };
     const nd = near.departures.slice(0, 3);
     const departures = nd.map((d, idx) => {
@@ -254,7 +254,7 @@ class Component extends DCLogic {
       };
     });
     const others = tours.slice(1).filter((t) => !t.hideOnDashboard && t.departures.length > 0).map((t) => ({ name: t.name, sub: sub(t) + ' · ' + inText(t), href: target(t) }));
-    const bc = incidents.length;      // genau das, was unter Meldungen steht
+    const bc = T.meldungen().length;      // genau das, was unter Meldungen steht (Hin- und Rückweg derselben Meldung zählen einmal)
     return {
       clockNow: T.clock.now, hasTours: true, noTours: false, ticker, departures, others,
       near: { name: near.name, sub: sub(near) + (near.distanceKm == null ? '' : ' · ' + km(near.distanceKm)), inText: inText(near), href: target(near) },

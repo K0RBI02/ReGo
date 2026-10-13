@@ -149,11 +149,15 @@ test('Profile ohne Nutzung werden gelöscht, benutzte bleiben', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'rego-'));
   const { utimes } = await import('node:fs/promises');
   const store = new ProfileStore(dir);
-  await store.update('altesgeraet0123456789', (p) => { p.tours = []; });
+  await store.update('altesgeraet0123456789', (p) => { p.tours = []; p.lastSeen = Date.now() - 200 * 864e5; });   // seit 200 Tagen nichts gehört
   await store.update('neuesgeraet0123456789', (p) => { p.tours = []; });
+  await store.update('aeltlichgeraet012345678', (p) => { p.tours = []; });
   const old = new Date(Date.now() - 200 * 864e5);
-  await utimes(join(dir, 'profiles', 'altesgeraet0123456789.json'), old, old);
-  assert.equal(await store.purge(180), 1);
+  // Profil aus älterer Version ohne Vermerk „zuletzt gesehen“: dann zählt die Dateizeit
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(join(dir, 'profiles', 'aeltlichgeraet012345678.json'), JSON.stringify({ tours: [], settings: {}, push: null, updatedAt: 1 }));
+  await utimes(join(dir, 'profiles', 'aeltlichgeraet012345678.json'), old, old);
+  assert.equal(await store.purge(180), 2);
   assert.equal((await store.load('neuesgeraet0123456789')).updatedAt > 0, true);
   assert.equal((await store.load('altesgeraet0123456789')).updatedAt, 0);
   assert.equal(await store.purge(0), 0);

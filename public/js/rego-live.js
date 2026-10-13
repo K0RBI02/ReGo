@@ -53,6 +53,19 @@
     return now <= until;
   };
 
+  /** Meldungen genau so, wie sie unter „Meldungen“ stehen (auch für die Zahl am Knopf): nur aktive Strecken, nur sichtbare,
+   *  dieselbe Meldung auf Hin- und Rückweg derselben Strecke als eine Karte. */
+  R.meldungen = function () {
+    const tours = R.tours.filter((t) => t.active), merged = [];
+    for (const x of R.incidents.map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) })).filter((x) => x.t && R.isVisible(x.i))) {
+      const pair = [x.t.id, x.t.returnId, x.t.returnOf].filter(Boolean).sort()[0];
+      const key = [pair, x.i.kind, x.i.summary, x.i.delayMin, x.i.title.split(' ')[0]].join('|');
+      const hit = merged.find((m) => m.key === key && m.i.tourId !== x.i.tourId && (m.t.returnId === x.t.id || m.t.returnOf === x.t.id));
+      if (hit) { hit.both = true; if ((x.t.distanceKm ?? 0) < (hit.t.distanceKm ?? 0)) hit.t = x.t; } else merged.push({ ...x, key, both: false });
+    }
+    return merged;
+  };
+
   /* --- Haltestellen: Vorschläge kommen vom Server, bekannte bleiben im Gerät --- */
   const norm = (s) => String(s || '').trim().toLowerCase();
   const asked = new Set();
@@ -98,9 +111,17 @@
     R.lines = linesProxy(state.lines || {}); R.settings = Object.assign({}, R.settings, state.settings || {});
     R.connection = { status, loading: false, lastSync };
   }
-  let busy = false;
-  R.refresh = async function () {
-    if (busy) return; busy = true;
+  // Der letzte Stand liegt im Gerät. Älter als 6 Stunden nützt er nichts mehr (gestrige Abfahrten): dann lieber ehrlich „keine Daten“.
+  const CACHE_MAX_AGE = 6 * 3600e3;
+  const readCache = () => { const c = LS.get('rego.state', null); return c && c.state && typeof c.ts === 'number' && Date.now() - c.ts < CACHE_MAX_AGE ? c : null; };
+  // Immer nur eine Abfrage zur Zeit. Wer währenddessen aktualisieren will (z. B. nach dem Anlegen einer Strecke), bekommt danach eine frische Runde.
+  let running = null, queued = null;
+  R.refresh = function () {
+    if (!running) { running = refreshOnce().finally(() => { running = null; }); return running; }
+    if (!queued) queued = running.then(() => { queued = null; return R.refresh(); });
+    return queued;
+  };
+  async function refreshOnce() {
     R.clock = nowParts();
     try {
       let q = '';
@@ -108,7 +129,7 @@
       const state = await api(`/state${q}`);
       const t = nowParts().now;
       if (state.connection && state.connection.status === 'error') {
-        const cached = LS.get('rego.state', null);
+        const cached = readCache();
         const ids = new Set(((cached && cached.state.tours) || []).map((x) => x.id));
         // Alten Stand nur zeigen, wenn er alle aktuellen Strecken kennt und Abfahrten hat; sonst würden neu angelegte Strecken verschwinden
         const useCached = cached && state.tours.every((x) => !(x.departures || []).length) && state.tours.every((x) => ids.has(x.id)) && cached.state.tours.some((x) => (x.departures || []).length);
@@ -116,16 +137,16 @@
         else apply(state, 'error', state.connection.lastSync || t);
         // Ohne irgendeine verwertbare Abfahrt gibt es nichts Brauchbares zu zeigen: große Meldung statt leerer Karten
         R.outage = R.tours.length > 0 && R.tours.every((x) => !(x.departures || []).length);
-      } else { R.errorHint = ''; R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t }); }
+      } else { R.errorHint = ''; R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t, ts: Date.now() }); }
     } catch (e) {
       R.errorHint = e && e.status ? `Server ${e.status}` : (e && e.name === 'TimeoutError') ? 'Zeitüberschreitung' : 'keine Verbindung zum Server';
-      const cached = LS.get('rego.state', null);
+      const cached = readCache();
       if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
       else { R.outage = true; R.tours = []; R.incidents = []; R.connection = { status: 'offline', loading: false, lastSync: '' }; }
-    } finally { busy = false; R.onChange && R.onChange({ remount: true }); }
-  };
+    } finally { try { R.onChange && R.onChange({ remount: true }); } catch (e) { window.RLOG && RLOG('onChange: ' + (e && e.message)); } }
+  }
   R.loadCached = function () {
-    const cached = LS.get('rego.state', null);
+    const cached = readCache();
     if (cached) apply(cached.state, 'ok', cached.at);
     R.connection.loading = !cached;
     if (cached) R.connection.status = 'offline';
@@ -133,13 +154,19 @@
 
   /* --- Änderungen (Strecken-Menü) --- */
   const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  let adding = null;
   R.actions = {
-    async addTour({ from, to, days, time, trip, backTime }) {
-      const a = R.findStation(from), b = R.findStation(to);
-      if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
-      const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
-      await api('/tours', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b), schedule: { days, departAfter: time }, roundTrip: trip === 'both', returnAfter: backTime }) });
-      await R.refresh();
+    addTour(opts) {
+      if (adding) return adding;                          // doppelt getippt: dieselbe Anfrage, nicht zwei
+      adding = (async () => {
+        const { from, to, days, time, trip, backTime } = opts;
+        const a = R.findStation(from), b = R.findStation(to);
+        if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
+        const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
+        await api('/tours', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b), schedule: { days, departAfter: time }, roundTrip: trip === 'both', returnAfter: backTime }) });
+        await R.refresh();
+      })().finally(() => { adding = null; });
+      return adding;
     },
     async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },
     async updateTour(id, { days, time }) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ schedule: { days, departAfter: time } }) }); await R.refresh(); },
@@ -203,6 +230,15 @@
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(publicKey) });
     await api('/push', { method: 'PUT', body: JSON.stringify(sub.toJSON()) });
     LS.set('rego.push', true);
+    return true;
+  };
+  /** Ist Push an? (In der App: wenn er eingeschaltet wurde; im Browser zusätzlich: Erlaubnis noch erteilt.) */
+  R.pushActive = () => { try { return !!LS.get('rego.push', false) && (window.RegoNative || !('Notification' in window) || Notification.permission === 'granted'); } catch (e) { return false; } };
+  R.actions.disablePush = async function () {
+    await api('/push', { method: 'DELETE' });                // zuerst beim Server abmelden; klappt das nicht, bleibt alles wie es ist
+    if (window.RegoNative) { try { window.RegoNative.disablePush(); } catch (e) {} }
+    else { try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {} }
+    LS.set('rego.push', false);
     return true;
   };
   /* --- Standort (grob, auf ca. 1 km gerundet; nur für „nächste Strecke zuerst“) --- */

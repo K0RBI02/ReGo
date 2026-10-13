@@ -161,22 +161,15 @@ class Component extends DCLogic {
   _rv() {
     const T = window.REGO;
     const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
-    const tours = T.tours.filter((t) => t.active);
     // Jede Meldung bleibt eine eigene Karte (Übersicht), alle führen auf die Seite ihrer Strecke.
-    // Dieselbe Meldung auf Hin- und Rückweg derselben Strecke wird zu einer Karte.
-    const merged = [];
-    for (const x of T.incidents.map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) })).filter((x) => x.t && T.isVisible(x.i))) {
-      const pair = [x.t.id, x.t.returnId, x.t.returnOf].filter(Boolean).sort()[0];
-      const key = [pair, x.i.kind, x.i.summary, x.i.delayMin, x.i.title.split(' ')[0]].join('|');
-      const hit = merged.find((m) => m.key === key && m.i.tourId !== x.i.tourId && (m.t.returnId === x.t.id || m.t.returnOf === x.t.id));
-      if (hit) { hit.both = true; if ((x.t.distanceKm ?? 0) < (hit.t.distanceKm ?? 0)) hit.t = x.t; } else merged.push({ ...x, key, both: false });
-    }
+    // Dieselbe Meldung auf Hin- und Rückweg derselben Strecke wird zu einer Karte (T.meldungen, dieselbe Zählung wie die Zahl am Knopf).
+    const merged = T.meldungen();
     const items = merged
       .sort((a, b) => ((a.t.distanceKm ?? 0) - (b.t.distanceKm ?? 0)) || b.i.severity - a.i.severity)
       .map(({ i, t, both }) => {
         const k = T.theme.kinds[i.kind];
         return {
-          href: 'Detail.dc.html#' + t.id + '-l',
+          href: 'Detail.dc.html#' + t.id + '-l-' + i.id,
           style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 112px; flex: none',
           icon1: k.icon[0], icon2: k.icon[1],
           category: k.label + ' · ' + i.validity.label,
