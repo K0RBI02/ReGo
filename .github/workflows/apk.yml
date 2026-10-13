@@ -32,7 +32,7 @@ jobs:
         id: meta
         run: |
           echo "version=$(sed -n 's/^version: "\(.*\)"/\1/p' rego/config.yaml)" >> "$GITHUB_OUTPUT"
-          HOST="${{ inputs.host }}"; [ -z "$HOST" ] && HOST="${{ vars.REGO_HOST }}"; [ -z "$HOST" ] && HOST="rego-beta-app.tail2a5f03.ts.net"
+          HOST="${{ inputs.host }}"; [ -z "$HOST" ] && HOST="${{ vars.REGO_HOST }}"; [ -z "$HOST" ] && HOST="rego.tail2a5f03.ts.net"
           echo "host=$HOST" >> "$GITHUB_OUTPUT"
 
       - name: Firebase-Konfiguration bereitstellen

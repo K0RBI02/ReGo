@@ -10,7 +10,7 @@ Eine native Android-App: Die Oberfläche steckt in der App (eigenes Fenster, kei
 **Einmal einrichten (GitHub, Repo K0RBI02/ReGo → Settings → Secrets and variables → Actions)**
 1. Secret `ANDROID_KEYSTORE_B64`: Inhalt der Datei `rego-keystore-b64.txt` (Signierschlüssel).
 2. Secret `ANDROID_KEYSTORE_PASSWORD`: das zugehörige Passwort.
-3. Optional Variable `REGO_HOST`, falls sich deine Adresse ändert (ohne `https://`). Standard: `rego-beta-app.tail2a5f03.ts.net`.
+3. Optional Variable `REGO_HOST`, falls sich deine Adresse ändert (ohne `https://`). Standard: `rego.tail2a5f03.ts.net`.
 
 **APK bauen:** Repo → Actions → „Android-App (APK) bauen“ → Run workflow. Nach etwa 5 Minuten liegt die Datei unter Releases (`app-v<Version>`).
 

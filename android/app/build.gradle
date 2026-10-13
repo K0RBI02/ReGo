@@ -8,7 +8,7 @@ if (file('google-services.json').exists()) {
 }
 
 // Adresse, unter der ReGo erreichbar ist (ohne https://). Wird beim Bauen übergeben: -PrgHost=...
-def rgHost = (project.findProperty('rgHost') ?: 'rego-beta-app.tail2a5f03.ts.net').toString()
+def rgHost = (project.findProperty('rgHost') ?: 'rego.tail2a5f03.ts.net').toString()
 def rgVersionName = (project.findProperty('rgVersionName') ?: '0.2.0').toString()
 def rgVersionCode = (project.findProperty('rgVersionCode') ?: '1').toString().toInteger()
 

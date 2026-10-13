@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.3.2
+- Standardadresse der App und des Tailnet-Namens: `rego` (https://rego.tail2a5f03.ts.net).
+
 ## 0.3.1
 - Sofort-Push per Firebase für die Android-App (Server sendet nur einen leeren Anstoß, Text holt die App selbst). Neue Add-on-Option `fcm_key`.
 
