@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.4.3
+- Meldungen: jede Meldung ist wieder eine eigene Karte (Übersicht), alle führen auf die gemeinsame Seite ihrer Strecke.
+
 ## 0.4.2
 - Abfahrtsliste: bereits abgefahrene Fahrten werden nicht mehr gezeigt, Reihenfolge nach tatsächlicher Abfahrt, Fahrten von morgen sind als „morgen“ markiert.
 - Detailseite: österreichische Strecken verlinken die ÖBB-App statt DB Navigator, grenzüberschreitende nur den Ticket-Hinweis.

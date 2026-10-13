@@ -162,31 +162,26 @@ class Component extends DCLogic {
     const T = window.REGO;
     const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
     const tours = T.tours.filter((t) => t.active);
-    // Eine Karte je Strecke (alle Meldungen darin); gleiche Meldungen auf Hin- und Rückweg werden zusammengefasst
-    const sig = (i) => [i.kind, i.summary, i.delayMin, i.title.split(' ')[0]].join('|');
-    const groups = [];
-    for (const t of tours) {
-      const list = T.incidents.filter((i) => i.tourId === t.id && T.isVisible(i)).sort((a, b) => b.severity - a.severity);
-      if (list.length) groups.push({ t, list, key: list.map(sig).sort().join('#'), both: false });
-    }
+    // Jede Meldung bleibt eine eigene Karte (Übersicht), alle führen auf die Seite ihrer Strecke.
+    // Dieselbe Meldung auf Hin- und Rückweg derselben Strecke wird zu einer Karte.
     const merged = [];
-    for (const g of groups) {
-      const hit = merged.find((m) => m.key === g.key && (m.t.returnId === g.t.id || m.t.returnOf === g.t.id));
-      if (hit) { hit.both = true; if ((g.t.distanceKm ?? 0) < (hit.t.distanceKm ?? 0)) { hit.t = g.t; hit.list = g.list; } } else merged.push(g);
+    for (const x of T.incidents.map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) })).filter((x) => x.t && T.isVisible(x.i))) {
+      const pair = [x.t.id, x.t.returnId, x.t.returnOf].filter(Boolean).sort()[0];
+      const key = [pair, x.i.kind, x.i.summary, x.i.delayMin, x.i.title.split(' ')[0]].join('|');
+      const hit = merged.find((m) => m.key === key && m.i.tourId !== x.i.tourId && (m.t.returnId === x.t.id || m.t.returnOf === x.t.id));
+      if (hit) { hit.both = true; if ((x.t.distanceKm ?? 0) < (hit.t.distanceKm ?? 0)) hit.t = x.t; } else merged.push({ ...x, key, both: false });
     }
     const items = merged
-      .sort((a, b) => ((a.t.distanceKm ?? 0) - (b.t.distanceKm ?? 0)) || b.list[0].severity - a.list[0].severity)
-      .map(({ list, t, both }) => {
-        const i = list[0], k = T.theme.kinds[i.kind];
-        const maxDelay = Math.max(0, ...list.map((x) => x.delayMin || 0));
+      .sort((a, b) => ((a.t.distanceKm ?? 0) - (b.t.distanceKm ?? 0)) || b.i.severity - a.i.severity)
+      .map(({ i, t, both }) => {
+        const k = T.theme.kinds[i.kind];
         return {
           href: 'Detail.dc.html#' + t.id + '-l',
           style: 'background: ' + k.bg + '; border-radius: 28px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 112px; flex: none',
           icon1: k.icon[0], icon2: k.icon[1],
-          category: k.label + (list.length > 1 ? ' + ' + (list.length - 1) + ' weitere' : '') + ' · ' + i.validity.label,
-          title: both ? t.name.replace(' → ', ' ⇄ ') : t.name,
-          summary: list.map((x) => x.summary).filter((v, n, arr) => arr.indexOf(v) === n).join(' · ') + (both ? ' · beide Richtungen' : '') + (t.distanceKm == null ? '' : ' · ' + km(t.distanceKm)),
-          delay: maxDelay ? '+' + maxDelay + ' Min.' : ''
+          category: k.label + ' · ' + i.validity.label,
+          title: both ? i.title.replace(' → ', ' ⇄ ') : i.title, summary: i.summary + (both ? ' · beide Richtungen' : '') + (t.distanceKm == null ? '' : ' · ' + km(t.distanceKm)),
+          delay: i.kind === 'delay' ? '+' + i.delayMin + ' Min.' : ''
         };
       });
     return { items, empty: items.length === 0, sortHint: T.position ? 'Nur deine Strecken · nach Nähe sortiert' : 'Nur deine Strecken' };
