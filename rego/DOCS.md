@@ -1,7 +1,7 @@
 # ReGo als Home-Assistant-Add-on
 
-Läuft rund um die Uhr auf dem Pi, der Laptop wird nicht mehr gebraucht. Die Daten (Strecken, Tickets, Push-Abos, VAPID-Schlüssel)
-liegen pro Handy getrennt in `/data` des Add-ons und bleiben bei Updates erhalten.
+Läuft rund um die Uhr auf dem Pi, der Laptop wird nicht mehr gebraucht. Die Daten (Strecken, Einstellungen, Push-Kennung der App)
+liegen pro Handy getrennt in `/data` des Add-ons und bleiben bei Updates erhalten. Tickets liegen nie auf dem Server.
 
 ## Installation
 1. Home Assistant → Einstellungen → Add-ons → Add-on-Store → ⋮ → **Repositories** → `https://github.com/K0RBI02/ReGo` hinzufügen.
@@ -19,16 +19,21 @@ Funnel braucht in der Tailscale-ACL das Attribut „funnel“ (Admin → Access 
 Nach der ersten Anmeldung bleibt der Zustand in `/data/tailscale`; der Auth-Key kann dann wieder entfernt werden.
 
 ## Optionen
-- `contact`: E-Mail-Adresse für die Push-Kennung (VAPID-Subject), optional.
+- `invite_code`: Einladungscode für neue Geräte, optional (siehe unten). Leer = jeder darf ein Profil anlegen.
+- `contact`: ohne Funktion (blieb aus der Browser-Zeit übrig, damit bestehende Einstellungen gültig bleiben). Kann leer bleiben.
 - `provider`: `library` (Standard), `transport-rest` oder `mock`.
 - `ts_mode`: `off`, `serve` oder `funnel`. `ts_hostname`: Gerätename im Tailnet (Standard `rego`). `ts_authkey`: Auth-Key (nur zum ersten Anmelden).
 - `fcm_key`: Firebase-Dienstkonto-Schlüssel (der komplette Inhalt der JSON-Datei) für Sofort-Push an die Android-App. Leer = die App fragt alle ~15 Minuten selbst nach. Der Push selbst ist leer, den Text holt die App vom Server.
 
 ## Android-App
-Die App (APK) baut GitHub, siehe `deploy/ANDROID.md`. Sie steckt die Oberfläche selbst mit, die Daten kommen von diesem Add-on. Ändert sich nur der Server, genügt das Add-on-Update. Ändert sich das Aussehen, braucht es eine neue APK (kommt unter Releases als `app-v<Version>`).
+Die App (APK) baut GitHub, siehe `deploy/ANDROID.md`. Sie steckt die Oberfläche selbst mit, die Daten kommen von diesem Add-on. Ändert sich nur der Server, genügt das Add-on-Update. Ändert sich das Aussehen, braucht es eine neue APK (kommt unter Releases als `app-v<Version>`). Die Browser-Version (PWA) wird seit 0.6.0 nicht mehr gepflegt: Der Server liefert die Oberfläche zwar weiter aus, aber es gibt keinen Browser-Push und keine Installation über den Browser mehr.
+
+## Einladungscode und Begrenzung
+Ist ReGo öffentlich erreichbar (`ts_mode: funnel`), trägst du bei `invite_code` ein Wort oder eine Zahlenfolge ein und startest das Add-on neu. Neue Geräte (frisch installierte App, „Neues Handy“) fragen dann einmal nach dem Code. Geräte, die der Server schon kennt, laufen ohne weiteres weiter, auch nach dem Einschalten. Falsche Codes werden gebremst (10 Versuche, danach einer pro Minute). Den Code kannst du jederzeit ändern oder wieder entfernen. Er liegt nur in den Add-on-Optionen, nicht im Repo.
+Unabhängig vom Code begrenzt ReGo Anfragen je Adresse und je Gerät, die Haltestellensuche enger und neue Geräte auf 10 pro Stunde und Adresse. Zu viele Anfragen beantwortet der Server mit „429“ und einer Wartezeit; die Prüfadresse `/api/health` für den Watchdog bleibt frei. Im Protokoll erscheint dazu höchstens eine Zeile pro Minute. Über Tailscale zählt die echte Absenderadresse (aus `X-Forwarded-For`), nicht die des Tailscale-Dienstes.
 
 ## Daten und Sicherung
-Alles liegt im `/data` des Add-ons: `profiles/` (je Gerät eine Datei mit Strecken und Einstellungen), `vapid.json` (Push-Schlüssel des Servers), `tailscale/` (Anmeldung). Eine Home-Assistant-Sicherung enthält das mit. Tickets liegen nie auf dem Server, sondern nur auf dem Handy (dort mit „Tickets sichern“ in eine Datei sichern).
+Alles liegt im `/data` des Add-ons: `profiles/` (je Gerät eine Datei mit Strecken und Einstellungen), `tailscale/` (Anmeldung). Eine `vapid.json` aus früheren Versionen wird nicht mehr gebraucht. Eine Home-Assistant-Sicherung enthält das mit. Tickets liegen nie auf dem Server, sondern nur auf dem Handy (dort mit „Tickets sichern“ in eine Datei sichern).
 Beschädigte Profildateien legt ReGo als `<ID>.json.corrupt-<Zeit>` zur Seite und löscht sie nach 30 Tagen.
 
 ## Wenn etwas hakt
@@ -36,5 +41,7 @@ Beschädigte Profildateien legt ReGo als `<ID>.json.corrupt-<Zeit>` zur Seite un
 - Im Protokoll des Add-ons steht beim Start ein Netztest (bahn.de, MVV). Fehler der Datenquellen stehen dort ebenfalls.
 - Sind die Fahrplandaten gestört, zeigt die App den letzten Stand (höchstens 30 Minuten alt) mit dem Hinweis „Keine aktuellen Daten“.
 - Hängt ReGo einmal, startet Home Assistant es selbst neu, wenn du bei ReGo unter „Info“ den Schalter **Watchdog** einschaltest (die Prüfadresse `/api/health` ist hinterlegt).
+- Unter „Strecken“ in der App schickt „Testmeldung“ eine Meldung an das Handy (Push-Meldungen müssen eingeschaltet sein). Die App sagt dazu, ob sie sofort (Firebase) oder erst bei der nächsten Abfrage (bis ca. 15 Minuten) kommt.
+- Die App fragt nach einem Einladungscode? Dann ist `invite_code` gesetzt und das Gerät dem Server noch nicht bekannt (zum Beispiel nach „Profil löschen“ oder frischer Installation). Kommt die Meldung „Zu viele Anfragen“, hilft kurzes Warten.
 - Weitere Einstellungen (Umgebungsvariablen) stehen in der `README.md`.
 

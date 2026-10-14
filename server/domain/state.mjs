@@ -11,7 +11,11 @@ export const SCHEMA_VERSION = 1;
 export const tidyName = (n = '') => String(n).replace(/(^|→\s*)([^,→]+?),\s*\2\b/gi, '$1$2');
 const localIso = (ms) => { const b = berlin(ms); return `${b.date}T${b.time}`; };
 const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 8);
-const severityOf = (kind, delay) => (kind === 'replacement' ? 3 : kind === 'construction' ? (delay >= 10 ? 2 : 1) : delay >= 10 ? 3 : delay >= 5 ? 2 : 1);
+const severityOf = (kind, delay) => (kind === 'replacement' || kind === 'cancelled' ? 3 : kind === 'construction' ? (delay >= 10 ? 2 : 1) : kind === 'platform' ? 1 : delay >= 10 ? 3 : delay >= 5 ? 2 : 1);
+const CANCEL_HORIZON = 3 * 3600e3;          // Ausfälle melden wir für die nächsten 3 Stunden (die Quelle liefert nur die nächsten Fahrten)
+const PLATFORM_HORIZON = 45 * 60e3;         // ein Gleiswechsel ist erst kurz vor der Abfahrt wichtig
+const times = (list) => (list.length <= 3 ? list : [...list.slice(0, 3), `${list.length - 3} weitere`]);
+const andList = (list) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} und ${list[list.length - 1]}` : list[0] || '');
 
 export const THEME = {
   kinds: {
@@ -20,6 +24,8 @@ export const THEME = {
     construction: { label: 'Baustelle',     bg: '#FDF3DC', icon: ['M17 24l9 9-5 6c-2 2-5 2-7 0l-2-2c-2-2-2-5 0-7z', 'M26 29L38 13M33 8l9 7'] },
     ok:           { label: 'Pünktlich',     bg: '#EAF6CF', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M14 25l8 8 14-17'] },
     none:         { label: 'Keine Daten',   bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M24 21v13M24 14.5v.1'] },
+    cancelled:    { label: 'Ausfall',       bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
+    platform:     { label: 'Gleiswechsel',  bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M13 20h19M27 15l5 5-5 5M35 29H16M21 24l-5 5 5 5'] },
   },
 };
 
@@ -76,9 +82,11 @@ export async function buildTour(tour, journeys, ctx) {
     if (!lines[id]) lines[id] = { id, label: id, color: lineColor(l.name, l.product) };
     return id;
   };
-  // Nur Fahrten, die noch nicht abgefahren sind (2 Min. Nachlauf), nach tatsächlicher Abfahrt sortiert
-  const legs = journeys.map((j) => j.legs[0]).filter(Boolean).filter((l) => !l.cancelled)
+  // Nur Fahrten, die noch nicht abgefahren sind (2 Min. Nachlauf), nach tatsächlicher Abfahrt sortiert; ausfallende Fahrten getrennt
+  const upcoming = journeys.map((j) => j.legs[0]).filter(Boolean)
     .filter((l) => !(Date.parse(l.dep) < now - 120000)).sort((a, b) => Date.parse(a.dep) - Date.parse(b.dep));
+  const legs = upcoming.filter((l) => !l.cancelled);
+  const canceled = upcoming.filter((l) => l.cancelled && Date.parse(l.plannedDep || l.dep) >= now && Date.parse(l.plannedDep || l.dep) <= now + CANCEL_HORIZON);
   const out = {
     id: tour.id, name: tidyName(tour.name), appLink: appLinkFor(tour), lineId: legs[0] ? registerLine(legs[0].line) : '', active: tour.active !== false,
     period: tour.period || 'am', ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}),
@@ -91,11 +99,38 @@ export async function buildTour(tour, journeys, ctx) {
     })),
   };
   const incidents = [];
+  const hint = ticketHintFor(tour);
+  const dest = tour.to.name;
+
+  // 0) Ausfälle: eine Meldung je Linie mit allen ausfallenden Fahrten der nächsten Stunden – auch wenn gar keine Fahrt mehr übrig ist
+  const byLine = new Map();
+  for (const l of canceled) { if (!byLine.has(l.line.name)) byLine.set(l.line.name, []); byLine.get(l.line.name).push(l); }
+  for (const group of [...byLine.values()].slice(0, 2)) {
+    const c = group[0], lastC = group[group.length - 1], many = group.length > 1;
+    const summary = `${many ? 'Fahrten' : 'Fahrt'} um ${andList(times(group.map((l) => hhmm(l.plannedDep))))} ${many ? 'fallen' : 'fällt'} aus`;
+    const alt = legs.find((l) => Date.parse(l.plannedDep) > Date.parse(c.plannedDep));
+    const altLine1 = alt && `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`;
+    const map = await buildMap(c, linesAt, { segment: [c.origin.name, c.destination.name], alternative: alt ? { label: `Alternative · ${alt.line.name} ${hhmm(alt.dep)}` } : null, registerLine });
+    incidents.push({
+      id: `i${hash(`${tour.id}|cancelled|${c.line.name}|${berlin(Date.parse(c.plannedDep)).date}`)}`, tourId: tour.id, kind: 'cancelled', severity: severityOf('cancelled', 0), delayMin: 0, lineName: c.line.name, count: group.length,
+      validity: { label: validityLabel(now, Date.parse(lastC.plannedDep), now), activeNow: true, from: localIso(now), until: localIso(Date.parse(lastC.plannedDep)) },
+      title: `${c.line.name} ${c.origin.name} → ${c.destination.name}`, summary,
+      view: {
+        kind: 'cancelled', head: `Ausfall · ${c.line.name} ab ${hhmm(c.plannedDep)}`, big: 'Fällt aus',
+        sub: alt ? `Nächste Fahrt ${altLine1}` : 'Keine weitere Fahrt in den nächsten Stunden',
+        rows: [
+          { label: `Abfahrt ${c.origin.name}`, sub: sub(c), value: 'entfällt', planned: hhmm(c.plannedDep) },
+          { label: `Ankunft ${dest}`, sub: c.line.name, value: 'entfällt', planned: hhmm(c.plannedArr) },
+        ],
+        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : 'pünktlich' } : null,
+        ticketHint: hint, map,
+      },
+    });
+  }
+
   if (!legs.length) { out.view = noDeparturesView(tour, journeys, ctx.stale); return { tour: out, incidents }; }
 
   const first = legs[0];
-  const hint = ticketHintFor(tour);
-  const dest = tour.to.name;
 
   // Detailansicht je Abfahrt (die ersten drei): „zwei Bahnen später“ lässt sich einzeln öffnen
   for (let k = 0; k < out.departures.length; k++) {
@@ -138,7 +173,7 @@ export async function buildTour(tour, journeys, ctx) {
       summary: r.summary || (kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'),
       view: {
         kind, head: `${kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${label}`,
-        big: delay ? `+${delay} Min.` : 'Hinweis', sub: `${leg.line.name} ${leg.origin.name} → ${leg.destination.name} · ${label}`,
+        big: delay ? `+${delay} Min.` : 'Hinweis', sub: `${leg.line.name} ${leg.origin.name} → ${leg.destination.name}`,
         rows: [
           { label: `Abfahrt ${leg.origin.name}`, sub: sub(leg), value: hhmm(leg.dep), planned: hhmm(leg.plannedDep) !== hhmm(leg.dep) ? hhmm(leg.plannedDep) : '' },
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },
@@ -170,6 +205,26 @@ export async function buildTour(tour, journeys, ctx) {
         alternative: next ? { title: 'Nächster Zug', line1: `${next.line.name} ab ${hhmm(next.dep)}${next.platform ? ` · Gleis ${next.platform}` : ''}`, line2: `An ${dest} ${hhmm(next.arr)}`, badge: 'pünktlich' } : null,
         ticketHint: hint, map,
       },
+    });
+  }
+
+  // 2b) Gleiswechsel: eigene, leise Meldung. Nur kurz vor der Abfahrt, und nicht doppelt zur Verspätungsmeldung derselben Fahrt (die nennt ihn schon)
+  let platforms = 0;
+  for (const l of legs) {
+    if (platforms >= 2) break;
+    if (l === late || !(l.plannedPlatform && l.platform && l.plannedPlatform !== l.platform) || Date.parse(l.dep) > now + PLATFORM_HORIZON) continue;
+    platforms++;
+    const rows = [
+      { label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' },
+      { label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` },
+      { label: `Ankunft ${dest}`, sub: l.line.name, value: hhmm(l.arr), planned: l.arrDelay ? hhmm(l.plannedArr) : '' },
+    ];
+    const map = await buildMap(l, linesAt, { registerLine });
+    incidents.push({
+      id: `i${hash(`${tour.id}|platform|${l.line.name}|${berlin(Date.parse(l.plannedDep)).date}|${hhmm(l.plannedDep)}`)}`, tourId: tour.id, kind: 'platform', severity: severityOf('platform', 0), delayMin: 0, lineName: l.line.name, platform: String(l.platform),
+      validity: { label: validityLabel(now, Date.parse(l.dep), now), activeNow: true, from: localIso(now), until: localIso(Date.parse(l.dep)) },
+      title: `${l.line.name} ${l.origin.name} → ${l.destination.name}`, summary: `${hhmm(l.dep)} jetzt Gleis ${l.platform} statt Gleis ${l.plannedPlatform}`,
+      view: { kind: 'platform', head: `Gleiswechsel · ${l.line.name} ab ${hhmm(l.dep)}`, big: `Gl. ${l.platform}`, sub: `statt Gleis ${l.plannedPlatform}`, rows, alternative: null, ticketHint: hint, map },
     });
   }
 

@@ -1,48 +1,53 @@
 // Prüft regelmäßig die Strecken von Geräten mit Push-Abo und meldet neue, relevante Vorfälle.
+// Zugestellt wird nur an die Android-App: Firebase stößt sie an (leerer Push), den Text holt sie danach selbst vom Server;
+// ohne Firebase fragt sie alle ~15 Minuten nach (/api/notifications).
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { sendPush } from './push.mjs';
 import { berlin } from './lib/time.mjs';
 
 const DAY = 24 * 3600e3;
 
-/** Welche Vorfälle sind eine Benachrichtigung wert? Verspätung ab Schwelle, Ersatzverkehr/Baustelle immer. */
+/** Welche Vorfälle sind eine Benachrichtigung wert? Verspätung ab Schwelle, alles andere (Ersatzverkehr, Baustelle, Ausfall, Gleiswechsel) immer. */
 export function relevant(inc, threshold) {
   if (inc.kind === 'delay') return inc.delayMin >= threshold;
   return inc.validity?.activeNow !== false;
 }
 
+const LABEL = { replacement: 'Ersatzverkehr', construction: 'Baustelle', cancelled: 'Ausfall', platform: 'Gleiswechsel' };
+
 // Linienname kommt aus lineName (z. B. „RE 5“, „S 1“ mit Leerzeichen); ältere Meldungen ohne das Feld: erstes Wort des Titels
+export function lineOf(inc) {
+  const full = String(inc.title || '');
+  return inc.lineName && full.startsWith(`${inc.lineName} `) ? inc.lineName : full.split(' ')[0];
+}
+
 export function textFor(inc) {
   const full = String(inc.title || '');
   const named = !!inc.lineName && full.startsWith(`${inc.lineName} `);
-  const line = named ? inc.lineName : full.split(' ')[0];
+  const line = lineOf(inc);
   const route = named ? full.slice(inc.lineName.length + 1) : full.replace(/^\S+\s/, '');
-  const title = inc.kind === 'delay' ? `${line} +${inc.delayMin} Min.` : `${inc.kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${line}`;
+  const title = inc.kind === 'delay' ? `${line} +${inc.delayMin} Min.` : `${LABEL[inc.kind] || 'Hinweis'} · ${line}`;
   return { title, body: `${route} · ${inc.summary}` };
 }
 
-export function createNotifier({ config, store, service, vapid, now = () => Date.now(), send = sendPush, fcm = null }) {
-  const subject = config.vapidSubject;
+/** Was sich an einer Meldung ändern kann, ohne dass sie neu ist: Verspätung (Minuten), Zahl der Ausfälle, neues Gleis. Dann wird die Meldung leise aktualisiert. */
+export const changeOf = (inc) => (inc.kind === 'delay' ? inc.delayMin : inc.kind === 'cancelled' ? inc.count : inc.kind === 'platform' ? inc.platform : undefined);
 
+export function createNotifier({ config, store, service, now = () => Date.now(), fcm = null }) {
   const log = (...a) => config.verbose && console.log(...a);
   const idleMs = (config.notifyIdleDays ?? 21) * DAY;
 
+  /** 'ok' | 'gone' | 'error' | 'none' */
   async function deliver(device, profile) {
     const sub = profile.push;
-    if (sub?.native) {
-      // Android-App: mit Firebase sofort anstoßen, sonst holt sie die Meldungen selbst alle ~15 Min. ab
-      if (sub.fcm && fcm?.enabled) {
-        const r = await fcm.send(sub.fcm);
-        if (r === 'gone') await store.update(device, (p) => { if (p.push?.native) p.push = { native: true }; });
-        return r;
-      }
-      return 'ok';
+    if (!sub?.native) return 'none';
+    // Mit Firebase sofort anstoßen, sonst holt die App die Meldungen selbst alle ~15 Min. ab
+    if (sub.fcm && fcm?.enabled) {
+      const r = await fcm.send(sub.fcm);
+      if (r === 'gone') await store.update(device, (p) => { if (p.push?.native) p.push = { native: true }; });
+      return r;
     }
-    if (!sub?.endpoint) return 'none';
-    const r = await send(vapid, subject, sub, undefined, log);
-    if (r === 'gone') await store.update(device, (p) => { p.push = null; });
-    return r;
+    return 'ok';
   }
 
   // Nur rund um die eingestellte Abfahrtszeit (±20 Min.) an den Tagen der Strecke
@@ -60,9 +65,9 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
 
   async function checkDevice(device) {
     const profile = await store.load(device);
-    if (!profile.push || !profile.tours.some((t) => t.active !== false)) return 0;
+    if (!profile.push?.native || !profile.tours.some((t) => t.active !== false)) return 0;
     // App deinstalliert oder Handy verschwunden: die App meldet sich sonst alle ~15 Min. von selbst, bei Funkstille nicht mehr prüfen
-    if (profile.push.native && profile.lastSeen && now() - profile.lastSeen > idleMs) return 0;
+    if (profile.lastSeen && now() - profile.lastSeen > idleMs) return 0;
     const hour = Number(berlin(now()).time.slice(0, 2));
     if (hour < 4 || hour >= 23) return 0;                       // nachts Ruhe
     const state = await service.getState(device);
@@ -76,8 +81,8 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     const present = new Set(state.incidents.map((i) => i.id));
     const notified = profile.notified || {}, shown = profile.shownDelay || {}, gone = profile.goneCount || {};
     const fresh = [...cur.values()].filter((i) => !notified[i.id]);
-    // Verspätung hat sich geändert: bestehende Meldung leise aktualisieren
-    const updates = [...cur.values()].filter((i) => notified[i.id] && i.kind === 'delay' && shown[i.id] != null && i.delayMin !== shown[i.id]);
+    // Etwas an einer bekannten Meldung hat sich geändert (Verspätung, Zahl der Ausfälle, Gleis): bestehende Meldung leise aktualisieren
+    const updates = [...cur.values()].filter((i) => notified[i.id] && changeOf(i) !== undefined && shown[i.id] != null && changeOf(i) !== shown[i.id]);
     // Vorfall ist weg (Verspätung vorbei, Zug abgefahren): Meldung entfernen
     const nextGone = {};
     for (const id of Object.keys(notified)) if (!cur.has(id)) { const c = (gone[id] || 0) + (stale.size ? 0 : 1); if (c) nextGone[id] = c; }
@@ -89,13 +94,14 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     }
     const stamp = now();
     const snap = { notified: { ...notified }, shown: { ...shown }, gone: { ...gone } };
+    const entry = (i, extra = {}) => ({ ...textFor(i), kind: i.kind, line: lineOf(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id), ...extra });
     await store.update(device, (p) => {
       // Gemerkt bleibt, was jünger als 3 Tage ist oder noch besteht (lange Baustellen sollen nicht alle 3 Tage neu gemeldet werden)
       p.notified = Object.fromEntries(Object.entries(p.notified || {}).filter(([id, ts]) => now() - ts < 3 * DAY || present.has(id)));
       p.shownDelay = Object.fromEntries(Object.entries(p.shownDelay || {}).filter(([id]) => id in p.notified));
       p.outbox = (p.outbox || []).slice(-19);
-      for (const i of fresh) { p.notified[i.id] = now(); if (i.kind === 'delay') p.shownDelay[i.id] = i.delayMin; p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id) }); }
-      for (const i of updates) { p.shownDelay[i.id] = i.delayMin; p.outbox.push({ ...textFor(i), url: `/Detail#${i.id}-m`, ts: stamp, b: stamp, tag: tagOf(i.id), update: true }); }
+      for (const i of fresh) { p.notified[i.id] = now(); if (changeOf(i) !== undefined) p.shownDelay[i.id] = changeOf(i); p.outbox.push(entry(i)); }
+      for (const i of updates) { p.shownDelay[i.id] = changeOf(i); p.outbox.push(entry(i, { update: true })); }
       for (const id of cleared) { delete p.notified[id]; delete p.shownDelay[id]; delete nextGone[id]; p.outbox.push({ clear: true, tag: tagOf(id), ts: stamp, b: stamp }); }
       p.goneCount = nextGone;
     });
@@ -125,9 +131,14 @@ export function createNotifier({ config, store, service, vapid, now = () => Date
     } finally { ticking = false; }
   }
 
-  async function sendTest(device, text = { title: 'ReGo', body: 'Push ist eingerichtet.' }) {
-    await store.update(device, (p) => { p.outbox = [...(p.outbox || []).slice(-9), { ...text, url: '/', ts: now() }]; });
-    await deliver(device, await store.load(device));
+  /** Testmeldung an dieses Gerät. Gibt zurück, ob sie sofort (Firebase) oder erst beim nächsten Abholen der App ankommt, und das Ergebnis der Zustellung. */
+  async function sendTest(device) {
+    const text = { title: 'ReGo Testmeldung', body: 'So sieht eine Meldung aus. Wenn du das liest, funktioniert Push.', kind: 'test', url: '/Meldungen' };
+    await store.update(device, (p) => { p.outbox = [...(p.outbox || []).slice(-9), { ...text, ts: now() }]; });
+    const profile = await store.load(device);
+    const instant = !!(profile.push?.fcm && fcm?.enabled);
+    const result = await deliver(device, profile);
+    return { instant: instant && result === 'ok', result };
   }
 
   async function takeOutbox(device) {

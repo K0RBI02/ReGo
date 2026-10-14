@@ -21,6 +21,8 @@
     construction: { label: 'Baustelle', bg: '#FDF3DC', icon: ['M17 24l9 9-5 6c-2 2-5 2-7 0l-2-2c-2-2-2-5 0-7z', 'M26 29L38 13M33 8l9 7'] },
     ok: { label: 'Pünktlich', bg: '#EAF6CF', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M14 25l8 8 14-17'] },
     none: { label: 'Keine Daten', bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M24 21v13M24 14.5v.1'] },
+    cancelled: { label: 'Ausfall', bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
+    platform: { label: 'Gleiswechsel', bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M13 20h19M27 15l5 5-5 5M35 29H16M21 24l-5 5 5 5'] },
   } };
   // Strecke ohne Abfahrt: der Server liefert eine genaue Ansicht; ein älterer Server (oder ein alter Zwischenstand) nicht, dann gilt diese – nie „pünktlich“
   const NONE_VIEW = { kind: 'none', head: 'Nächste Abfahrt', big: 'Keine', sub: 'Keine Abfahrten gefunden.', rows: [], alternative: null, ticketHint: null, map: null };
@@ -31,19 +33,43 @@
     connection: { status: 'ok', loading: true, lastSync: '' },
     settings: { pushThresholdMin: 5, delayGraceMin: 10 },
     clock: nowParts(), stations: [], deviceId: device,
+    invite: { needed: false, wrong: false },          // der Server verlangt einen Einladungscode (neue Geräte)
+    info: { app: '', server: '' },
   };
   let stationCache = LS.get('rego.stations', []);     // [{id,name,region,lat,lon}]
   R.stations = stationCache;
 
   const api = async (path, opt = {}) => {
-    const res = await fetch(`${window.REGO_API || ''}/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, opt.headers || {}) }));
+    const code = String(LS.get('rego.invite', '') || '');
+    const res = await fetch(`${window.REGO_API || ''}/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, code ? { 'x-invite': encodeURIComponent(code) } : {}, opt.headers || {}) }));
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status });
+    if (!res.ok) {
+      const invite = res.status === 403 && !!body.invite;
+      if (invite) { R.invite = { needed: true, wrong: !!body.wrong }; try { R.onInvite && R.onInvite(); } catch (e) {} }
+      throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, invite });
+    }
     return body;
+  };
+  /** Einladungscode merken und prüfen. true = angenommen, false = falsch; bei fehlender Verbindung gibt es einen Fehler. */
+  R.setInvite = async function (code) {
+    LS.set('rego.invite', String(code || '').trim());
+    try { await api('/state'); } catch (e) { if (e && e.invite) return false; throw e; }
+    R.invite = { needed: false, wrong: false }; asked.clear();
+    try { R.onInvite && R.onInvite(); } catch (e) {}
+    R.refresh();
+    return true;
+  };
+  /** Versionen für die Zeile unter „Strecken“: App (nur in der App bekannt) und Server (öffentliche Statusabfrage) */
+  R.loadInfo = async function () {
+    let app = '';
+    try { app = window.RegoNative && window.RegoNative.appVersion ? String(window.RegoNative.appVersion()) : ''; } catch (e) {}
+    R.info.app = app;
+    try { const s = await api('/status'); R.info.server = String(s.version || ''); } catch (e) {}
+    return R.info;
   };
 
   R.version = 'Beta';
-  R.contact = 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent('Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\nGerät: ' + (window.RegoNative ? 'Android-App' : 'Browser/PWA'));   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
+  R.contact = 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent('Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\nGerät: ' + (window.RegoNative ? 'Android-App' : 'Browser'));   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
@@ -149,7 +175,10 @@
     } catch (e) {
       R.errorHint = e && e.status ? `Server ${e.status}` : (e && e.name === 'TimeoutError') ? 'Zeitüberschreitung' : 'keine Verbindung zum Server';
       const cached = readCache();
-      if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
+      if (e && e.invite) {            // der Server wartet auf den Einladungscode: keine Störung, die Maske darüber erklärt es
+        R.outage = false;
+        if (cached) apply(cached.state, 'offline', cached.at); else { R.tours = []; R.incidents = []; R.connection = { status: 'ok', loading: false, lastSync: '' }; }
+      } else if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
       else { R.outage = true; R.tours = []; R.incidents = []; R.connection = { status: 'offline', loading: false, lastSync: '' }; }
     } finally { try { R.onChange && R.onChange({ remount: true }); } catch (e) { window.RLOG && RLOG('onChange: ' + (e && e.message)); } }
   }
@@ -217,38 +246,25 @@
   R.actions.transferCode = async function () { return (await api('/transfer', { method: 'POST', body: '{}' })).code; };
   R.actions.claimTransfer = async function (code) { const r = await api('/transfer/claim', { method: 'POST', body: JSON.stringify({ code }) }); await R.refresh(); return r.tours; };
 
-  /* --- Push --- */
-  const b64ToU8 = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  /* --- Push (nur in der Android-App) --- */
   R.actions.enablePush = async function () {
-    if (window.RegoNative) {      // Android-App: Meldungen holt die App selbst ab
-      const ok = await new Promise((res) => { window.__rgPushDone = res; try { window.RegoNative.enablePush(device, window.REGO_API || ''); } catch (e) { res(false); } });
-      if (ok === false) throw new Error('Benachrichtigungen sind für ReGo blockiert. Bitte in den Android-Einstellungen erlauben.');
-      await api('/push/native', { method: 'PUT', body: JSON.stringify(ok ? { token: ok } : {}) });   // ok = Firebase-Kennung (oder leer ohne Firebase)
-      LS.set('rego.push', true);
-      return true;
-    }
-    if (!window.isSecureContext || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Push braucht eine sichere Verbindung (https).');
-    if (Notification.permission === 'denied') throw new Error('Benachrichtigungen sind für ReGo blockiert.');
-    const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-    if (perm !== 'granted') throw new Error('Ohne Erlaubnis kann ReGo keine Meldungen schicken.');
-    const reg = await navigator.serviceWorker.ready;
-    try { const c = await caches.open('rego-meta'); await c.put('/__device', new Response(device)); } catch (e) {}
-    const { publicKey } = await api('/push/key');
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(publicKey) });
-    await api('/push', { method: 'PUT', body: JSON.stringify(sub.toJSON()) });
+    if (!window.RegoNative) throw new Error('Push-Meldungen gibt es nur in der Android-App.');
+    const ok = await new Promise((res) => { window.__rgPushDone = res; try { window.RegoNative.enablePush(device, window.REGO_API || ''); } catch (e) { res(false); } });
+    if (ok === false) throw new Error('Benachrichtigungen sind für ReGo blockiert. Bitte in den Android-Einstellungen erlauben.');
+    await api('/push/native', { method: 'PUT', body: JSON.stringify(ok ? { token: ok } : {}) });   // ok = Firebase-Kennung (oder leer ohne Firebase)
     LS.set('rego.push', true);
     return true;
   };
-  /** Ist Push an? (In der App: wenn er eingeschaltet wurde; im Browser zusätzlich: Erlaubnis noch erteilt.) */
-  R.pushActive = () => { try { return !!LS.get('rego.push', false) && (window.RegoNative || !('Notification' in window) || Notification.permission === 'granted'); } catch (e) { return false; } };
+  /** Ist Push an? (wenn er in der App eingeschaltet wurde) */
+  R.pushActive = () => { try { return !!LS.get('rego.push', false) && !!window.RegoNative; } catch (e) { return false; } };
   R.actions.disablePush = async function () {
     await api('/push', { method: 'DELETE' });                // zuerst beim Server abmelden; klappt das nicht, bleibt alles wie es ist
     if (window.RegoNative) { try { window.RegoNative.disablePush(); } catch (e) {} }
-    else { try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {} }
     LS.set('rego.push', false);
     return true;
   };
+  /** Testmeldung an dieses Gerät. Antwort: { ok, instant } – instant = kommt sofort (Firebase), sonst beim nächsten Abholen der App (bis ~15 Min.). */
+  R.actions.testPush = async function () { return api('/push/test', { method: 'POST', body: '{}' }); };
   /* --- Standort (grob, auf ca. 1 km gerundet; nur für „nächste Strecke zuerst“) --- */
   R.requestPosition = () => new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(false);

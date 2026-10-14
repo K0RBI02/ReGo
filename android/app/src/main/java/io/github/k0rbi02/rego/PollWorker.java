@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 
 import androidx.annotation.NonNull;
@@ -28,9 +29,14 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
-/** Holt alle ~15 Minuten die Meldungen vom ReGo-Server und zeigt sie an (Android erlaubt nicht öfter). */
+/** Holt alle ~15 Minuten die Meldungen vom ReGo-Server und zeigt sie an (Android erlaubt nicht öfter). Firebase stößt dasselbe sofort an. */
 public class PollWorker extends Worker {
-    static final String CH = "rego-meldungen", NAME = "rego-poll";
+    static final String NAME = "rego-poll";
+    // Benachrichtigungskanäle nach Art der Meldung: Wer Gleiswechsel leise oder Baustellen gar nicht will, stellt das in den Android-Einstellungen je Kanal ein
+    static final String CH_DELAY = "rego-verspaetung", CH_CANCEL = "rego-ausfall", CH_WORK = "rego-baustelle", CH_PLATFORM = "rego-gleis";
+    private static final String OLD_CHANNEL = "rego-meldungen";          // bis 0.5.1: ein einziger Kanal für alles
+    // Merkzettel an der Benachrichtigung, damit sie später auf „behoben“ umgeschrieben werden kann
+    private static final String X_KIND = "rego_kind", X_LINE = "rego_line";
 
     public PollWorker(@NonNull Context c, @NonNull WorkerParameters p) { super(c, p); }
 
@@ -42,12 +48,29 @@ public class PollWorker extends Worker {
     static void cancel(Context c) { androidx.work.WorkManager.getInstance(c).cancelUniqueWork(NAME); }
     static void clearBadge(Context c) { /* Meldungen bleiben stehen, bis sie weggewischt werden */ }
 
-    private static void channel(Context c) {
-        if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = new NotificationChannel(CH, "Störungen auf deinen Strecken", NotificationManager.IMPORTANCE_HIGH);
-            ch.setDescription("Verspätungen und Ausfälle auf deinen gespeicherten Strecken");
-            c.getSystemService(NotificationManager.class).createNotificationChannel(ch);
-        }
+    /** Kanal zur Art der Meldung („kind“ vom Server); Testmeldungen und Unbekanntes laufen über „Verspätungen“. */
+    static String channelFor(String kind) {
+        if ("cancelled".equals(kind) || "replacement".equals(kind)) return CH_CANCEL;
+        if ("construction".equals(kind)) return CH_WORK;
+        if ("platform".equals(kind)) return CH_PLATFORM;
+        return CH_DELAY;
+    }
+
+    private static void makeChannel(NotificationManager m, String id, String name, String info, int importance) {
+        NotificationChannel ch = new NotificationChannel(id, name, importance);
+        ch.setDescription(info);
+        m.createNotificationChannel(ch);
+    }
+
+    private static void channels(Context c) {
+        if (Build.VERSION.SDK_INT < 26) return;
+        NotificationManager m = c.getSystemService(NotificationManager.class);
+        if (m == null) return;
+        m.deleteNotificationChannel(OLD_CHANNEL);                         // gibt es nichts zu löschen, passiert nichts
+        makeChannel(m, CH_DELAY, "Verspätungen", "Dein Zug ist später dran", NotificationManager.IMPORTANCE_HIGH);
+        makeChannel(m, CH_CANCEL, "Ausfälle und Ersatzverkehr", "Fahrten fallen aus oder es fährt ein Bus statt der Bahn", NotificationManager.IMPORTANCE_HIGH);
+        makeChannel(m, CH_WORK, "Baustellen", "Hinweise auf Bauarbeiten, die länger dauern", NotificationManager.IMPORTANCE_DEFAULT);
+        makeChannel(m, CH_PLATFORM, "Gleiswechsel", "Kurz vor der Abfahrt: dein Zug fährt von einem anderen Gleis (leise)", NotificationManager.IMPORTANCE_LOW);
     }
 
     @NonNull @Override public Result doWork() { return fetchAndShow(getApplicationContext()); }
@@ -60,34 +83,73 @@ public class PollWorker extends Worker {
             HttpURLConnection h = (HttpURLConnection) new URL(api + "/api/notifications").openConnection();
             h.setRequestProperty("x-device", device);
             h.setConnectTimeout(10000); h.setReadTimeout(15000);
-            if (h.getResponseCode() != 200) return Result.retry();
+            int code = h.getResponseCode();
+            if (code == 403) return Result.success();                     // Server verlangt einen Einladungscode (Profil wurde gelöscht): die App fragt beim nächsten Öffnen danach
+            if (code != 200) return Result.retry();
             StringBuilder sb = new StringBuilder();
             try (BufferedReader r = new BufferedReader(new InputStreamReader(h.getInputStream(), "UTF-8"))) { String l; while ((l = r.readLine()) != null) sb.append(l); }
             JSONArray list = new JSONObject(sb.toString()).optJSONArray("notifications");
             if (list == null) return Result.success();
-            channel(c);
+            channels(c);
             NotificationManagerCompat nm = NotificationManagerCompat.from(c);
             if (!nm.areNotificationsEnabled()) return Result.success();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject n = list.getJSONObject(i);
                 String tag = n.optString("tag", "rego-" + n.optLong("ts", System.currentTimeMillis()));
-                if (n.optBoolean("clear", false)) { nm.cancel(tag, 1); continue; }
+                if (n.optBoolean("clear", false)) { resolve(c, nm, tag); continue; }
+                String kind = n.optString("kind", "");
                 Intent in = new Intent(c, MainActivity.class).putExtra("path", n.optString("url", "/")).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 PendingIntent pi = PendingIntent.getActivity(c, tag.hashCode(), in, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                 boolean upd = n.optBoolean("update", false);
-                NotificationCompat.Builder b = new NotificationCompat.Builder(c, CH)
+                NotificationCompat.Builder b = new NotificationCompat.Builder(c, channelFor(kind))
                         .setSmallIcon(R.drawable.ic_stat)
                         .setContentTitle(n.optString("title", "ReGo"))
                         .setContentText(n.optString("body", ""))
                         .setStyle(new NotificationCompat.BigTextStyle().bigText(n.optString("body", "")))
                         .setContentIntent(pi).setAutoCancel(true)
-                        .setOnlyAlertOnce(upd).setSilent(upd)
-                        .setPriority(NotificationCompat.PRIORITY_HIGH);
+                        .setOnlyAlertOnce(upd).setSilent(upd);
+                b.getExtras().putString(X_KIND, kind);
+                b.getExtras().putString(X_LINE, n.optString("line", ""));
                 try { nm.notify(tag, 1, b.build()); } catch (SecurityException ignored) { }
             }
             return Result.success();
         } catch (Exception e) {
             return Result.retry();
         }
+    }
+
+    /**
+     * Der Vorfall ist vorbei. Eine Verspätung, ein Ersatzverkehr oder eine Baustelle, die noch in der Leiste steht, wird kurz auf „behoben“ umgeschrieben
+     * (leise, nach ein paar Sekunden weg), damit man nicht plötzlich ins Leere schaut. Ausfälle und Gleiswechsel verschwinden einfach.
+     * Hat der Nutzer die Meldung schon weggewischt, passiert nichts.
+     */
+    private static void resolve(Context c, NotificationManagerCompat nm, String tag) {
+        String kind = "", line = "";
+        boolean found = false;
+        try {
+            NotificationManager sys = c.getSystemService(NotificationManager.class);
+            if (sys != null) {
+                for (StatusBarNotification s : sys.getActiveNotifications()) {
+                    if (s.getId() == 1 && tag.equals(s.getTag())) {
+                        Bundle x = s.getNotification().extras;
+                        if (x != null) { kind = x.getString(X_KIND, ""); line = x.getString(X_LINE, ""); }
+                        found = true;
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        if (!found) return;
+        String what = "delay".equals(kind) ? "Die Verspätung" : "replacement".equals(kind) ? "Der Ersatzverkehr" : "construction".equals(kind) ? "Die Baustelle" : null;
+        if (what == null) { nm.cancel(tag, 1); return; }
+        Intent in = new Intent(c, MainActivity.class).putExtra("path", "/Meldungen").setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pi = PendingIntent.getActivity(c, tag.hashCode(), in, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(c, channelFor(kind))
+                .setSmallIcon(R.drawable.ic_stat)
+                .setContentTitle(line.isEmpty() ? "Behoben" : line + " · behoben")
+                .setContentText(what + " ist vorbei.")
+                .setContentIntent(pi).setAutoCancel(true)
+                .setOnlyAlertOnce(true).setSilent(true)
+                .setTimeoutAfter(6000);
+        try { nm.notify(tag, 1, b.build()); } catch (SecurityException ignored) { }
     }
 }

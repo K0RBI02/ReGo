@@ -3,15 +3,15 @@ import { readFile, stat, readdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { config } from './config.mjs';
 import { createService } from './service.mjs';
-import { loadVapid } from './push.mjs';
 import { loadFcmKey, createFcm } from './fcm.mjs';
 import { randomInt } from 'node:crypto';
 import { createNotifier } from './notifier.mjs';
-import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, DEVICE_RE } from './store/profile.mjs';
+import { createGuard } from './guard.mjs';
+import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, toStop, DEVICE_RE } from './store/profile.mjs';
 
 // Sicherheits-Header für alle Antworten. 'unsafe-eval'/'unsafe-inline' braucht der Screen-Lader (dc-lite), sonst nichts Fremdes.
 const SEC = {
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY',
   'permissions-policy': 'camera=(self), geolocation=(self), microphone=(), payment=()',
 };
@@ -19,22 +19,16 @@ const SEC = {
 const APP_ORIGINS = ['https://appassets.androidplatform.net'];
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 
-// Nur bekannte Push-Dienste der Browser; sonst könnte jemand das Backend Anfragen an beliebige Adressen schicken lassen.
-const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)push\.apple\.com$/, /(^|\.)notify\.windows\.com$/];
-export function pushEndpointOk(ep) {
-  try { const u = new URL(ep); return u.protocol === 'https:' && PUSH_HOSTS.some((r) => r.test(u.hostname)); } catch { return false; }
-}
-
-export function createApp({ cfg = config, now = () => Date.now(), service, store, pushSender, fcmClient } = {}) {
+export function createApp({ cfg = config, now = () => Date.now(), service, store, fcmClient } = {}) {
   store ||= new ProfileStore(cfg.dataDir, now, { maxProfiles: cfg.maxProfiles });
   service ||= createService({ config: cfg, store, now });
-  let vapidP, notifierP;
-  const vapid = () => (vapidP ||= loadVapid(cfg.dataDir));
+  const guard = createGuard({ cfg, store, now });
+  let notifierP;
   const fcmP = fcmClient ? Promise.resolve(fcmClient) : loadFcmKey(cfg.dataDir).then((k) => createFcm(k, { log: (...a) => cfg.verbose && console.log(...a) }));
-  const notifier = async () => (notifierP ||= Promise.all([vapid(), fcmP]).then(([v, fcm]) => createNotifier({ config: cfg, store, service, vapid: v, fcm, now, ...(pushSender ? { send: pushSender } : {}) })));
+  const notifier = async () => (notifierP ||= fcmP.then((fcm) => createNotifier({ config: cfg, store, service, fcm, now })));
 
   const corsFor = (origin) => (origin && (origin === cfg.corsOrigin || APP_ORIGINS.includes(origin))
-    ? { 'access-control-allow-origin': origin, vary: 'origin', 'access-control-allow-headers': 'content-type,x-device', 'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'access-control-max-age': '600' } : {});
+    ? { 'access-control-allow-origin': origin, vary: 'origin', 'access-control-allow-headers': 'content-type,x-device,x-invite', 'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'access-control-max-age': '600' } : {});
   const send = (res, status, body, headers = {}) => {
     const data = typeof body === 'string' ? body : JSON.stringify(body);
     res.writeHead(status, { ...SEC, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...corsFor(res.req?.headers?.origin), ...headers });
@@ -84,6 +78,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/health' && m === 'GET') return send(res, 200, { ok: true, provider: cfg.provider, time: new Date(now()).toISOString() });
     if (path === '/api/status' && m === 'GET') return send(res, 200, await status());
     const dev = device(req, url);
+    await guard.device(req, url, dev);                              // Begrenzung je Gerät, Einladungscode für neue Geräte
     store.seen(dev).catch(() => {});                                // „zuletzt gesehen“ für Aufräumen und Leerlauf-Erkennung
     if (path === '/api/stations' && m === 'GET') {
       try { return send(res, 200, { stations: await service.searchStations(url.searchParams.get('q')) }); }
@@ -92,7 +87,19 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/state' && m === 'GET') return send(res, 200, await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') }));
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
-    if (path === '/api/tours' && m === 'POST') { const b = await readBody(req); const created = await store.update(dev, (p) => addTours(p, b)); return send(res, 201, { tours: created }); }
+    if (path === '/api/tours' && m === 'POST') {
+      const b = await readBody(req);
+      addTours({ tours: [], settings: {} }, b);                       // prüft die Eingabe (400), speichert nichts
+      const mine = await store.load(dev);
+      // Strecken ohne Direktverbindung gar nicht erst anlegen (ReGo zeigt nur Fahrten ohne Umstieg). Weiß die Quelle es nicht, wird im Zweifel angelegt.
+      if (!mine.tours.some((x) => x.from?.id === b.from.id && x.to?.id === b.to.id)) {
+        for (const [a, c] of b.roundTrip ? [[b.from, b.to], [b.to, b.from]] : [[b.from, b.to]]) {
+          if ((await service.hasDirect(toStop(a), toStop(c))) === false) throw new ValidationError(`Zwischen ${a.name} und ${c.name} habe ich keine Direktverbindung gefunden. ReGo zeigt nur Fahrten ohne Umstieg.`, 422);
+        }
+      }
+      const created = await store.update(dev, (p) => addTours(p, b));
+      return send(res, 201, { tours: created });
+    }
     const tm = path.match(/^\/api\/tours\/([\w-]{1,32})$/);
     if (tm && m === 'PATCH') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => patchTour(p, tm[1], b))); }
     if (tm && m === 'DELETE') return send(res, 200, await store.update(dev, (p) => deleteTour(p, tm[1])));
@@ -117,21 +124,15 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
       return send(res, 200, { tours: n });
     }
     if (path === '/api/settings' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => setSettings(p, b))); }
-    if (path === '/api/push/key' && m === 'GET') return send(res, 200, { publicKey: (await vapid()).publicKey });
     if (path === '/api/notifications' && m === 'GET') return send(res, 200, { notifications: await (await notifier()).takeOutbox(dev) });
     if (path === '/api/push/test' && m === 'POST') {
-      if (!(await store.load(dev)).push) { const e = new ValidationError('Kein Push-Abo für dieses Gerät. Push erst in der App aktivieren.'); e.status = 409; throw e; }
-      await (await notifier()).sendTest(dev); return send(res, 200, { ok: true }); }
+      if (!(await store.load(dev)).push?.native) throw new ValidationError('Push ist für dieses Gerät nicht eingeschaltet. Schalte unter „Strecken“ zuerst die Push-Meldungen ein.', 409);
+      const r = await (await notifier()).sendTest(dev);
+      if (r.result === 'error') throw new ValidationError('Der Push-Dienst ist gerade nicht erreichbar. Die Testmeldung kommt, sobald die App das nächste Mal nachfragt.', 502);
+      return send(res, 200, { ok: true, instant: r.instant });
+    }
     if (path === '/api/push/native' && m === 'PUT') { const body = await readBody(req).catch(() => ({})); const fcm = await fcmP; await store.update(dev, (p) => { p.push = { native: true, ...(typeof body?.token === 'string' && body.token.length > 20 && body.token.length < 400 ? { fcm: body.token } : {}) }; }); return send(res, 200, { subscribed: true, native: true, instant: !!(body?.token && fcm.enabled) }); }
     if (path === '/api/push' && m === 'DELETE') { await store.update(dev, (p) => { p.push = null; }); return send(res, 200, { subscribed: false }); }
-    if (path === '/api/push' && m === 'PUT') {
-      const b = await readBody(req);
-      if (!pushEndpointOk(b?.endpoint)) throw new ValidationError('Unbekannter Push-Dienst');
-      const k = b.keys, keys = k && typeof k.p256dh === 'string' && typeof k.auth === 'string' && k.p256dh.length < 200 && k.auth.length < 100 ? { p256dh: k.p256dh, auth: k.auth } : null;
-      const first = await store.update(dev, (p) => { const isNew = p.push?.endpoint !== b.endpoint; p.push = { endpoint: String(b.endpoint), keys }; return isNew; });
-      if (first === true) (await notifier()).sendTest(dev).catch(() => {});
-      return send(res, 200, { subscribed: true });
-    }
     if (path === '/api/profile' && m === 'DELETE') { await store.remove(dev); return send(res, 200, { deleted: true }); }
     return send(res, 404, { error: 'Unbekannter Pfad' });
   }
@@ -151,15 +152,18 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     } catch { send(res, 404, { error: 'Nicht gefunden' }); }
   }
 
+  let lastLimitLog = 0;
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    if (cfg.verbose) { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0; if (ms >= 400 || (url.pathname.startsWith('/api/') && res.statusCode >= 400)) console.log(`${res.statusCode >= 400 ? 'Fehlerantwort' : 'langsam'}: ${req.method} ${url.pathname} ${res.statusCode} ${ms} ms`); }); }
+    if (cfg.verbose) { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0; if (res.statusCode === 429) { if (t0 - lastLimitLog < 60e3) return; lastLimitLog = t0; }   // Begrenzung: höchstens eine Zeile pro Minute, sonst füllt ein Angreifer das Protokoll
+      if (ms >= 400 || (url.pathname.startsWith('/api/') && res.statusCode >= 400)) console.log(`${res.statusCode >= 400 ? 'Fehlerantwort' : 'langsam'}: ${req.method} ${url.pathname} ${res.statusCode} ${ms} ms`); }); }
     try {
+      guard.rate(req, url);
       if (url.pathname.startsWith('/api/')) await api(req, res, url);
       else if (req.method === 'GET' || req.method === 'HEAD') await serveStatic(req, res, url);
       else send(res, 405, { error: 'Methode nicht erlaubt' });
     } catch (e) {
-      if (e instanceof ValidationError) return send(res, e.status || 400, { error: e.message });
+      if (e instanceof ValidationError) return send(res, e.status || 400, { error: e.message, ...(e.extra || {}) }, e.retryAfter ? { 'retry-after': String(e.retryAfter) } : {});
       console.error(e);
       if (!res.headersSent) send(res, 500, { error: 'Interner Fehler' });
     }

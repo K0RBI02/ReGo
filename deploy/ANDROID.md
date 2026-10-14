@@ -1,53 +1,39 @@
 # ReGo auf dem Android-Handy
 
-## Variante A: echte App (APK)
-Eine native Android-App: Die Oberfläche steckt in der App (eigenes Fenster, kein Browser), die Daten kommen von deinem ReGo-Server. Dafür kann sie Dinge, die eine PWA nicht kann: beim Ticket die Helligkeit auf Maximum und den Bildschirm anlassen, Dateien in „Download“ speichern, Meldungen über einen eigenen Hintergrunddienst abholen. Nach einer ReGo-Änderung am Aussehen braucht es eine neue APK (Workflow unten), Server-Änderungen kommen weiter per Add-on-Update.
+ReGo ist eine native Android-App: Die Oberfläche steckt in der App (eigenes Fenster, kein Browser), die Daten kommen von deinem ReGo-Server. Dafür kann sie Dinge, die eine Webseite nicht kann: beim Ticket die Helligkeit auf Maximum und den Bildschirm anlassen, Dateien in „Download“ speichern, Meldungen über einen eigenen Hintergrunddienst abholen. Nach einer ReGo-Änderung am Aussehen braucht es eine neue APK (Workflow unten), Server-Änderungen kommen weiter per Add-on-Update. Die frühere Browser-Variante (PWA) gibt es seit 0.6.0 nicht mehr.
 
-**Meldungen:** Mit Firebase kommen Meldungen sofort: Der Server schickt nur einen leeren Anstoß, den Text holt die App selbst ab. Ohne Firebase fragt die App etwa alle 15 Minuten beim Server nach (öfter erlaubt Android für Hintergrundarbeit nicht).
+## In der App
+- **Hochformat** und **feste Textgröße**: Die App folgt der Android-Schriftgröße nicht, weil die Oberfläche dafür gebaut ist und sich sonst Teile verschieben.
+- **Kurzbefehle:** Lange auf das App-Symbol drücken zeigt „Ticket anzeigen“, „Meldungen“ und „Neue Strecke“. Ein Kurzbefehl lässt sich auf den Startbildschirm ziehen.
+- **Themed Icon:** Ab Android 13 passt sich das Symbol der Farbe des Hintergrundbilds an, wenn du in den Android-Einstellungen die Option für designte Symbole eingeschaltet hast.
+- **Benachrichtigungskanäle:** In den Android-Einstellungen (Apps → ReGo → Benachrichtigungen) gibt es vier Kanäle: „Verspätungen“, „Ausfälle und Ersatzverkehr“, „Baustellen“ und „Gleiswechsel“ (leise). Jeder lässt sich einzeln lauter, leiser oder ausschalten. Beim Update auf 0.6.0 wird der frühere Sammelkanal „Meldungen“ durch diese vier ersetzt.
+- **Testmeldung:** Unter „Strecken“ schickt „Testmeldung“ eine Meldung an das Handy. Sie kommt sofort (mit Firebase) oder bei der nächsten Abfrage (ohne Firebase, bis ca. 15 Minuten); die App sagt dazu, was gilt.
+- **Einladungscode:** Hat der Server einen eingestellt (Add-on-Option `invite_code`), fragt die App bei einem neuen Gerät einmal danach. Wer schon angemeldet ist, merkt davon nichts.
+
+**Meldungen:** Mit Firebase kommen Meldungen sofort: Der Server schickt nur einen leeren Anstoß, den Text holt die App selbst ab. Ohne Firebase fragt die App etwa alle 15 Minuten beim Server nach (öfter erlaubt Android für Hintergrundarbeit nicht). Ist eine Verspätung, ein Ersatzverkehr oder eine Baustelle vorbei, schreibt die App die Meldung in der Leiste kurz auf „behoben“ um und räumt sie danach weg.
 
 **Sofort-Push einrichten (einmalig)**
 1. Firebase-Projekt anlegen, darin eine Android-App mit dem Paketnamen `io.github.k0rbi02.rego` registrieren und `google-services.json` laden. Die Datei als Base64 (`base64 -w0 google-services.json`) in das GitHub-Geheimnis `GOOGLE_SERVICES_JSON_B64` legen.
 2. In Firebase → Projekteinstellungen → Dienstkonten → „Neuen privaten Schlüssel generieren“. Den ganzen Inhalt der JSON-Datei in die Add-on-Option `fcm_key` einfügen und das Add-on neu starten.
-3. APK neu bauen (siehe unten) und installieren. In der App unter Strecken „Push-Meldungen“ einschalten.
+3. APK neu bauen (siehe unten) und installieren. In der App unter Strecken „Push-Meldungen“ einschalten und „Testmeldung“ senden.
 
-**Tickets:** Die App hat einen eigenen Speicher. Tickets aus Browser/PWA vorher mit „Tickets sichern“ sichern und in der App mit „wiederherstellen“ einspielen.
+**Tickets:** Die App hat einen eigenen Speicher. Tickets aus einer älteren Browser-Installation vorher mit „Tickets sichern“ sichern und in der App mit „wiederherstellen“ einspielen.
 
-**Einmal einrichten (GitHub, Repo K0RBI02/ReGo → Settings → Secrets and variables → Actions)**
+## Einmal einrichten (GitHub, Repo K0RBI02/ReGo → Settings → Secrets and variables → Actions)
 1. Secret `ANDROID_KEYSTORE_B64`: Inhalt der Datei `rego-keystore-b64.txt` (Signierschlüssel).
 2. Secret `ANDROID_KEYSTORE_PASSWORD`: das zugehörige Passwort.
 3. Optional Variable `REGO_HOST`, falls sich deine Adresse ändert (ohne `https://`). Standard: `rego.tail2a5f03.ts.net`.
 
-**APK bauen:** Repo → Actions → „Android-App (APK) bauen“ → Run workflow. Nach etwa 5 Minuten liegt die Datei unter Releases (`app-v<Version>`).
+## APK bauen
+Der Bau startet von allein, wenn sich etwas unter `android/` oder `public/` ändert und gepusht wird. Die Versionsnummer der App kommt aus `version` in `rego/config.yaml`. Von Hand: Repo → Actions → „Android-App (APK) bauen“ → Run workflow. Nach etwa 5 Minuten liegt die Datei unter Releases (`app-v<Version>`).
 
-**Installieren:** Auf dem Handy im Browser die Release-Seite öffnen, `rego-<Version>.apk` laden und antippen (einmal „Aus dieser Quelle installieren“ erlauben). Eine vorherige TWA-Version (0.2.1) vorher deinstallieren.
+## Installieren
+Auf dem Handy im Browser die Release-Seite öffnen, `rego-<Version>.apk` laden und antippen (einmal „Aus dieser Quelle installieren“ erlauben). Eine neue Version einfach über die alte installieren: Tickets und Strecken bleiben, solange der Signierschlüssel derselbe ist. Eine vorherige TWA-Version (0.2.1) vorher deinstallieren.
 
-**Handy-Wechsel:** Die App schließt sich aus der Android-Sicherung aus. Auf dem alten Handy „Tickets sichern“ und unter Strecken einen Code für „Neues Handy“ erzeugen, auf dem neuen die Datei einspielen und den Code eingeben.
-
-**Wichtig:** Der Signierschlüssel darf nie verloren gehen und nie ins Repo. Mit einem anderen Schlüssel lässt sich eine neue APK nicht über die alte installieren, kann nicht darüber installiert werden.
-
-## Variante B: PWA über Chrome
-ReGo ist eine PWA: Chrome macht daraus eine App mit eigenem Icon, ohne Browserleiste und ohne Play Store.
-Dafür braucht die Seite **https**. Der einfachste und private Weg ist Tailscale (nur deine eigenen Geräte kommen drauf).
-
-## 1. Einmalig: Tailscale
-1. Auf Lab02 und auf dem Handy Tailscale installieren, beide mit demselben Konto anmelden.
-2. Im Tailscale-Adminbereich (login.tailscale.com → DNS) **MagicDNS** und **HTTPS Certificates** aktivieren.
-
-## 2. ReGo auf Lab02 starten
-    cd ~/rego && npm install
-    npm start                       # oder als Dienst, siehe deploy/rego.service
-    tailscale serve --bg 8080       # macht daraus https://<lab02>.<dein-tailnet>.ts.net
-
-`tailscale serve status` zeigt die Adresse.
-
-## 3. Aufs Handy
-1. Tailscale auf dem Handy öffnen (muss verbunden sein).
-2. In Chrome die https-Adresse öffnen.
-3. Menü ⋮ → **App installieren** (oder „Zum Startbildschirm hinzufügen“).
-4. ReGo vom Startbildschirm öffnen, Strecke anlegen. Beim ersten Antippen von „Push ab … Min.“ fragt Android nach der Benachrichtigungs-Erlaubnis.
+## Handy-Wechsel
+Die App schließt sich aus der Android-Sicherung aus. Auf dem alten Handy „Tickets sichern“ und unter Strecken einen Code für „Neues Handy“ erzeugen, auf dem neuen die Datei einspielen und den Code eingeben. Hat der Server einen Einladungscode, braucht das neue Handy zuerst diesen.
 
 ## Hinweise
-- Kamera-Scan und Push funktionieren nur über https.
-- Lab02 muss laufen und das Handy muss Tailscale an haben, sonst zeigt ReGo den letzten Stand mit „Offline-Modus“.
-- Akku-Optimierung für Chrome ausnehmen, wenn Push verspätet ankommt.
-- Zugriff von überall: Tailscale funktioniert auch im mobilen Netz.
+- Der Server muss laufen. Ist er nicht erreichbar, zeigt ReGo den letzten Stand mit „Offline-Modus“. Läuft ReGo nur über Tailscale „Serve“, muss das Handy Tailscale an haben (im Mobilnetz geht das auch); bei „Funnel“ nicht.
+- Kommen Meldungen verspätet, die Akku-Optimierung für ReGo ausnehmen.
+- Der Signierschlüssel darf nie verloren gehen und nie ins Repo. Mit einem anderen Schlüssel lässt sich eine neue APK nicht über die alte installieren.

@@ -9,7 +9,6 @@ import { ProfileStore, ValidationError, addTours, replaceProfile, patchTour } fr
 import { createNotifier, textFor } from '../server/notifier.mjs';
 import { createService } from '../server/service.mjs';
 import { buildTour } from '../server/domain/state.mjs';
-import { loadVapid } from '../server/push.mjs';
 import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 
@@ -29,7 +28,7 @@ test('JSON „null“, Zahl oder Liste statt Objekt: 400 statt Absturz (500)', a
   const { server, base } = await appOn(await tmp());
   const h = hdr('nulltestgeraet123456');
   try {
-    for (const [method, path] of [['PUT', '/api/settings'], ['POST', '/api/transfer/claim'], ['PATCH', '/api/tours/tabc'], ['POST', '/api/tours'], ['PUT', '/api/push'], ['PUT', '/api/profile']]) {
+    for (const [method, path] of [['PUT', '/api/settings'], ['POST', '/api/transfer/claim'], ['PATCH', '/api/tours/tabc'], ['POST', '/api/tours'], ['PUT', '/api/profile']]) {
       for (const body of ['null', '5', '[]', '"x"']) {
         const r = await fetch(base + path, { method, headers: h, body });
         assert.equal(r.status, 400, `${method} ${path} ${body} -> ${r.status}`);
@@ -215,13 +214,15 @@ test('Strecke ohne Abfahrt: eigene Ansicht „keine“, nie „pünktlich“ (ke
   assert.ok(THEME.kinds.none.bg && THEME.kinds.none.icon.length === 2);
 });
 
-test('API (Beispieldaten): Strecke ohne Direktverbindung bleibt in der Liste und hat eine Ansicht', async () => {
-  const { server, base } = await appOn(await tmp());
+test('API (Beispieldaten): bestehende Strecke ohne Direktverbindung bleibt in der Liste und hat eine Ansicht', async () => {
+  const { server, store, base } = await appOn(await tmp());
   const h = hdr('leergeraet1234567890');
   try {
     const find = async (q) => (await (await fetch(`${base}/api/stations?q=${encodeURIComponent(q)}`, { headers: h })).json()).stations[0];
     const [fs, sa, mu] = [await find('Freising'), await find('Salzburg'), await find('München Hbf')];
-    await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: fs, to: sa }) });
+    // Neu anlegen geht seit 0.6.0 nicht mehr (422). Strecken aus älteren Versionen oder nach einer Fahrplanänderung gibt es aber weiter.
+    assert.equal((await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: fs, to: sa }) })).status, 422);
+    await store.update('leergeraet1234567890', (p) => { addTours(p, { from: fs, to: sa }); });
     await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: fs, to: mu }) });
     const s = await (await fetch(`${base}/api/state`, { headers: h })).json();
     assert.equal(s.tours.length, 2);
@@ -235,12 +236,12 @@ test('API (Beispieldaten): Strecke ohne Direktverbindung bleibt in der Liste und
 // ---------- Push ----------
 
 const incident = (o = {}) => ({ id: 'a1', tourId: 'T', kind: 'delay', delayMin: 7, title: 'RE 5 München Hbf → Salzburg Hbf', lineName: 'RE 5', summary: 'x', validity: { activeNow: true }, ...o });
-async function notifierFor(state, { push = { endpoint: 'https://fcm.googleapis.com/fcm/send/x' }, lastSeen, t = Date.parse('2026-10-12T12:00:00+02:00'), tours } = {}) {
+async function notifierFor(state, { push = { native: true, fcm: 'fcm-token-0123456789abcdef' }, lastSeen, t = Date.parse('2026-10-12T12:00:00+02:00'), tours } = {}) {
   const dir = await tmp('rego-pn-'); const clock = { t }; const now = () => clock.t;
   const store = new ProfileStore(dir, now); const dev = 'pushgeraet123456789';
   await store.update(dev, (p) => { p.tours = tours || [{ id: 'T', name: 'x', from: MH, to: FS, active: true, schedule: { days: ['Mo'], departAfter: '07:00' } }, { id: 'U', name: 'y', from: FS, to: MH, active: true, schedule: { days: ['Mo'], departAfter: '07:00' } }]; p.push = push; if (lastSeen !== undefined) p.lastSeen = lastSeen; });
   const sent = [];
-  const n = createNotifier({ config: { ...config, dataDir: dir }, store, service: { getState: async () => state.current() }, vapid: await loadVapid(dir), now, send: async () => { sent.push(1); return 'ok'; } });
+  const n = createNotifier({ config: { ...config, dataDir: dir }, store, service: { getState: async () => state.current() }, now, fcm: { enabled: true, send: async () => { sent.push(1); return 'ok'; } } });
   return { n, store, dev, clock, sent };
 }
 
@@ -261,7 +262,7 @@ test('Push: Strecke ohne frische Daten blockiert die anderen nicht und löscht n
   assert.ok(!out.some((o) => o.tag === 'inc|c3'));
 });
 
-test('Push: App-Geräte ohne Lebenszeichen werden nicht mehr geprüft, Web-Push-Geräte schon', async () => {
+test('Push: App-Geräte ohne Lebenszeichen werden nicht mehr geprüft, alte Web-Push-Abos übersprungen', async () => {
   const st = { current: () => ({ connection: { status: 'ok' }, incidents: [incident()], tours: [{ id: 'T' }] }) };
   const t = Date.parse('2026-10-12T12:00:00+02:00');
   const idle = t - 30 * 864e5;
@@ -269,8 +270,9 @@ test('Push: App-Geräte ohne Lebenszeichen werden nicht mehr geprüft, Web-Push-
   assert.equal(await a.n.checkDevice(a.dev), 0);                         // App seit 30 Tagen still: übersprungen
   await a.store.update(a.dev, (p) => { p.lastSeen = t - 3600e3; });
   assert.equal(await a.n.checkDevice(a.dev), 1);                         // meldet sich wieder: geprüft
-  const w = await notifierFor(st, { push: { endpoint: 'https://fcm.googleapis.com/fcm/send/w' }, lastSeen: idle, t });
-  assert.equal(await w.n.checkDevice(w.dev), 1);                         // „einrichten und vergessen“ bleibt erhalten
+  // Web-Push gibt es nicht mehr: ein Profil aus alter Zeit wird nicht geprüft (sonst fragte der Server ewig für ein totes Abo bei den Quellen nach)
+  const w = await notifierFor(st, { push: { endpoint: 'https://fcm.googleapis.com/fcm/send/w' }, t });
+  assert.equal(await w.n.checkDevice(w.dev), 0);
 });
 
 test('Push: lange Baustelle wird nicht alle 3 Tage neu gemeldet', async () => {

@@ -7,7 +7,7 @@ export HOST=0.0.0.0 PORT=8080 REGO_DATA=/data REGO_VERBOSE=1
 export NODE_OPTIONS="--dns-result-order=ipv4first $NODE_OPTIONS"      # bahn.de hängt hier per IPv6 (Timeout), IPv4 funktioniert
 P=$(get provider); [ -n "$P" ] && export REGO_PROVIDER="$P"
 F=$(get fcm_key); [ -n "$F" ] && export REGO_FCM_KEY="$F"
-C=$(get contact); [ -n "$C" ] && export REGO_VAPID_SUBJECT="mailto:$C"
+I=$(get invite_code); [ -n "$I" ] && export REGO_INVITE="$I"          # gesetzt: neue Geräte brauchen diesen Einladungscode
 
 # Netz-Selbsttest: erreicht der Container die Bahn per IPv4 und per IPv6?
 cat > /tmp/nettest.mjs <<'JS'

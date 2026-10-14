@@ -19,6 +19,8 @@ const SEEN_EVERY = 2 * 3600e3;          // „zuletzt gesehen“ höchstens alle
 const isStop = (s) => !!s && typeof s.id === 'string' && /^[^\u0000-\u001f]{1,64}$/.test(s.id) && typeof s.name === 'string' && s.name.trim().length > 0 && s.name.length <= 120;
 const validCoord = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 const pt = (s) => ({ id: s.id, name: s.name.trim(), ...(validCoord(s.lat, s.lon) ? { lat: s.lat, lon: s.lon } : {}) });
+/** Haltestelle aus einer Anfrage in die gespeicherte Form (Kennung, Name, Koordinaten falls sinnvoll) */
+export const toStop = pt;
 
 export class ProfileStore {
   constructor(dir, now = () => Date.now(), { maxProfiles = 2000 } = {}) {
@@ -56,12 +58,20 @@ export class ProfileStore {
     };
   }
 
-  /** Obergrenze für die Zahl der Profile (Schutz davor, dass jemand mit erfundenen Geräte-IDs den Speicher füllt). */
-  async admit(device) {
+  async loadKnown() {
     if (!this.known) {
       try { this.known = new Set((await readdir(this.dir)).filter((x) => x.endsWith('.json')).map((x) => x.slice(0, -5))); }
       catch { this.known = new Set(); }
     }
+    return this.known;
+  }
+
+  /** Gibt es schon ein Profil für dieses Gerät? (Neue Geräte brauchen ggf. den Einladungscode.) */
+  async has(device) { return (await this.loadKnown()).has(device); }
+
+  /** Obergrenze für die Zahl der Profile (Schutz davor, dass jemand mit erfundenen Geräte-IDs den Speicher füllt). */
+  async admit(device) {
+    await this.loadKnown();
     if (this.known.has(device)) return;
     if (this.known.size >= this.maxProfiles) throw new ValidationError('Der Server ist gerade voll. Bitte später noch einmal versuchen.', 503);
     this.known.add(device);

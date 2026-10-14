@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Reihenfolge = Rang: Das Ticket steht ganz oben -->
+    <shortcut
+        android:shortcutId="ticket"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_ticket"
+        android:shortcutShortLabel="@string/sc_ticket_short"
+        android:shortcutLongLabel="@string/sc_ticket_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.k0rbi02.rego"
+            android:targetClass="io.github.k0rbi02.rego.MainActivity">
+            <extra android:name="path" android:value="/Ticket" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="meldungen"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_alert"
+        android:shortcutShortLabel="@string/sc_alerts_short"
+        android:shortcutLongLabel="@string/sc_alerts_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.k0rbi02.rego"
+            android:targetClass="io.github.k0rbi02.rego.MainActivity">
+            <extra android:name="path" android:value="/Meldungen" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="neue_strecke"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_add"
+        android:shortcutShortLabel="@string/sc_add_short"
+        android:shortcutLongLabel="@string/sc_add_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.k0rbi02.rego"
+            android:targetClass="io.github.k0rbi02.rego.MainActivity">
+            <extra android:name="path" android:value="/Strecken#neu" />
+        </intent>
+    </shortcut>
+</shortcuts>

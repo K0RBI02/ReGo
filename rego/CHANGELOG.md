@@ -1,5 +1,43 @@
 # Änderungen
 
+## 0.6.0 – Ausfälle, Gleiswechsel, Einladungscode, nur noch die App
+
+**Neue Meldungen**
+- **Ausfall:** Fällt eine Fahrt auf deiner Strecke in den nächsten 3 Stunden aus, gibt es jetzt eine eigene Meldung „Ausfall“. Vorher wurde das verschwiegen, die Strecke zeigte einfach den nächsten Zug. Mehrere ausfallende Fahrten derselben Linie stehen in einer Meldung.
+- **Gleiswechsel:** Fährt ein Zug in den nächsten 45 Minuten von einem anderen Gleis ab, kommt eine eigene, leise Meldung („Gleis 3 statt Gleis 2“). Auch wenn er pünktlich ist.
+- **Testmeldung:** Unter „Strecken“ schickt ein Knopf eine Testmeldung an dein Handy, damit du siehst, ob Push ankommt. Kommt sie sofort (Firebase) oder erst bei der nächsten Abfrage (bis ca. 15 Minuten), sagt die App es dazu.
+- **Benachrichtigungskanäle (Android):** „Verspätungen“, „Ausfälle und Ersatzverkehr“, „Baustellen“ und „Gleiswechsel“ sind eigene Kanäle. In den Android-Einstellungen von ReGo lässt sich jeder einzeln lauter, leiser oder ausschalten. Der bisherige Sammelkanal „Meldungen“ wird beim ersten Abholen entfernt; eigene Einstellungen dazu gehen dabei verloren.
+- **„Behoben“:** Ist eine Verspätung, ein Ersatzverkehr oder eine Baustelle vorbei und steht die Meldung noch in der Leiste, wird sie kurz auf „… behoben“ umgeschrieben (leise) und verschwindet nach ein paar Sekunden. Ausfälle und Gleiswechsel verschwinden einfach. Hast du die Meldung schon weggewischt, passiert nichts.
+
+**Strecken**
+- **Strecke ohne Direktverbindung:** Sie lässt sich nicht mehr anlegen. Das Formular sagt „Zwischen X und Y habe ich keine Direktverbindung gefunden. ReGo zeigt nur Fahrten ohne Umstieg.“ Antwortet die Fahrplanquelle gerade nicht, wird die Strecke trotzdem angelegt (ReGo rät nicht). Gleiches gilt beim Hin- und Rückweg: beide Richtungen werden geprüft.
+- **Versionszeile** unter „Strecken“: App- und Serverversion, dazu Links auf den Datenschutz-Text und das Projekt auf GitHub.
+- Bestehende Strecken ohne Direktverbindung bleiben, wie sie sind (sie zeigen weiter „Keine“) und lassen sich löschen.
+
+**Betrieb und Sicherheit**
+- **Begrenzung:** Der Server begrenzt Anfragen je Adresse (200 auf einmal, danach 3 pro Sekunde) und je Gerät (60, danach 1 pro Sekunde), die Haltestellensuche enger (20, danach 1 alle 2 Sekunden) und neue Geräte je Adresse auf 10 pro Stunde. Darüber antwortet er mit „429“ und der Wartezeit (`Retry-After`). `/api/health` für den Watchdog bleibt frei, im Protokoll steht pro Minute höchstens eine Zeile dazu. Hinter Tailscale zählt die echte Absenderadresse aus `X-Forwarded-For`.
+- **Einladungscode (optional):** Neue Add-on-Option `invite_code`. Ist sie gesetzt, brauchen neue Geräte den Code; die App zeigt dann eine Eingabemaske. Geräte, die der Server schon kennt, laufen ohne weiteres weiter. Falsche Codes werden gebremst (10 Versuche, danach einer pro Minute). Leer lassen = offen wie bisher.
+- **Hinweis zu den Fahrplanquellen:** README und Datenschutz sagen jetzt offen, dass ReGo inoffizielle bzw. öffentliche Schnittstellen nutzt (MVV, MoBY, ÖBB, transport.rest), ohne Gewähr, und dass es für einen größeren Betrieb die offiziellen Schnittstellen der Verkehrsunternehmen bräuchte.
+
+**Nur noch die App**
+- Die Browser-Version wird nicht mehr gepflegt. Entfernt: Service Worker, Web-Manifest, Browser-Push (und damit die VAPID-Schlüssel samt `vapid.json`), die PWA-Icons. Der Server liefert die Oberfläche weiter aus (zum Ausprobieren), unterstützt wird die Android-App. Push läuft nur noch nativ: Firebase-Anstoß oder Abfrage alle ~15 Minuten.
+- `PUT /api/push` und `GET /api/push/key` gibt es nicht mehr. Alte Browser-Abos in bestehenden Profilen werden übergangen (sie liefern nichts mehr aus).
+- Die Add-on-Option `contact` hat keine Funktion mehr und bleibt nur, damit bestehende Einstellungen gültig bleiben.
+
+**Android-App**
+- Nur noch Hochformat.
+- Feste Textgröße: Die App folgt der Android-Schriftgröße nicht mehr, weil sich dabei Teile der Oberfläche verschoben.
+- Kurzbefehle am App-Symbol (lange drücken): „Ticket anzeigen“, „Meldungen“, „Neue Strecke“.
+- Themed Icon für Android 13 und neuer.
+
+**Aussehen**
+- Weitere Strecken (nicht die nächste) zeigen ihren Zustand als weiße Karte mit Symbol statt nur als Text.
+- Linienbeschriftung in der Karte höchstens 12 px.
+- Bei Ersatzverkehr und Baustelle steht das Datum nicht mehr doppelt.
+- Statuskarte: Das Symbol schrumpft bei langem Text nicht mehr. Meldungskarte neu angeordnet.
+- Sehr schmale Handys (320 px): Abfahrtszeile enger, „pünktlich“ berührt die Gleisangabe nicht mehr, Code-Eingabe bricht um.
+- Schlägt das Anlegen der ersten Strecke fehl, steht der Grund auf dem Startbildschirm, nicht nur kurz als Hinweis.
+
 ## 0.5.1 – ehrlich bei fehlenden Abfahrten
 - **Strecke ohne Abfahrt:** Gab es für eine Strecke keine Direktverbindung (oder gerade keine Daten), stand auf dem Hauptbildschirm trotzdem „Alles pünktlich“, die Strecke fehlte in der Liste, und die Detailseite sagte „Beendet“. Jetzt steht dort ehrlich „Nächste Abfahrt: Keine“ mit dem Grund (keine Direktverbindung gefunden, Fahrten fallen aus, Quelle antwortet nicht). Die Strecke bleibt in der Liste, die Detailseite zeigt Start und Ziel, und unter „Strecken“ steht ein kurzer Hinweis.
 - Eine ausgeschaltete Strecke zeigt auf der Detailseite „Pausiert“ statt „Beendet“.

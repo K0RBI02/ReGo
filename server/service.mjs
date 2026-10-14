@@ -30,6 +30,18 @@ export function createService({ config, store, now = () => Date.now(), providers
     return value.map((s) => ({ id: s.id, name: s.name, region: regionOf(s) || 'DE', lat: s.lat, lon: s.lon }));
   }
 
+  /** Gibt es zwischen den beiden Haltestellen Fahrten ohne Umstieg? true | false | null (Quelle antwortet nicht: unbekannt). Nutzt denselben Zwischenspeicher wie getState. */
+  async function hasDirect(from, to) {
+    const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
+    const key = `jl:${from.id}:${to.id}`;
+    try {
+      const r = await withDeadline(
+        cache.get(key, config.ttl.journeys, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(now()).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
+        DEADLINE_MS, () => null);
+      return (r.value || []).length > 0;
+    } catch (err) { log('Prüfung beim Anlegen fehlgeschlagen', from.id, to.id, err.message); return null; }
+  }
+
   const linesAt = async (id) => {
     const client = providers.forStop ? providers.forStop({ id }) : (regionOf({ id }) === 'AT' ? providers.oebb : providers.db);
     const { value } = await cache.get(`stop:${id}`, config.ttl.stop, () => client.stop(id));
@@ -89,5 +101,5 @@ export function createService({ config, store, now = () => Date.now(), providers
     } catch { return {}; }
   }
 
-  return { searchStations, getState, providers, cache };
+  return { searchStations, getState, hasDirect, providers, cache };
 }

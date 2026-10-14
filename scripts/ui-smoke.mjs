@@ -6,9 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
+import { addTours } from '../server/store/profile.mjs';
+import { buildTour } from '../server/domain/state.mjs';
+import { readFileSync } from 'node:fs';
 
 const pw = await import('playwright').catch(() => import('/opt/npm-tools/node_modules/playwright/index.mjs'));
-const { server } = createApp({ cfg: { ...config, provider: 'mock', dataDir: await mkdtemp(join(tmpdir(), 'rego-ui-')), notifyEverySec: 0 } });
+// Grenzen hoch: der Test lädt viele Dateien in kurzer Zeit von einer Adresse (die Begrenzung selbst prüfen die Server-Tests)
+const { server, store } = createApp({ cfg: { ...config, provider: 'mock', dataDir: await mkdtemp(join(tmpdir(), 'rego-ui-')), notifyEverySec: 0, limits: { ipBurst: 1e6, ipPerSec: 1e6, deviceBurst: 1e6, devicePerSec: 1e6, searchBurst: 1e6, searchPerSec: 1e6, newDevicesPerHour: 1e6 } } });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const DEV = 'uismoketest0123456789abcd';
@@ -24,7 +28,8 @@ await ctx.addInitScript(([d]) => { try { if (!localStorage.getItem('rego.device'
 const page = await ctx.newPage();
 page.setDefaultTimeout(8000);
 let where = '';
-const ignore = () => false;
+let expect422 = false;                       // beim Anlegen ohne Direktverbindung ist die 422-Antwort gewollt
+const ignore = (x) => expect422 && /422|\/api\/tours/.test(x);
 page.on('pageerror', (e) => problems.push(`${where}: JavaScript-Fehler: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' && !ignore(m.text())) problems.push(`${where}: Konsole: ${m.text().slice(0, 200)}`); });
 page.on('requestfailed', (r) => { if (!ignore(r.url())) problems.push(`${where}: Anfrage fehlgeschlagen: ${r.url()}`); });
@@ -185,12 +190,13 @@ await check('Mehrere Meldungen einer Strecke', async () => {
 });
 
 // Strecke ohne Direktverbindung (Beispieldaten: Freising → Salzburg gibt es nicht): ehrliche Anzeige statt „Alles pünktlich“, die Strecke bleibt sichtbar
-await check('Strecke ohne Direktverbindung', async () => {
+await check('Strecke ohne Direktverbindung (bestehend)', async () => {
   const sa = (await j('/api/stations?q=Salzburg')).stations[0];
   const mk = async (dev) => {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await c.addInitScript(([d]) => { try { if (!localStorage.getItem('rego.device')) { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); } } catch (e) {} }, [dev]);
-    const post = (to) => fetch(base + '/api/tours', { method: 'POST', headers: { 'x-device': dev, 'content-type': 'application/json' }, body: JSON.stringify({ from: st, to }) });
+    // Neu anlegen lehnt der Server seit 0.6.0 ab (422); Strecken aus älteren Versionen oder nach einer Fahrplanänderung gibt es aber weiter
+    const post = (to) => store.update(dev, (p) => { addTours(p, { from: st, to }); });
     return { c, post, pg: await c.newPage() };
   };
   const text = (pg) => pg.evaluate(() => document.querySelector('#screen').innerText);
@@ -233,6 +239,142 @@ await check('Schrift', async () => {
   if (faces.length !== 2 || faces.some((f) => !f.endsWith(':loaded'))) problems.push(`Schrift: Instrument Sans nicht geladen (${faces.join(', ') || 'keine Schnitte'})`);
 });
 
+
+// ---------- Neu in 0.6.0 ----------
+const NEW_CTX = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+const initFor = (extra = '') => ([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} };
+
+// Neue Strecke ohne Direktverbindung (T2): wird nicht angelegt, der Grund steht im Formular, Ändern der Haltestelle blendet ihn aus
+await check('Anlegen ohne Direktverbindung', async () => {
+  expect422 = true;
+  try {
+  const before = (await j('/api/profile')).tours.length;
+  await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+  await suggest(0, 'Freis'); await suggest(1, 'Salzb');
+  await page.getByRole('button', { name: 'Speichern' }).click(); await page.waitForTimeout(1200);
+  const alert = page.getByRole('alert').filter({ hasText: 'keine Direktverbindung gefunden' });
+  if (!(await alert.count())) problems.push('Anlegen ohne Direktverbindung: keine Erklärung im Formular');
+  if (!(await page.getByRole('button', { name: 'Abbrechen' }).count())) problems.push('Anlegen ohne Direktverbindung: Formular wurde geschlossen');
+  if ((await j('/api/profile')).tours.length !== before) problems.push('Anlegen ohne Direktverbindung: Strecke wurde trotzdem angelegt');
+  const to = page.locator('input[type=text]').nth(1); await to.fill('');
+  await to.pressSequentially('Münch', { delay: 40 }); await page.waitForTimeout(900);
+  if (await alert.count()) problems.push('Anlegen ohne Direktverbindung: Erklärung bleibt nach Ändern der Haltestelle stehen');
+  if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Anlegen ohne Direktverbindung: Seite scrollt seitlich');
+  } finally { expect422 = false; }
+});
+
+// Testmeldung und Versionszeile unter „Strecken“. Die Android-Brücke wird vorgetäuscht, damit Push als „an“ gilt.
+await check('Testmeldung und Versionszeile', async () => {
+  const ver = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  await j('/api/push/native', 'PUT', {});
+  const c = await browser.newContext(NEW_CTX);
+  await c.addInitScript(([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); localStorage.setItem('rego.push', 'true'); } catch (e) {} window.RegoNative = { appVersion: () => '9.9.9', enablePush() {}, disablePush() {}, setBars() {}, setBrightness() {}, keepScreenOn() {}, saveFile() {} }; }, [DEV]);
+  const p = await c.newPage(); p.setDefaultTimeout(8000);
+  try {
+    await p.goto(base + '/Strecken'); await p.waitForTimeout(1500);
+    const text = await p.evaluate(() => document.querySelector('#screen').innerText);
+    if (!text.includes(`App 9.9.9 · Server ${ver}`)) problems.push(`Versionszeile: erwartet „App 9.9.9 · Server ${ver}“, gefunden: ${(text.match(/(App [^\n]*)?Server [^\n]*/) || ['nichts'])[0]}`);
+    for (const [href, label] of [['https://github.com/K0RBI02/ReGo/blob/main/DATENSCHUTZ.md', 'Datenschutz'], ['https://github.com/K0RBI02/ReGo', 'ReGo auf GitHub']]) {
+      const a = p.locator(`a[href="${href}"]`);
+      if (!(await a.count()) || (await a.getAttribute('target')) !== '_blank' || !(await a.innerText()).includes(label)) problems.push(`Versionszeile: Link „${label}“ fehlt oder öffnet nicht in neuem Fenster`);
+    }
+    if (!/Prüft, ob Meldungen bei dir ankommen/.test(text)) problems.push('Testmeldung: Hinweistext bei eingeschaltetem Push fehlt');
+    await p.getByRole('button', { name: 'Senden' }).click(); await p.waitForTimeout(1000);
+    if (!(await p.getByText('Testmeldung angefordert').count())) problems.push('Testmeldung: keine Rückmeldung nach dem Tippen');
+    const got = (await j('/api/notifications')).notifications;
+    if (!got.some((n) => n.kind === 'test' && n.title === 'ReGo Testmeldung')) problems.push('Testmeldung: Server hat keine Testmeldung bereitgelegt');
+    // Push aus (ohne App-Brücke): Knopf ausgegraut, Hinweis sagt was zu tun ist
+    const q = await browser.newContext(NEW_CTX); await q.addInitScript(initFor(), [DEV]);
+    const pq = await q.newPage(); await pq.goto(base + '/Strecken'); await pq.waitForTimeout(1200);
+    const off = await pq.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Senden'); return b ? b.getAttribute('aria-disabled') : 'fehlt'; });
+    if (off !== 'true') problems.push(`Testmeldung: Knopf ist ohne Push nicht gesperrt (aria-disabled=${off})`);
+    if (!(await pq.getByText('Schalte zuerst Push-Meldungen ein').count())) problems.push('Testmeldung: Hinweis „Schalte zuerst Push-Meldungen ein“ fehlt');
+    await q.close();
+  } finally { await c.close(); }
+});
+
+// Einladungscode: Maske über der App, falscher Code wird abgelehnt, richtiger öffnet; danach läuft alles
+await check('Einladungscode', async () => {
+  const lim = { ipBurst: 1e6, ipPerSec: 1e6, deviceBurst: 1e6, devicePerSec: 1e6, searchBurst: 1e6, searchPerSec: 1e6, newDevicesPerHour: 1e6 };
+  const { server: s2 } = createApp({ cfg: { ...config, provider: 'mock', dataDir: await mkdtemp(join(tmpdir(), 'rego-ui2-')), notifyEverySec: 0, inviteCode: 'Ostern26', limits: lim } });
+  await new Promise((r) => s2.listen(0, '127.0.0.1', r));
+  const b2 = `http://127.0.0.1:${s2.address().port}`;
+  const c = await browser.newContext(NEW_CTX);
+  await c.addInitScript(() => { try { localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} });
+  const p = await c.newPage(); p.setDefaultTimeout(8000);
+  try {
+    await p.goto(b2 + '/'); await p.waitForTimeout(1800);
+    const gate = p.locator('.rg-gate');
+    if (!(await gate.count())) { problems.push('Einladungscode: keine Maske bei neuem Gerät'); return; }
+    await gate.locator('[data-go]').click(); await p.waitForTimeout(300);
+    if (!/Bitte den Code eingeben/.test(await gate.innerText())) problems.push('Einladungscode: leere Eingabe wird nicht beanstandet');
+    await gate.locator('[data-code]').fill('falsch'); await gate.locator('[data-go]').click(); await p.waitForTimeout(900);
+    if (!/stimmt nicht/.test(await gate.innerText())) problems.push('Einladungscode: falscher Code wird nicht abgelehnt');
+    await gate.locator('[data-code]').fill('  ostern26 '); await gate.locator('[data-code]').press('Enter'); await p.waitForTimeout(1800);
+    if (await p.locator('.rg-gate').count()) problems.push('Einladungscode: Maske bleibt nach richtigem Code');
+    if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Einladungscode: Seite scrollt seitlich');
+    // mit dem Code funktioniert das Anlegen einer Strecke (Header wird mitgeschickt)
+    await p.goto(b2 + '/Strecken'); await p.waitForTimeout(1200);
+    if (await p.locator('.rg-gate').count()) problems.push('Einladungscode: Maske kommt nach dem Neuladen erneut');
+    const r = await p.evaluate(async () => { try { await window.REGO.actions.addTour({ from: 'Freising', to: 'Freising', days: ['Mo'], time: '07:00', trip: 'one', backTime: '16:30' }); return 'ok'; } catch (e) { return e.message; } });
+    if (/Einladungscode/.test(r)) problems.push('Einladungscode: Anlegen verlangt trotz gespeichertem Code erneut einen Code');
+  } finally { await c.close(); s2.close(); }
+});
+
+// Ende des Onboardings mit einer Strecke ohne Direktverbindung: nichts wird angelegt, die Hauptseite sagt warum (statt leer und stumm)
+await check('Onboarding ohne Direktverbindung', async () => {
+  const dev = 'smokeonb0123456789abcdefg';
+  const c = await browser.newContext(NEW_CTX);
+  await c.addInitScript(([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} }, [dev]);
+  const p = await c.newPage(); p.setDefaultTimeout(8000);
+  expect422 = true;
+  try {
+    await p.goto(base + '/Onboarding1'); await p.waitForTimeout(1200);
+    await p.evaluate(async () => { const R = window.REGO; R.searchStations('Freising'); await new Promise((r) => setTimeout(r, 900)); R.searchStations('Salzburg'); await new Promise((r) => setTimeout(r, 900)); window.REGO_pending = { from: 'Freising', to: 'Salzburg Hbf', trip: 'both' }; R.navigate('/Main'); });
+    await p.waitForTimeout(2000);
+    const t = await p.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/keine Direktverbindung gefunden/.test(t)) problems.push('Onboarding ohne Direktverbindung: Hauptseite nennt den Grund nicht');
+    const n = (await (await fetch(base + '/api/profile', { headers: { 'x-device': dev, 'content-type': 'application/json' } })).json()).tours.length;
+    if (n !== 0) problems.push(`Onboarding ohne Direktverbindung: ${n} Strecke(n) angelegt`);
+  } finally { expect422 = false; await c.close(); }
+});
+
+// Gleiswechsel (Beispieldaten: der nächste Zug fährt auf Gleis 3 statt 2) erscheint als eigene Karte unter „Meldungen“
+await check('Gleiswechsel in Meldungen', async () => {
+  await page.goto(base + '/Meldungen'); await page.waitForTimeout(1500);
+  const t = await page.evaluate(() => document.querySelector('#screen').innerText);
+  if (!/Gleiswechsel/.test(t)) problems.push('Meldungen: keine Karte „Gleiswechsel“'); else if (!/Gl\. ?3/.test(t)) problems.push('Meldungen: Karte „Gleiswechsel“ nennt das neue Gleis nicht');
+});
+
+// Ausfall in der Oberfläche: der Zustand wird vom echten Aufbau (buildTour) erzeugt und der Seite untergeschoben
+await check('Ausfall in der Oberfläche', async () => {
+  const prof = (await j('/api/profile')).tours; const tour = prof.find((t) => t.active !== false);
+  const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
+  const mk = (min, o = {}) => ({ line: { name: 'S 1', product: 'suburban' }, direction: tour.to.name, origin: tour.from, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 40), arr: iso(min + 40), arrDelay: 0, plannedPlatform: '2', platform: '2', stopovers: [], remarks: [], ...o });
+  await page.route('**/api/state**', async (route) => {
+    const res = await route.fetch(); const body = await res.json();
+    const r = await buildTour(tour, [mk(18, { cancelled: true }), mk(38, { cancelled: true }), mk(58)].map((l) => ({ legs: [l] })), { now: Date.now(), minDelay: 3, linesAt: async () => [], lines: body.lines });
+    body.tours = body.tours.map((x) => (x.id === tour.id ? { ...x, ...r.tour } : x));
+    body.incidents = [...body.incidents.filter((i) => i.tourId !== tour.id), ...r.incidents];
+    await route.fulfill({ response: res, json: body });
+  });
+  try {
+    await page.goto(base + '/'); await page.waitForTimeout(1800);
+    let t = await page.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/Fällt aus/.test(t)) problems.push('Ausfall: Hauptbildschirm zeigt „Fällt aus“ nicht');
+    if (!/Ausfall · S ?1 ab/.test(t) || !/Nächste Fahrt/.test(t)) problems.push('Ausfall: Hauptbildschirm nennt die ausfallende Fahrt oder die nächste Fahrt nicht');
+    await page.goto(base + '/Meldungen'); await page.waitForTimeout(1400);
+    t = await page.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/Ausfall/.test(t)) problems.push('Ausfall: keine Karte unter „Meldungen“');
+    if (!/Fahrten um \d\d:\d\d und \d\d:\d\d fallen aus/.test(t)) problems.push('Ausfall: Karte unter „Meldungen“ nennt die ausfallenden Fahrten nicht');
+    await page.locator('a[href^="Detail.dc.html#"]').filter({ hasText: 'Ausfall' }).first().click(); await page.waitForTimeout(1400);
+    t = await page.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/entfällt/.test(t) || !/Nächste Fahrt/.test(t)) problems.push('Ausfall: Streckenseite zeigt „entfällt“ oder die nächste Fahrt nicht');
+    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Ausfall: Streckenseite scrollt seitlich');
+  } finally { await page.unroute('**/api/state**'); }
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Bildschirmtest FEHLGESCHLAGEN:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift).');
+console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einladungscode, Gleiswechsel, Ausfall).');

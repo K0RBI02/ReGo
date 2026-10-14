@@ -58,7 +58,7 @@ android {
 
 // Die Oberfläche (../public) wird in die App kopiert; native-config.js trägt die Serveradresse ein.
 tasks.register('copyWebUi', Copy) {
-    from("$rootDir/../public") { exclude 'js/native-config.js', '.well-known/**', 'sw.js', 'status.html' }
+    from("$rootDir/../public") { exclude 'js/native-config.js', '.well-known/**', 'status.html' }
     into("$buildDir/generated/rego-assets")
     doLast {
         def f = new File("$buildDir/generated/rego-assets/js/native-config.js")

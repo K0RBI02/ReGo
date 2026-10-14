@@ -6,11 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F7F7F7">
 <meta name="color-scheme" content="light dark">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="preload" href="/fonts/InstrumentSans-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="preload" href="/fonts/InstrumentSans-Bold.ttf" as="font" type="font/ttf" crossorigin>
 <style>
@@ -38,6 +34,15 @@ html,body{margin:0;height:100%;background:#F7F7F7;-webkit-text-size-adjust:100%}
 .rg-illu{container-type:size}
 @container (max-height:120px){.rg-illu svg{display:none}}
 @supports (text-box:trim-both cap alphabetic){.rg-beta{margin-top:0 !important}}
+/* Einladungscode-Maske (kein Inline-Stil, damit die Dunkelmodus-Regeln der Seiten sie nicht umfärben) */
+.rg-gate{position:absolute;inset:0;z-index:55;background:#D4EDF6;color:#1C1A1A;font-family:'Instrument Sans','Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column;padding:calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));box-sizing:border-box;overflow-y:auto}
+.rg-gate-main{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:16px}
+.rg-gate h1{margin:0;font-size:52px;line-height:.98;font-weight:700;letter-spacing:-0.04em}
+.rg-gate p{margin:0;font-size:19px;font-weight:600;line-height:1.35}
+.rg-gate input{min-height:60px;width:100%;box-sizing:border-box;border:1.5px solid #1C1A1A;border-radius:30px;padding:0 22px;font-size:20px;font-weight:700;font-family:inherit;background:#fff;color:#1C1A1A}
+.rg-gate input:focus{box-shadow:0 0 0 3px #2F6BFF}
+.rg-gate-err{min-height:22px;font-size:16px;font-weight:700;line-height:1.3}
+.rg-gate button{flex:none;min-height:64px;border:0;border-radius:999px;background:#1C1A1A;color:#fff;font-size:19px;font-weight:700;font-family:inherit;cursor:pointer}
 input:focus{outline:none}
 label:focus-within{box-shadow:0 0 0 3px #2F6BFF}
 a{color:inherit;text-decoration:none}

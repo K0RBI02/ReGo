@@ -12,7 +12,8 @@ Wants=network-online.target
 WorkingDirectory=%h/rego
 Environment=HOST=127.0.0.1
 Environment=PORT=8080
-Environment=REGO_VAPID_SUBJECT=mailto:du@example.org
+# Environment=REGO_INVITE=dein-einladungscode        # optional: neue Geräte brauchen diesen Code
+# Environment=REGO_FCM_KEY=...                        # optional: Firebase-Schlüssel für Sofort-Push (oder Datei fcm.json im Datenordner)
 ExecStart=/usr/bin/env node server/index.mjs
 Restart=on-failure
 RestartSec=5

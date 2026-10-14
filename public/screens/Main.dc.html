@@ -26,6 +26,7 @@ a:active,button:active{transform:scale(.97)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @keyframes rg-pulse{0%,100%{opacity:1}50%{opacity:.55}}
 .rg-skel{background:#E9E9E9;animation:rg-pulse 1.4s ease-in-out infinite}
+@media (max-width:340px){.rg-dep{gap:6px !important;grid-template-columns:auto 34px minmax(0,1fr) auto !important}.rg-dep>span:first-child{font-size:23px !important}.rg-dep>span:nth-child(3){font-size:15px !important;gap:4px !important}}
 /*rg-dark-start*/
 @media (prefers-color-scheme: dark){html{color-scheme:dark}
 [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
@@ -140,7 +141,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 
 <sc-if value="{{hasTours}}" hint-placeholder-val="{{ true }}">
 <a class="rg-in" href="{{ticker.href}}" style="{{ticker.style}}">
-<div style="display: flex; flex-direction: column">
+<div style="display: flex; flex-direction: column; flex: 1 1 0; min-width: min-content">
 <span style="font-size: 16px; font-weight: 600">{{ticker.head}}</span>
 <span style="font-size: 58px; line-height: 1.02; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap">{{ticker.big}}</span>
 <span style="font-size: 16px; font-weight: 600">{{ticker.sub}}</span>
@@ -156,7 +157,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <span style="background: #1C1A1A; color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 700; white-space: nowrap">{{near.inText}}</span>
 </a>
 <sc-for list="{{departures}}" as="d" hint-placeholder-count="3">
-<a href="{{d.href}}" style="display: grid; grid-template-columns: minmax(70px, auto) 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
+<a class="rg-dep" href="{{d.href}}" style="display: grid; grid-template-columns: minmax(70px, auto) 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
 <span style="font-size: 27px; font-weight: 700; letter-spacing: -0.03em">{{d.time}}</span>
 <span style="{{d.badgeStyle}}">{{d.line}}</span>
 <span style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 700"><svg style="flex: none" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
@@ -166,8 +167,8 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 </div>
 
 <sc-for list="{{others}}" as="o" hint-placeholder-count="1">
-<a class="rg-in" href="{{o.href}}" style="animation-delay: 0.16s; background: #fff; border-radius: 28px; min-height: 76px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px">
-<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere">{{o.name}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747">{{o.sub}}</span></span>
+<a class="rg-in" href="{{o.href}}" style="{{o.style}}">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere">{{o.name}}</span><span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #4A4747"><sc-if value="{{o.hasIcon}}"><svg width="18" height="18" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{o.i1}}"></path><path d="{{o.i2}}"></path></svg></sc-if><span>{{o.sub}}</span></span></span>
 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M9 5l7 7-7 7"></path></svg>
 </a>
 </sc-for>
@@ -183,6 +184,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 </svg>
 <span style="font-size: 30px; line-height: 1.05; font-weight: 700; letter-spacing: -0.04em">Noch keine Strecke</span>
 <span style="font-size: 17px; font-weight: 500; line-height: 1.35; color: #4A4747">Lege deine Pendelstrecke an, dann siehst du hier sofort, ob sie läuft.</span>
+<sc-if value="{{hasAddError}}" hint-placeholder-val="{{ false }}"><span role="alert" style="background: #F9D6D2; color: #1C1A1A; border-radius: 20px; padding: 12px 16px; font-size: 15px; font-weight: 600; line-height: 1.35">{{addError}}</span></sc-if>
 <a href="Strecken.dc.html" style="margin-top: 6px; min-height: 60px; padding: 0 28px; background: #1C1A1A; color: #fff; border-radius: 999px; display: flex; align-items: center; font-size: 18px; font-weight: 700">Strecke hinzufügen</a>
 </div>
 </sc-if>
@@ -231,7 +233,7 @@ class Component extends DCLogic {
     const near = tours[0];
     const common = { clockNow: T.clock.now };
     if (T.connection.loading) return Object.assign({ hasTours: false, noTours: false, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } }, common);
-    if (!near) return Object.assign({ clockNow: T.clock.now },{ hasTours: false, noTours: true, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } });
+    if (!near) return Object.assign({ clockNow: T.clock.now, hasAddError: !!T.lastAddError, addError: T.lastAddError || '' },{ hasTours: false, noTours: true, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } });
     const activeAll = incidents.filter((i) => i.tourId === near.id && i.validity.activeNow);
     const top = activeFor(near);
     const view = top ? top.view : (near.view || { kind: 'ok', head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
@@ -254,7 +256,13 @@ class Component extends DCLogic {
         platformStyle: 'font-size: 15px; white-space: nowrap; font-weight: ' + (moved ? 700 : 600) + '; color: ' + (moved ? '#1C1A1A' : '#4A4747')
       };
     });
-    const others = tours.slice(1).filter((t) => !t.hideOnDashboard).map((t) => ({ name: t.name, sub: parts(sub(t), inText(t)), href: target(t) }));
+    // Weitere Strecken zeigen ihren Zustand: weiß, mit kleinem Symbol und Art der Meldung (bei Verspätung die Minuten) vor der Zeile
+    const others = tours.slice(1).filter((t) => !t.hideOnDashboard).map((t) => {
+      const w = activeFor(t), k = w ? T.theme.kinds[w.kind] : null;
+      const tag = w ? (w.kind === 'delay' ? '+' + w.delayMin + ' Min.' : k.label) : '';
+      return { name: t.name, sub: parts(tag, sub(t), inText(t)), href: target(t), i1: k ? k.icon[0] : '', i2: k ? k.icon[1] : '', hasIcon: !!k,
+        style: 'animation-delay: 0.16s; background: #fff; border-radius: 28px; min-height: 76px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px' };
+    });
     const bc = T.meldungen().length;      // genau das, was unter Meldungen steht (Hin- und Rückweg derselben Meldung zählen einmal)
     return {
       clockNow: T.clock.now, hasTours: true, noTours: false, ticker, departures, others,

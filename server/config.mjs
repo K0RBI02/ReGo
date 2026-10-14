@@ -29,7 +29,8 @@ export const config = {
   mapBudgetMs: 5000,                        // und so lange das Nachschlagen weiterer Linien für die Karte
   // Ab dieser Verspätung (Minuten) entsteht eine Meldung
   incidentMinDelay: 3,
-  vapidSubject: env.REGO_VAPID_SUBJECT || 'mailto:rego@localhost.invalid',
+  inviteCode: String(env.REGO_INVITE || '').trim(),          // gesetzt: neue Geräte brauchen diesen Einladungscode (bekannte laufen weiter)
+  limits: {},                                                // Grenzen der Anfragen überschreiben (siehe guard.mjs), vor allem für Tests
   profileMaxAgeDays: Number(env.REGO_PROFILE_DAYS || 180),   // Profile von Geräten, die so lange nichts abgefragt haben, werden gelöscht
   notifyEverySec: Number(env.REGO_NOTIFY_SEC || 60),
   notifyIdleDays: Number(env.REGO_NOTIFY_IDLE_DAYS || 21),   // App-Geräte, von denen so lange nichts kam, werden nicht mehr geprüft

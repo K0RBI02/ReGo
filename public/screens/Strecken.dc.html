@@ -173,6 +173,10 @@ Zurück</a>
 <span style="font-size: 16px; font-weight: 600; line-height: 1.3">Nur rund um die Abfahrt<br><span style="font-size: 14px; color: #4A4747">±20 Min. um die Zeit deiner Strecke</span></span>
 <button type="button" role="switch" aria-checked="{{pwOn}}" aria-label="Nur rund um die Abfahrtszeit benachrichtigen" onClick="{{togglePw}}" style="{{pwStyle}}"><span style="{{pwKnob}}"></span></button>
 </div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px">
+<span style="font-size: 16px; font-weight: 600; line-height: 1.3; min-width: 0">Testmeldung<br><span style="font-size: 14px; color: #4A4747">{{testHint}}</span></span>
+<button type="button" onClick="{{sendTest}}" aria-disabled="{{testBlocked}}" style="{{testStyle}}">{{testLabel}}</button>
+</div>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: #F3F3F3">
@@ -183,14 +187,22 @@ Zurück</a>
 <span style="font-size: 13px; font-weight: 600; text-align: center; color: #4A4747">10 Minuten gültig, nur einmal nutzbar</span>
 </sc-if>
 <button type="button" onClick="{{makeCode}}" style="min-height: 52px; border: 0; border-radius: 999px; background: #1C1A1A; color: #fff; font-size: 16px; font-weight: 700">Code erzeugen</button>
-<div style="display: flex; gap: 8px">
-<input type="text" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Code eingeben" value="{{claim}}" onInput="{{setClaim}}" style="flex: 1; min-width: 0; min-height: 52px; border: 1.5px solid #E8E8E8; border-radius: 26px; padding: 0 18px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A">
-<button type="button" onClick="{{doClaim}}" style="flex: none; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">{{claimLabel}}</button>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<input type="text" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Code eingeben" value="{{claim}}" onInput="{{setClaim}}" style="flex: 1 1 150px; min-width: 0; min-height: 52px; border: 1.5px solid #E8E8E8; border-radius: 26px; padding: 0 18px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A">
+<button type="button" onClick="{{doClaim}}" style="flex: 1 1 auto; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">{{claimLabel}}</button>
 </div>
 <sc-if value="{{claimWarn}}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size: 14px; font-weight: 700; line-height: 1.35">{{claimWarnText}}</span></sc-if>
 </div>
 
 <a href="{{contactHref}}" style="display: block; padding: 12px 4px; min-height: 44px; box-sizing: border-box; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</span>.</a>
+
+<div style="padding: 0 4px 4px; display: flex; flex-direction: column; gap: 0; font-size: 13px; font-weight: 600; line-height: 1.4; color: #4A4747">
+<span>{{versionLine}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 0 16px">
+<a href="https://github.com/K0RBI02/ReGo/blob/main/DATENSCHUTZ.md" target="_blank" rel="noopener" style="min-height: 44px; display: inline-flex; align-items: center; color: #1C1A1A; text-decoration: underline">Datenschutz</a>
+<a href="https://github.com/K0RBI02/ReGo" target="_blank" rel="noopener" style="min-height: 44px; display: inline-flex; align-items: center; color: #1C1A1A; text-decoration: underline">ReGo auf GitHub</a>
+</span>
+</div>
 
 </div>
 
@@ -231,6 +243,7 @@ Strecke hinzufügen</button>
 </sc-if>
 </div>
 </sc-if>
+<sc-if value="{{hasSaveErr}}" hint-placeholder-val="{{ false }}"><div role="alert" style="background: #F9D6D2; color: #1C1A1A; border-radius: 20px; padding: 12px 16px; font-size: 15px; font-weight: 600; line-height: 1.35">{{saveErr}}</div></sc-if>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 14px; font-weight: 600; color: #4A4747">Tage</span><span style="display: flex; gap: 4px"><button type="button" onClick="{{daysWork}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Mo–Fr</button><button type="button" onClick="{{daysAll}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Täglich</button></span></div>
 <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px">
@@ -275,12 +288,16 @@ Strecke hinzufügen</button>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
+    // Kurzbefehl „Neue Strecke“ (Android) öffnet die Seite mit dem Zusatz #neu: dann steht das Formular schon offen
+    const wantAdd = /^#neu\b/.test(location.hash);
+    if (wantAdd) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
     this.state = {
       list: this._fromRego(),
-      adding: false, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
+      adding: wantAdd, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
       days: [true, true, true, true, true, false, false],
-      trip: 'both', backTime: '16:30', toast: '', prev: null, focus: ''
+      trip: 'both', backTime: '16:30', toast: '', prev: null, focus: '', err: ''
     };
+    window.REGO.loadInfo().then(() => this.setState({}), () => {});       // Versionszeile
   }
   _fromRego() {
     const R = window.REGO, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -374,11 +391,12 @@ class Component extends DCLogic {
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
       formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
       from: st.from, to: st.to, time: st.time,
-      setFrom: (e) => this.setState({ from: val(e), focus: 'from' }),
-      setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
+      setFrom: (e) => this.setState({ from: val(e), focus: 'from', err: '' }),
+      setTo: (e) => this.setState({ to: val(e), focus: 'to', err: '' }),
+      hasSaveErr: !!st.err, saveErr: st.err,
       setTime: (e) => this.setState({ time: val(e) }),
-      openAdd: () => this.setState({ adding: true, editId: '', focus: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
-      cancelAdd: () => this.setState({ adding: false, editId: '' }),
+      openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
+      cancelAdd: () => this.setState({ adding: false, editId: '', err: '' }),
       saveAdd: () => {
         if (!valid || this._saving) return;                       // schon unterwegs: ein zweiter Tipp darf nichts doppelt anlegen
         const sel = names.filter((n, i) => st.days[i]);
@@ -395,9 +413,28 @@ class Component extends DCLogic {
         const from = st.from.trim(), to = st.to.trim();
         window.REGO.actions.addTour({ from, to, days: sel, time: st.time, trip: st.trip, backTime: st.backTime }).then(
           () => { end(); this.setState({ adding: false, list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
-          (e) => { end(); this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null); }
+          (e) => {
+            end();
+            // Keine Direktverbindung: die Strecke wird nicht angelegt. Der Grund steht im Formular, das dafür nach oben springt.
+            if (e && e.status === 422) { this.setState({ err: e.message }); const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0; return; }
+            this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null);
+          }
         );
-      }
+      },
+      // Testmeldung: nur mit eingeschaltetem Push sinnvoll; ein zweiter Tipp während des Sendens zählt nicht
+      testHint: pushOn ? 'Prüft, ob Meldungen bei dir ankommen' : 'Schalte zuerst Push-Meldungen ein',
+      testBlocked: !pushOn || !!this._testBusy, testLabel: this._testBusy ? 'Sendet …' : 'Senden',
+      testStyle: 'flex: none; min-height: 52px; padding: 0 22px; border-radius: 999px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A; border: 1.5px solid ' + (pushOn ? '#1C1A1A' : '#DCDCDC') + (pushOn ? '' : '; color: #9A9A9A'),
+      sendTest: () => {
+        if (!pushOn) { this.flash('Schalte zuerst die Push-Meldungen ein', null); return; }
+        if (this._testBusy) return;
+        this._testBusy = true; this.setState({});
+        window.REGO.actions.testPush().then(
+          (r) => { this._testBusy = false; this.setState({}); this.flash(r && r.instant ? 'Testmeldung unterwegs' : 'Testmeldung angefordert. Sie kommt, sobald die App nachfragt (bis ca. 15 Min.).', null); },
+          (e) => { this._testBusy = false; this.setState({}); this.flash(e && e.message ? e.message : 'Keine Verbindung', null); }
+        );
+      },
+      versionLine: ((i) => (i.app ? 'App ' + i.app + ' · ' : '') + 'Server ' + (i.server || '…'))(window.REGO.info)
     };
   }
 }

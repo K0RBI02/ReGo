@@ -25,6 +25,7 @@
   // Statusleiste und Hintergrund nehmen die Farbe des Screens an, damit kein Rand sichtbar bleibt
   function syncBars() {
     if (document.querySelector('#app > [role=status][style*="z-index:60"]')) return;
+    if (inviteEl) { paint('#D4EDF6'); return; }
     const root = host.firstElementChild; if (!root) return;
     paint(getComputedStyle(root).backgroundColor);
   }
@@ -63,6 +64,38 @@
     paint('#F9D6D2');
   }
 
+  // Einladungscode: Der Server nimmt neue Geräte nur mit Code an. Bis der Code stimmt, liegt diese Maske über allem.
+  let inviteEl = null, inviteBusy = false;
+  function syncInvite() {
+    const on = !!(R.invite && R.invite.needed);
+    if (!on) { if (inviteEl) { inviteEl.remove(); inviteEl = null; syncBars(); syncOutage(); } return; }
+    if (inviteEl) { const e = inviteEl.querySelector('[data-err]'); if (e && R.invite.wrong && !e.textContent) e.textContent = 'Der Code stimmt nicht.'; return; }
+    inviteEl = document.createElement('div');
+    inviteEl.className = 'rg-gate'; inviteEl.setAttribute('role', 'dialog'); inviteEl.setAttribute('aria-label', 'Einladungscode');
+    inviteEl.innerHTML =
+      '<div class="rg-gate-main"><h1>Einladung</h1>' +
+      '<p>Dieser ReGo-Server ist nicht öffentlich. Gib den Einladungscode ein, den du bekommen hast.</p>' +
+      '<input data-code type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Einladungscode" aria-label="Einladungscode">' +
+      '<div data-err role="alert" class="rg-gate-err"></div></div>' +
+      '<button type="button" data-go>Weiter</button>';
+    document.getElementById('app').appendChild(inviteEl);
+    const input = inviteEl.querySelector('[data-code]'), err = inviteEl.querySelector('[data-err]'), btn = inviteEl.querySelector('[data-go]');
+    if (R.invite.wrong) err.textContent = 'Der Code stimmt nicht.';
+    const submit = async () => {
+      if (inviteBusy) return;
+      const code = input.value.trim();
+      if (!code) { err.textContent = 'Bitte den Code eingeben.'; return; }
+      inviteBusy = true; btn.textContent = 'Einen Moment …'; btn.setAttribute('aria-busy', 'true'); err.textContent = '';
+      try { if (!(await R.setInvite(code))) err.textContent = 'Der Code stimmt nicht.'; }
+      catch (e) { err.textContent = e && e.status === 429 ? e.message : 'Keine Verbindung zum Server. Bitte noch einmal versuchen.'; }
+      finally { inviteBusy = false; if (inviteEl) { btn.textContent = 'Weiter'; btn.removeAttribute('aria-busy'); } }
+    };
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    paint('#D4EDF6');
+  }
+  R.onInvite = syncInvite;
+
   // Beta-Hinweis: bei jedem Start 3 Sekunden, Tippen überspringt
   const BG_SPLASH = '#EAF6CF';
   function splash() {
@@ -93,6 +126,7 @@
       document.title = TITLES[name] || 'ReGo';
       syncBars();
       syncOutage();
+      syncInvite();
       host.scrollTop = 0;
     }).catch((e) => { window.RLOG && RLOG('Seite ' + name + ' nicht geladen: ' + (e && e.message)); });
     return chain;
@@ -104,7 +138,8 @@
     // Ende des Onboardings: gewählte Strecke anlegen
     if (name === 'Main' && window.REGO_pending && !R.tours.length) {
       const p = window.REGO_pending; window.REGO_pending = null; flag('rego.onboarded', true);
-      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: '07:00', trip: p.trip, backTime: '16:30' }); } catch (e) { /* Dashboard zeigt dann den Leerzustand */ }
+      R.lastAddError = '';
+      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: '07:00', trip: p.trip, backTime: '16:30' }); } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* Dashboard zeigt den Leerzustand mit dem Grund */ }
     }
     if (name === 'Main' && R.tours.length) flag('rego.onboarded', true);
     if (push) history.pushState(null, '', u.pathname === '/index.html' ? '/' : u.pathname + u.hash); else if (u.hash !== location.hash) history.replaceState(null, '', u.pathname + u.hash);
@@ -124,6 +159,7 @@
   R.navigate = (url) => go(url, true);
   R.onChange = () => {
     syncOutage();
+    syncInvite();
     if (!current) return;
     current.update();
     if (typeof current.instance.onData === 'function') current.instance.onData();
@@ -161,5 +197,11 @@
   window.addEventListener('online', tick);
   window.addEventListener('offline', () => R.onChange());
 
-  if ('serviceWorker' in navigator && !window.RegoNative) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  // Frühere Browser-Versionen haben einen Service Worker angelegt. Den gibt es nicht mehr: abmelden und seine Zwischenspeicher leeren.
+  if (!window.RegoNative && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((rs) => {
+      rs.forEach((r) => r.unregister());
+      if (rs.length && window.caches) caches.keys().then((ks) => ks.filter((k) => /^rego-/.test(k)).forEach((k) => caches.delete(k)));
+    }).catch(() => {});
+  }
 })();

@@ -35,6 +35,8 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONObject;
+
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
+        s.setTextZoom(100);                 // feste Schriftgröße: die Systemeinstellung „Schriftgröße“ verschiebt sonst das Layout
         web.setBackgroundColor(ContextCompat.getColor(this, R.color.window_bg));
         web.addJavascriptInterface(new Bridge(), "RegoNative");
         web.setWebViewClient(new WebViewClient() {
@@ -147,7 +150,11 @@ public class MainActivity extends AppCompatActivity {
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
         String p = i.getStringExtra("path");
-        if (p != null && p.startsWith("/") && web != null) web.loadUrl("https://" + HOST + p);
+        if (p == null || !p.startsWith("/") || web == null) return;
+        final String url = "https://" + HOST + p;
+        // Läuft die Oberfläche schon, wechselt sie die Seite selbst (so geht auch dieselbe Seite mit anderem Zusatz, z. B. „#neu“ oder eine andere Meldung); sonst wird normal geladen
+        web.evaluateJavascript("(function(){try{if(window.REGO&&window.REGO.navigate){window.REGO.navigate(" + JSONObject.quote(p) + ");return 1}}catch(e){}return 0})()",
+                v -> { if (!"1".equals(v) && web != null) web.loadUrl(url); });
     }
 
     @Override protected void onSaveInstanceState(Bundle o) { super.onSaveInstanceState(o); if (web != null) web.saveState(o); }
@@ -227,6 +234,13 @@ public class MainActivity extends AppCompatActivity {
 
     /** Was die Oberfläche von der App aus aufrufen kann (window.RegoNative). */
     class Bridge {
+        /** Versionsnummer der App für die Zeile unter „Strecken“. */
+        @JavascriptInterface public String appVersion() {
+            try {
+                String v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                return v == null ? "" : v;
+            } catch (Exception e) { return ""; }
+        }
         @JavascriptInterface public void setBrightness(float v) {
             runOnUiThread(() -> {
                 WindowManager.LayoutParams lp = getWindow().getAttributes();

@@ -1,5 +1,5 @@
 name: "ReGo"
-version: "0.5.1"
+version: "0.6.0"
 slug: rego
 description: "ReGo – minimalistische ÖPNV-App für Pendler (Alpenregion Bayern & Österreich)"
 url: "https://github.com/K0RBI02/ReGo"
@@ -15,6 +15,7 @@ ports_description:
 watchdog: "http://[HOST]:[PORT:8080]/api/health"
 options:
   contact: ""
+  invite_code: ""
   provider: "library"
   ts_mode: "off"
   ts_hostname: "rego"
@@ -22,6 +23,7 @@ options:
   fcm_key: ""
 schema:
   contact: "str?"
+  invite_code: "password?"
   provider: "list(library|transport-rest|mock)"
   ts_mode: "list(off|serve|funnel)"
   ts_hostname: "str?"
