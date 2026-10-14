@@ -4,5 +4,7 @@
     <color name="window_bg">#F7F7F7</color>
     <color name="status_bar">#F7F7F7</color>
     <color name="splash">#E4F4D0</color>
-    <color name="ic_launcher_background">#E4F4D0</color>
+    <!-- App-Symbol: bei hellem System dunkel mit hellem Läufer, bei dunklem System umgekehrt -->
+    <color name="ic_launcher_background">#1C1B1E</color>
+    <color name="ic_launcher_glyph">#EBE8EE</color>
 </resources>

@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.6.2 – Neues App-Symbol
+
+**Android**
+- **Neues Symbol:** Das App-Symbol ist jetzt ein Läufer mit Rucksack und Aktentasche, im schlichten, einfarbigen Stil. Der Hintergrund folgt dem System: Bei hellem System ist er dunkel mit hellem Läufer, bei dunklem System hell mit dunklem Läufer. Mit eingeschalteten „designten Symbolen“ (Android 13 oder neuer) färbt Android den Läufer passend zum Hintergrundbild ein. Wie sofort sich das Symbol beim Wechsel zwischen hell und dunkel ändert, hängt vom Launcher ab.
+
 ## 0.6.1 – Einstellungen, Hauptbildschirm, Push-Diagnose
 
 **Strecken**

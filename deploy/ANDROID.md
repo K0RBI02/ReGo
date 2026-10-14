@@ -5,6 +5,7 @@ ReGo ist eine native Android-App: Die Oberfläche steckt in der App (eigenes Fen
 ## In der App
 - **Hochformat** und **feste Textgröße**: Die App folgt der Android-Schriftgröße nicht, weil die Oberfläche dafür gebaut ist und sich sonst Teile verschieben.
 - **Kurzbefehle:** Lange auf das App-Symbol drücken zeigt „Ticket anzeigen“, „Meldungen“ und „Neue Strecke“. Ein Kurzbefehl lässt sich auf den Startbildschirm ziehen.
+- **Symbol:** Ein Läufer mit Rucksack und Aktentasche. Der Hintergrund folgt dem System (dunkel bei hellem, hell bei dunklem System); je nach Launcher dauert es, bis ein Wechsel sichtbar wird. Launcher mit eigenem Symbol-Pack (zum Beispiel Niagara) zeigen stattdessen das Symbol aus dem Pack.
 - **Themed Icon:** Ab Android 13 passt sich das Symbol der Farbe des Hintergrundbilds an, wenn du in den Android-Einstellungen die Option für designte Symbole eingeschaltet hast.
 - **Benachrichtigungskanäle:** In den Android-Einstellungen (Apps → ReGo → Benachrichtigungen) gibt es vier Kanäle: „Verspätungen“, „Ausfälle und Ersatzverkehr“, „Baustellen“ und „Gleiswechsel“ (leise). Jeder lässt sich einzeln lauter, leiser oder ausschalten. Beim Update auf 0.6.0 wird der frühere Sammelkanal „Meldungen“ durch diese vier ersetzt.
 - **Einstellungen:** Unter „Strecken“ steht ganz unten der Satz „Push, neues Handy und Rückmeldung findest du in den Einstellungen“. Er öffnet ein Blatt von unten mit den Push-Meldungen, der Testmeldung, „Neues Handy?“, der Rückmeldung und der Versionszeile. Die Zurück-Taste schließt es.

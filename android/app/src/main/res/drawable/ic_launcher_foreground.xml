@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Läufer-Symbol: eine Maske, die Farbe kommt aus den Farben (hell/dunkel folgt dem System) -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@mipmap/ic_launcher_monochrome"
+    android:tint="@color/ic_launcher_glyph" />

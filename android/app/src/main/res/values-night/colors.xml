@@ -2,4 +2,6 @@
 <resources>
     <color name="window_bg">#121212</color>
     <color name="status_bar">#121212</color>
+    <color name="ic_launcher_background">#F3EFF5</color>
+    <color name="ic_launcher_glyph">#141416</color>
 </resources>
