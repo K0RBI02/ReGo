@@ -144,6 +144,9 @@ test('Push-Test mit Abo: meldet, ob die Meldung sofort unterwegs ist', async () 
     // App meldet sich an (mit Firebase-Token): Test geht sofort raus
     const sub = await (await fetch(base + '/api/push/native', { method: 'PUT', headers: h, body: JSON.stringify({ token: 'x'.repeat(60) }) })).json();
     assert.equal(sub.instant, true);
+    // Statusseite: Server hat einen Schlüssel, ein Abo mit Firebase-Kennung
+    const st = await (await fetch(base + '/api/status')).json();
+    assert.equal(st.instantPush, true); assert.equal(st.pushSubscriptions, 1); assert.equal(st.pushWithToken, 1);
     let r = await fetch(base + '/api/push/test', { method: 'POST', headers: h, body: '{}' });
     assert.equal(r.status, 200); assert.deepEqual(await r.json(), { ok: true, instant: true });
     assert.equal(fcm.calls.length, 1);
@@ -181,6 +184,8 @@ test('Haltestellensuche braucht Geräte-ID, Header und Status stehen', async () 
     assert.doesNotMatch(html.headers.get('content-security-policy'), /manifest-src/);
     const st = await (await fetch(base + '/api/status')).json();
     assert.equal(st.provider, 'mock'); assert.match(st.version, /\d/); assert.equal(typeof st.devices, 'number');
+    // Ohne Firebase-Schlüssel sagt die Statusseite klar „Sofort-Push aus“ (nur Zahlen, nichts Persönliches)
+    assert.equal(st.instantPush, false); assert.equal(st.pushWithToken, 0);
     const page = await fetch(base + '/status'); assert.match(await page.text(), /ReGo Status/);
   } finally { server.close(); }
 });

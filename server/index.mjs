@@ -65,11 +65,12 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     const value = await statusNow(); statusCache = { at: now(), value }; return value;
   };
   async function statusNow() {
-    let devices = 0, pushes = 0;
-    try { for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) { devices++; try { if ((await store.load(f.slice(0, -5))).push) pushes++; } catch { /* beschädigte Datei überspringen */ } } } catch { /* noch keine Profile */ }
+    let devices = 0, pushes = 0, withToken = 0;
+    try { for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) { devices++; try { const sub = (await store.load(f.slice(0, -5))).push; if (sub) { pushes++; if (sub.fcm) withToken++; } } catch { /* beschädigte Datei überspringen */ } } } catch { /* noch keine Profile */ }
     const p = service.providers;
     const sources = [...(p?.efas || []), p?.db, p?.oebb].filter(Boolean).map((c) => ({ name: c.name || c.key || '?', ok: c.healthy ? c.healthy() !== false : null }));
-    return { version: await version(), provider: cfg.provider, uptimeMin: Math.round((now() - startedAt) / 60000), devices, pushSubscriptions: pushes, sources, time: new Date(now()).toISOString() };
+    // instantPush: kennt der Server einen gültigen Firebase-Schlüssel? pushWithToken: wie viele Push-Abos haben eine Firebase-Kennung vom Handy? Nur Zahlen, nichts Persönliches.
+    return { version: await version(), provider: cfg.provider, uptimeMin: Math.round((now() - startedAt) / 60000), devices, pushSubscriptions: pushes, pushWithToken: withToken, instantPush: !!(await fcmP).enabled, sources, time: new Date(now()).toISOString() };
   }
 
   async function api(req, res, url) {
@@ -126,7 +127,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/settings' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => setSettings(p, b))); }
     if (path === '/api/notifications' && m === 'GET') return send(res, 200, { notifications: await (await notifier()).takeOutbox(dev) });
     if (path === '/api/push/test' && m === 'POST') {
-      if (!(await store.load(dev)).push?.native) throw new ValidationError('Push ist für dieses Gerät nicht eingeschaltet. Schalte unter „Strecken“ zuerst die Push-Meldungen ein.', 409);
+      if (!(await store.load(dev)).push?.native) throw new ValidationError('Push ist für dieses Gerät nicht eingeschaltet. Schalte unter „Strecken“ → „Einstellungen“ zuerst die Push-Meldungen ein.', 409);
       const r = await (await notifier()).sendTest(dev);
       if (r.result === 'error') throw new ValidationError('Der Push-Dienst ist gerade nicht erreichbar. Die Testmeldung kommt, sobald die App das nächste Mal nachfragt.', 502);
       return send(res, 200, { ok: true, instant: r.instant });
@@ -169,15 +170,17 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     }
   });
   server.notifier = notifier;
-  return { server, service, store, notifier, status };
+  return { server, service, store, notifier, status, fcm: fcmP };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   // Ein vergessener Fehler in einem Hintergrundvorgang soll das Backend nicht beenden
   process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));
   process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
-  const { server, notifier, store } = createApp();
+  const { server, notifier, store, fcm } = createApp();
   server.listen(config.port, config.host, () => console.log(`ReGo-Backend läuft auf http://${config.host}:${config.port} (Quelle: ${config.provider})`));
+  // Sofort-Push hängt am Firebase-Schlüssel (Add-on-Option fcm_key). Ein fehlender oder unlesbarer Schlüssel fällt sonst nirgends auf: die Meldungen kommen dann nur alle ~15 Minuten.
+  fcm.then((f) => console.log(f.enabled ? 'Push: Firebase-Schlüssel geladen, Sofort-Push ist an' : 'Push: kein gültiger Firebase-Schlüssel (Add-on-Option fcm_key), die App holt Meldungen nur alle ~15 Minuten ab'));
   const purge = () => store.purge(config.profileMaxAgeDays).then((n) => n && console.log(`Aufräumen: ${n} Profil(e) ohne Nutzung seit ${config.profileMaxAgeDays} Tagen gelöscht`)).catch((e) => console.error('Aufräumen:', e.message));
   purge(); setInterval(purge, 24 * 3600e3).unref();
   if (config.notifyEverySec > 0) setInterval(async () => { try { await (await notifier()).tick(); } catch (e) { console.error('Push-Prüfung:', e.message); } }, config.notifyEverySec * 1000).unref();

@@ -143,7 +143,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <a class="rg-in" href="{{ticker.href}}" style="{{ticker.style}}">
 <div style="display: flex; flex-direction: column; flex: 1 1 0; min-width: min-content">
 <span style="font-size: 16px; font-weight: 600">{{ticker.head}}</span>
-<span style="font-size: 58px; line-height: 1.02; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap">{{ticker.big}}</span>
+<span style="{{ticker.bigStyle}}">{{ticker.big}}</span>
 <span style="font-size: 16px; font-weight: 600">{{ticker.sub}}</span>
 </div>
 <svg width="72" height="72" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{ticker.icon1}}" fill="#fff"></path><path d="{{ticker.icon2}}" stroke-width="3"></path></svg>
@@ -238,7 +238,11 @@ class Component extends DCLogic {
     const top = activeFor(near);
     const view = top ? top.view : (near.view || { kind: 'ok', head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
     const kind = T.theme.kinds[view.kind] || T.theme.kinds.ok;
+    // Große Zeile: so groß wie möglich (höchstens 58 px), aber so, dass das Häkchen daneben bleibt und nicht darunter rutscht. Platz = Breite der App − 2 × 20 px Rand − 2 × 20 px Innenabstand − Häkchen (72 px) − Abstand (8 px).
+    const appW = Math.min(520, (document.getElementById('app') || {}).clientWidth || 390);
+    const bigPx = Math.max(34, Math.min(58, Math.floor((appW - 160) / (0.5 * Math.max(1, String(view.big || '').length)))));
     const ticker = {
+      bigStyle: 'font-size: ' + bigPx + 'px; line-height: 1.02; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap',
       href: target(near), head: view.head, big: view.big, sub: view.sub + (activeAll.length > 1 ? ' · +' + (activeAll.length - 1) + ' weitere' : ''), icon1: kind.icon[0], icon2: kind.icon[1],
       style: 'margin: 10px 20px 0; background: ' + kind.bg + '; border-radius: 32px; padding: 18px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px'
     };

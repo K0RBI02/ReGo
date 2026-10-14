@@ -59,7 +59,7 @@
     R.refresh();
     return true;
   };
-  /** Versionen für die Zeile unter „Strecken“: App (nur in der App bekannt) und Server (öffentliche Statusabfrage) */
+  /** Versionen für die Zeile in den Einstellungen (unter „Strecken“): App (nur in der App bekannt) und Server (öffentliche Statusabfrage) */
   R.loadInfo = async function () {
     let app = '';
     try { app = window.RegoNative && window.RegoNative.appVersion ? String(window.RegoNative.appVersion()) : ''; } catch (e) {}

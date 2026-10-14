@@ -4,7 +4,7 @@
   const SCREENS = ['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'];
   const TITLES = { Main: 'ReGo', Meldungen: 'Meldungen', Detail: 'Meldung', Ticket: 'Ticket', Scan: 'Ticket hinzufügen', Strecken: 'Strecken', Onboarding1: 'Willkommen', Onboarding2: 'Willkommen', Onboarding3: 'Willkommen' };
   const host = document.getElementById('screen'), styleEl = document.getElementById('screen-style');
-  let current = null, currentName = '', token = 0;
+  let current = null, currentName = '', token = 0, mounted = 0;
   const flag = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) === '1'; localStorage.setItem(k, v ? '1' : '0'); } catch (e) { return false; } };
 
   function routeOf(path) {
@@ -15,19 +15,22 @@
 
   // „rgb(247, 247, 247)“ -> „#f7f7f7“ (die Statusleiste der App und theme-color verstehen nur die Hex-Schreibweise)
   const hexOf = (c) => { const m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(c || ''); return m ? '#' + [m[1], m[2], m[3]].map((v) => Math.min(255, +v).toString(16).padStart(2, '0')).join('') : (c || ''); };
-  // Seitenhintergrund, Browser-Leiste (theme-color) und in der App Status- und Navigationsleiste in einer Farbe
-  function paint(color) {
+  // Seitenhintergrund, Browser-Leiste (theme-color) und in der App Status- und Navigationsleiste. Meist eine Farbe; die Detailseite hat oben die Karte und unten das weiße Blatt.
+  function paint(color, bottom) {
     document.documentElement.style.background = color; document.body.style.background = color;
-    const hex = hexOf(color);
+    const hex = hexOf(color), hexB = bottom ? hexOf(bottom) : hex;
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', hex);
-    try { window.RegoNative && window.RegoNative.setBars(hex); } catch (e) {}
+    try { const N = window.RegoNative; if (N) { if (N.setBarColors) N.setBarColors(hex, hexB); else N.setBars(hex); } } catch (e) {}
   }
-  // Statusleiste und Hintergrund nehmen die Farbe des Screens an, damit kein Rand sichtbar bleibt
+  // Statusleiste und Hintergrund nehmen die Farbe des Screens an, damit kein Rand sichtbar bleibt.
+  // Beginnt der Screen oben mit einer eigenen Fläche (data-bar="top", z. B. die Karte der Detailseite), bekommt die Statusleiste deren Farbe, die untere Leiste die des Untergrunds.
   function syncBars() {
     if (document.querySelector('#app > [role=status][style*="z-index:60"]')) return;
     if (inviteEl) { paint('#D4EDF6'); return; }
+    if (outageEl) { paint('#F9D6D2'); return; }
     const root = host.firstElementChild; if (!root) return;
-    paint(getComputedStyle(root).backgroundColor);
+    const bottom = getComputedStyle(root).backgroundColor, top = root.querySelector('[data-bar=top]');
+    paint(top ? getComputedStyle(top).backgroundColor : bottom, bottom);
   }
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(syncBars, 50)); } catch (e) {}
 
@@ -122,7 +125,7 @@
       if (my !== token) return;                                 // inzwischen wurde schon eine neuere Seite angefordert
       if (current) { window.RLOG && RLOG('destroy ' + currentName); current.destroy(); current = null; }
       const m = await window.DC.mount(name, host, styleEl);
-      current = m; currentName = name; window.RLOG && RLOG('mount ' + name);
+      current = m; currentName = name; mounted = my; window.RLOG && RLOG('mount ' + name);
       document.title = TITLES[name] || 'ReGo';
       syncBars();
       syncOutage();
@@ -135,6 +138,9 @@
   async function go(url, push = true) {
     const u = new URL(url, location.href);
     let name = routeOf(u.pathname);
+    // Zurück-Taste bei offenem Sheet: Es wechselt nur der Anker. Die Seite bleibt stehen und schließt das Sheet selbst (kein Neuaufbau, Scroll und Eingaben bleiben).
+    // Nur wenn die aktuelle Seite auch wirklich die zuletzt angeforderte ist, sonst gewinnt die neuere Anfrage wie bisher.
+    if (!push && current && name === currentName && mounted === token && typeof current.instance.onHash === 'function') { current.instance.onHash(u.hash); return; }
     // Ende des Onboardings: gewählte Strecke anlegen
     if (name === 'Main' && window.REGO_pending && !R.tours.length) {
       const p = window.REGO_pending; window.REGO_pending = null; flag('rego.onboarded', true);
@@ -163,6 +169,7 @@
     if (!current) return;
     current.update();
     if (typeof current.instance.onData === 'function') current.instance.onData();
+    syncBars();                                    // die Detailseite wechselt mit dem Zustand die Farbe oben (grün, grau, schwarz bei „offline“)
   };
 
   // Standort nur nutzen, wenn schon erlaubt (kein Dialog beim Start). Letzten Standort merken, bei jedem Öffnen der App neu holen.

@@ -13,7 +13,8 @@ main{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 h1{margin:0;font-size:34px;letter-spacing:-.03em}
 .card{background:var(--card);border-radius:20px;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
 .row{display:flex;justify-content:space-between;gap:12px}
-.row span:first-child{color:var(--mut)}
+.row span:first-child{color:var(--mut);white-space:nowrap}
+.row span:last-child{text-align:right}
 .ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}
 small{color:var(--mut)}
 </style>
@@ -28,7 +29,7 @@ small{color:var(--mut)}
 <script>
 fetch('/api/status').then(function (r) { return r.json(); }).then(function (s) {
   var row = function (a, b) { return '<div class="row"><span>' + a + '</span><span>' + b + '</span></div>'; };
-  document.getElementById('info').innerHTML = row('Version', s.version) + row('Datenquelle', s.provider) + row('Läuft seit', s.uptimeMin + ' Min.') + row('Geräte', s.devices) + row('Push-Abos', s.pushSubscriptions);
+  document.getElementById('info').innerHTML = row('Version', s.version) + row('Datenquelle', s.provider) + row('Läuft seit', s.uptimeMin + ' Min.') + row('Geräte', s.devices) + row('Push-Abos', s.pushSubscriptions + (s.pushSubscriptions ? ' (' + s.pushWithToken + ' mit Firebase-Kennung)' : '')) + row('Sofort-Push', s.instantPush ? '<span class="ok">an</span>' : '<small>aus, Nachfrage alle ~15 Min.</small>');
   document.getElementById('src').innerHTML = s.sources.length ? s.sources.map(function (q) { return row(q.name, q.ok === null ? '<small>unbekannt</small>' : q.ok ? '<span class="ok">erreichbar</span>' : '<span class="bad">pausiert</span>'); }).join('') : '<small>Keine Quellen (Demo-Modus)</small>';
 }).catch(function () { document.getElementById('info').textContent = 'Status nicht abrufbar.'; });
 </script>

@@ -1,5 +1,23 @@
 # Änderungen
 
+## 0.6.1 – Einstellungen, Hauptbildschirm, Push-Diagnose
+
+**Strecken**
+- **Einstellungen:** Push-Meldungen mit Testmeldung, „Neues Handy?“, Rückmeldung und die Versionszeile stehen nicht mehr in der Liste, sondern in einem Blatt, das von unten hochfährt. Geöffnet wird es mit dem Satz „Push, neues Handy und Rückmeldung findest du in den Einstellungen →“ unter „Meine Strecken“. Die Zurück-Taste, ein Tipp auf den abgedunkelten Rest oder Esc schließen es wieder; die App bleibt dabei, wo sie ist. Die Liste bleibt dadurch auch mit vielen Strecken übersichtlich.
+
+**Hauptbildschirm und Detailseite**
+- **Häkchen rutschte nach unten:** Bei längeren Wörtern wie „pünktlich“ sprang das Häkchen auf dem Hauptbildschirm unter das Wort. Die große Zeile passt ihre Größe jetzt an die Breite an (zwischen 34 und 58 px), das Häkchen bleibt rechts daneben, auch auf kleinen Handys. Gleiches auf der Detailseite.
+- **„Danach“ und „Nächster Zug“ sind antippbar:** Die Karte unten auf der Detailseite führt zur Seite dieser Abfahrt. Das gilt jetzt auch, wenn du die erste Abfahrt ansiehst und alles pünktlich ist (Karte „Danach“ mit „pünktlich“); bisher stand dort gar nichts oder eine Karte ohne Wirkung. Eine Detailseite gibt es wie bisher für die ersten drei Abfahrten der Liste; ist die nächste Fahrt die vierte, bleibt die Karte eine reine Anzeige.
+- **Android-Leisten:** Auf der Detailseite hat die Statusleiste oben die Farbe der Karte (grün, grau oder schwarz bei „offline“) und die Navigationsleiste unten die des Blatts. Vorher blieb über der Karte ein weißer Streifen. Beim Vollbild-Hinweis „Sorry!“ (gar keine Daten) haben beide Leisten die rosa Farbe des Hinweises.
+
+**Push-Diagnose**
+- **Statusseite:** `/status` zeigt jetzt, ob der Server einen Firebase-Schlüssel hat („Sofort-Push: an/aus“) und bei den Push-Abos, wie viele Handys eine Firebase-Kennung gemeldet haben. Beides sind nur Zahlen. Damit lässt sich ohne Raten erkennen, warum Meldungen nur alle ~15 Minuten kommen.
+- **Protokoll:** Beim Start schreibt der Server, ob der Schlüssel (Add-on-Option `fcm_key`) geladen wurde. Ein fehlender oder unlesbarer Schlüssel fiel bisher nirgends auf.
+- Die Fehlermeldung der Testmeldung nennt jetzt den Weg „Strecken → Einstellungen“.
+
+**Neu bauen**
+- Das Aussehen und die App haben sich geändert: neue APK (`app-v0.6.1`) installieren. Der Server hat sich ebenfalls geändert: Add-on aktualisieren.
+
 ## 0.6.0 – Ausfälle, Gleiswechsel, Einladungscode, nur noch die App
 
 **Neue Meldungen**

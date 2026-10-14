@@ -8,7 +8,7 @@ Die Oberfläche steckt in einer echten Android-App (`android/`, gebaut von GitHu
 - Tickets und Geräte-ID liegen nur im Gerät (localStorage).
 - Schrift: Instrument Sans (SIL Open Font License) liegt in `public/fonts/` und wird von dort geladen, nichts von Drittanbietern. Schnitte: Regular für 400/500, Bold für 600 bis 800.
 - Ticket-Safe: Barcode per Kamera (nur https) oder aus Foto/Screenshot; gespeichert wird der Zuschnitt des Codes als Bild, nur lokal. Wallet-Apps lassen sich aus dem Browser nicht auslesen.
-- Push: nur für die Android-App. Mit Firebase (`REGO_FCM_KEY`) kommt ein leerer Anstoß sofort, den Text holt die App beim Backend; ohne Firebase fragt die App etwa alle 15 Minuten nach. Meldungsarten: Verspätung, Ersatzverkehr, Baustelle, Ausfall und Gleiswechsel (in Android je ein eigener Benachrichtigungskanal). Prüfintervall `REGO_NOTIFY_SEC` (60). Nachtruhe 23–4 Uhr. Unter „Strecken“ gibt es eine Testmeldung.
+- Push: nur für die Android-App. Mit Firebase (`REGO_FCM_KEY`) kommt ein leerer Anstoß sofort, den Text holt die App beim Backend; ohne Firebase fragt die App etwa alle 15 Minuten nach. Meldungsarten: Verspätung, Ersatzverkehr, Baustelle, Ausfall und Gleiswechsel (in Android je ein eigener Benachrichtigungskanal). Prüfintervall `REGO_NOTIFY_SEC` (60). Nachtruhe 23–4 Uhr. In den Einstellungen (unter „Strecken“) gibt es eine Testmeldung; `/status` zeigt, ob der Server einen Firebase-Schlüssel hat (Sofort-Push an/aus).
 
 ## Als Home-Assistant-Add-on
 In Home Assistant: Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories → `https://github.com/K0RBI02/ReGo` hinzufügen. Das fertige Image baut GitHub Actions (`.github/workflows/build.yml`), der Pi lädt es nur. Neue Version = `version` in `rego/config.yaml` erhöhen und pushen. Mehr in `rego/DOCS.md`.
@@ -44,7 +44,7 @@ Alle Pfade außer `health` und `status` brauchen den Header `X-Device: <zufälli
 | Pfad | Zweck |
 |---|---|
 | GET /api/health | Lebenszeichen |
-| GET /api/status | Version, Quellenzustand, Anzahl Geräte (ohne persönliche Daten), Seite `/status` |
+| GET /api/status | Version, Quellenzustand, Anzahl Geräte und Push-Abos, `instantPush` (Firebase-Schlüssel vorhanden), `pushWithToken` (Abos mit Firebase-Kennung); keine persönlichen Daten, Seite `/status` |
 | GET /api/stations?q= | Haltestellensuche (braucht die Geräte-ID) |
 | GET /api/state?lat=&lon= | kompletter Zustand (tours, incidents, lines, connection, settings, clock) |
 | POST /api/tours | `{from:{id,name}, to:{id,name}, schedule?, roundTrip?, returnAfter?}`; 422, wenn die Quelle sicher keine Direktverbindung kennt (antwortet sie nicht, wird angelegt) |

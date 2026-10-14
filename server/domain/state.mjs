@@ -101,6 +101,9 @@ export async function buildTour(tour, journeys, ctx) {
   const incidents = [];
   const hint = ticketHintFor(tour);
   const dest = tour.to.name;
+  // Die Karte „Danach“ / „Nächster Zug“ führt zur Seite dieser Abfahrt, wenn sie zu den ersten drei der Liste gehört (nur für die gibt es eine Detailseite)
+  const jump = (leg) => { const i = legs.indexOf(leg); return i >= 0 && i < out.departures.length ? { departure: i } : {}; };
+  const thenCard = (nxt) => nxt ? { title: 'Danach', line1: `${nxt.line.name} ab ${hhmm(nxt.dep)}${nxt.platform ? ` · Gleis ${nxt.platform}` : ''}`, line2: `An ${dest} ${hhmm(nxt.arr)}`, badge: nxt.depDelay >= minDelay ? `+${nxt.depDelay} Min.` : 'pünktlich', ...jump(nxt) } : null;
 
   // 0) Ausfälle: eine Meldung je Linie mit allen ausfallenden Fahrten der nächsten Stunden – auch wenn gar keine Fahrt mehr übrig ist
   const byLine = new Map();
@@ -122,7 +125,7 @@ export async function buildTour(tour, journeys, ctx) {
           { label: `Abfahrt ${c.origin.name}`, sub: sub(c), value: 'entfällt', planned: hhmm(c.plannedDep) },
           { label: `Ankunft ${dest}`, sub: c.line.name, value: 'entfällt', planned: hhmm(c.plannedArr) },
         ],
-        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : 'pünktlich' } : null,
+        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : 'pünktlich', ...jump(alt) } : null,
         ticketHint: hint, map,
       },
     });
@@ -144,7 +147,7 @@ export async function buildTour(tour, journeys, ctx) {
       kind: isLate ? 'delay' : 'ok',
       head: `${isLate ? 'Verspätung' : 'Pünktlich'} · ${l.line.name} ab ${hhmm(l.dep)}`,
       big: isLate ? `+${l.depDelay} Min.` : 'pünktlich', sub: sub(l, false), rows,
-      alternative: nxt ? { title: 'Danach', line1: `${nxt.line.name} ab ${hhmm(nxt.dep)}${nxt.platform ? ` · Gleis ${nxt.platform}` : ''}`, line2: `An ${dest} ${hhmm(nxt.arr)}`, badge: nxt.depDelay >= minDelay ? `+${nxt.depDelay} Min.` : 'pünktlich' } : null,
+      alternative: thenCard(nxt),
       ticketHint: hint, map: kmap,
     };
   }
@@ -178,7 +181,7 @@ export async function buildTour(tour, journeys, ctx) {
           { label: `Abfahrt ${leg.origin.name}`, sub: sub(leg), value: hhmm(leg.dep), planned: hhmm(leg.plannedDep) !== hhmm(leg.dep) ? hhmm(leg.plannedDep) : '' },
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },
         ],
-        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : 'pünktlich' } : null,
+        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : 'pünktlich', ...jump(alt) } : null,
         ticketHint: hint, map,
       },
     });
@@ -202,7 +205,7 @@ export async function buildTour(tour, journeys, ctx) {
       title: `${late.line.name} ${late.origin.name} → ${late.destination.name}`, summary,
       view: {
         kind: 'delay', head: `Verspätung · ${late.line.name} ab ${hhmm(late.dep)}`, big: `+${late.depDelay} Min.`, sub: summary, rows,
-        alternative: next ? { title: 'Nächster Zug', line1: `${next.line.name} ab ${hhmm(next.dep)}${next.platform ? ` · Gleis ${next.platform}` : ''}`, line2: `An ${dest} ${hhmm(next.arr)}`, badge: 'pünktlich' } : null,
+        alternative: next ? { title: 'Nächster Zug', line1: `${next.line.name} ab ${hhmm(next.dep)}${next.platform ? ` · Gleis ${next.platform}` : ''}`, line2: `An ${dest} ${hhmm(next.arr)}`, badge: 'pünktlich', ...jump(next) } : null,
         ticketHint: hint, map,
       },
     });
@@ -237,7 +240,7 @@ export async function buildTour(tour, journeys, ctx) {
         { label: `Abfahrt ${first.origin.name}`, sub: sub(first), value: hhmm(first.dep), planned: '' },
         { label: `Ankunft ${dest}`, sub: first.line.name, value: hhmm(first.arr), planned: '' },
       ],
-      alternative: null, ticketHint: hint, map,
+      alternative: thenCard(legs[1]), ticketHint: hint, map,
     };
   }
   return { tour: out, incidents };

@@ -114,7 +114,8 @@ await check('Code übernehmen', async () => {
   await fetch(base + '/api/tours', { method: 'POST', headers: OTHER, body: JSON.stringify({ from: st, to: mu }) });
   const { code } = await (await fetch(base + '/api/transfer', { method: 'POST', headers: OTHER, body: '{}' })).json();
   const mine = (await j('/api/profile')).tours.length;
-  await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
+  await page.goto(base + '/Strecken#einstellungen'); await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: /Neues Handy/ }).click();
   await page.getByPlaceholder('Code eingeben').fill(code);
   await page.getByRole('button', { name: 'Übernehmen' }).click(); await page.waitForTimeout(500);
   if (!(await page.getByText('werden durch die vom alten Handy ersetzt').count())) problems.push('Code übernehmen: keine Rückfrage');
@@ -139,21 +140,30 @@ await check('kleines Handy', async () => {
   await small.close();
 });
 
-// Dunkelmodus: Karte „Neues Handy?“ lesbar
+// Dunkelmodus: Satz unter der Streckenliste und Einstellungs-Sheet lesbar (Kontrast Text gegen Untergrund)
 await check('Dunkelmodus', async () => {
   const dark = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'dark' });
   await dark.addInitScript(([d]) => { try { if (!localStorage.getItem('rego.device')) { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); } } catch (e) {} }, [DEV]);
   const dp = await dark.newPage();
-  await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1500);
-  const ratio = await dp.evaluate(() => {
-    const el = [...document.querySelectorAll('span')].find((x) => x.textContent.trim() === 'Neues Handy?');
-    if (!el) return 0;
+  const contrast = (items) => dp.evaluate((items) => {
     const lum = (c) => { const m = c.match(/\d+(\.\d+)?/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
-    let bgEl = el; while (bgEl && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(bgEl).backgroundColor)) bgEl = bgEl.parentElement;
-    const a = lum(getComputedStyle(el).color), b = lum(getComputedStyle(bgEl).backgroundColor);
-    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-  });
-  if (ratio < 4.5) problems.push(`Dunkelmodus: Karte „Neues Handy?“ schlecht lesbar (Kontrast ${ratio.toFixed(1)}:1)`);
+    return items.map(([tag, label]) => {
+      const el = [...document.querySelectorAll(tag)].find((x) => x.textContent.trim() === label);
+      if (!el) return [label, 0];
+      let bgEl = el; while (bgEl && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(bgEl).backgroundColor)) bgEl = bgEl.parentElement;
+      const a = lum(getComputedStyle(el).color), b = lum(getComputedStyle(bgEl).backgroundColor);
+      return [label, (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)];
+    });
+  }, items);
+  const verdict = (where, rows) => { for (const [label, ratio] of rows) if (ratio < 4.5) problems.push(`Dunkelmodus: ${where} „${label}“ schlecht lesbar${ratio ? ` (Kontrast ${ratio.toFixed(1)}:1)` : ' (nicht gefunden)'}`); };
+  await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1500);
+  verdict('Streckenliste', await contrast([['button', 'Push, neues Handy und Rückmeldung findest du in den Einstellungen'], ['span', 'Einstellungen']]));
+  await dp.getByRole('button', { name: /Einstellungen/ }).first().click(); await dp.waitForTimeout(450);
+  await dp.getByRole('button', { name: /Neues Handy/ }).click(); await dp.waitForTimeout(300);
+  verdict('Einstellungen', await contrast([['h2', 'Einstellungen'], ['span', 'Push-Meldungen'], ['span', 'Push ab Verspätung von'], ['span', 'Testmeldung'], ['span', 'Neues Handy?'], ['button', 'Code erzeugen'], ['span', 'Rückmeldung senden']]));
+  // das Sheet hebt sich vom abgedunkelten Untergrund ab (nicht dieselbe Fläche wie die Seite dahinter)
+  const same = await dp.evaluate(() => { const d = document.querySelector('[role=dialog]'), r = document.querySelector('#screen > div'); return !d || getComputedStyle(d).backgroundColor === getComputedStyle(r).backgroundColor; });
+  if (same) problems.push('Dunkelmodus: Einstellungen-Sheet hat dieselbe Fläche wie die Seite dahinter');
   await dark.close();
 });
 
@@ -243,6 +253,15 @@ await check('Schrift', async () => {
 // ---------- Neu in 0.6.0 ----------
 const NEW_CTX = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const initFor = (extra = '') => ([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} };
+// Steht das Symbol neben der großen Zeile (gleiche Reihe, innerhalb der Karte) und nicht darunter? sel = Karte, svg = Symbol darin
+const beside = (pg, sel, svgSel = 'svg') => pg.evaluate(([sel, svgSel]) => {
+  // sel = null: Karte ist das Elternelement des Symbols (Detailseite)
+  const svg0 = sel ? null : document.querySelector(svgSel), a = sel ? document.querySelector(sel) : svg0 && svg0.parentElement;
+  const svg = sel ? a && a.querySelector(svgSel) : svg0, col = a && a.firstElementChild;
+  if (!svg || !col) return false;
+  const s = svg.getBoundingClientRect(), c = col.getBoundingClientRect(), r = a.getBoundingClientRect();
+  return s.top < c.bottom - 4 && s.left >= c.right - 2 && s.right <= r.right + 1;
+}, [sel, svgSel]);
 
 // Neue Strecke ohne Direktverbindung (T2): wird nicht angelegt, der Grund steht im Formular, Ändern der Haltestelle blendet ihn aus
 await check('Anlegen ohne Direktverbindung', async () => {
@@ -272,7 +291,7 @@ await check('Testmeldung und Versionszeile', async () => {
   await c.addInitScript(([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.onboarded', '1'); localStorage.setItem('rego.splashSeen', '1'); localStorage.setItem('rego.push', 'true'); } catch (e) {} window.RegoNative = { appVersion: () => '9.9.9', enablePush() {}, disablePush() {}, setBars() {}, setBrightness() {}, keepScreenOn() {}, saveFile() {} }; }, [DEV]);
   const p = await c.newPage(); p.setDefaultTimeout(8000);
   try {
-    await p.goto(base + '/Strecken'); await p.waitForTimeout(1500);
+    await p.goto(base + '/Strecken#einstellungen'); await p.waitForTimeout(1500);
     const text = await p.evaluate(() => document.querySelector('#screen').innerText);
     if (!text.includes(`App 9.9.9 · Server ${ver}`)) problems.push(`Versionszeile: erwartet „App 9.9.9 · Server ${ver}“, gefunden: ${(text.match(/(App [^\n]*)?Server [^\n]*/) || ['nichts'])[0]}`);
     for (const [href, label] of [['https://github.com/K0RBI02/ReGo/blob/main/DATENSCHUTZ.md', 'Datenschutz'], ['https://github.com/K0RBI02/ReGo', 'ReGo auf GitHub']]) {
@@ -286,12 +305,105 @@ await check('Testmeldung und Versionszeile', async () => {
     if (!got.some((n) => n.kind === 'test' && n.title === 'ReGo Testmeldung')) problems.push('Testmeldung: Server hat keine Testmeldung bereitgelegt');
     // Push aus (ohne App-Brücke): Knopf ausgegraut, Hinweis sagt was zu tun ist
     const q = await browser.newContext(NEW_CTX); await q.addInitScript(initFor(), [DEV]);
-    const pq = await q.newPage(); await pq.goto(base + '/Strecken'); await pq.waitForTimeout(1200);
+    const pq = await q.newPage(); await pq.goto(base + '/Strecken#einstellungen'); await pq.waitForTimeout(1200);
     const off = await pq.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Senden'); return b ? b.getAttribute('aria-disabled') : 'fehlt'; });
     if (off !== 'true') problems.push(`Testmeldung: Knopf ist ohne Push nicht gesperrt (aria-disabled=${off})`);
     if (!(await pq.getByText('Schalte zuerst Push-Meldungen ein').count())) problems.push('Testmeldung: Hinweis „Schalte zuerst Push-Meldungen ein“ fehlt');
     await q.close();
   } finally { await c.close(); }
+});
+
+// Einstellungen als Sheet von unten: Push, „Neues Handy?“, Rückmeldung und Version liegen nicht mehr in der Streckenliste. Der Satz am Ende der Liste
+// öffnet sie; ✕, Abdunklung, Escape und die Zurück-Taste schließen zuerst das Sheet, ohne die Seite neu aufzubauen.
+await check('Einstellungen-Sheet', async () => {
+  const H = 844;
+  const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [DEV]);
+  const p = await c.newPage(); p.setDefaultTimeout(8000);
+  const dlg = p.getByRole('dialog', { name: 'Einstellungen' });
+  const open = async () => { await p.getByRole('button', { name: /Einstellungen/ }).first().click(); await p.waitForTimeout(450); };
+  try {
+    await p.goto(base + '/Strecken'); await p.waitForTimeout(1300);
+    await p.evaluate(() => { document.querySelector('#screen > div').__keep = 1; });           // Marke: bleibt nur, solange die Seite nicht neu aufgebaut wird
+    const len0 = await p.evaluate(() => history.length);
+    // Liste: nur noch der Satz, nichts von den Einstellungen
+    if (!(await p.getByRole('button', { name: /findest du in den Einstellungen/ }).count())) { problems.push('Einstellungen: Satz „… findest du in den Einstellungen“ fehlt unter der Streckenliste'); return; }
+    if (await p.getByRole('switch', { name: 'Push-Meldungen' }).count()) problems.push('Einstellungen: Push-Schalter steht noch in der Streckenliste');
+    if (await p.getByText('Rückmeldung senden').count() || await p.getByPlaceholder('Code eingeben').count()) problems.push('Einstellungen: „Neues Handy?“ oder Rückmeldung stehen noch in der Streckenliste');
+    if (await dlg.count()) problems.push('Einstellungen: Sheet ist offen, ohne dass jemand getippt hat');
+    // Öffnen: von unten, höchstens 90 %, alles Wichtige da, Fokus im Sheet
+    await open();
+    if (!(await dlg.count())) { problems.push('Einstellungen: Tippen auf den Satz öffnet kein Sheet'); return; }
+    const box = await dlg.boundingBox();
+    if (Math.abs(box.y + box.height - H) > 1) problems.push(`Einstellungen: Sheet sitzt nicht ganz unten (Unterkante ${Math.round(box.y + box.height)} statt ${H})`);
+    if (box.height > H * 0.9 + 1 || box.height < H * 0.4) problems.push(`Einstellungen: Sheet hat eine unpassende Höhe (${Math.round(box.height)} von ${H} px)`);
+    if (!/#einstellungen$/.test(p.url())) problems.push('Einstellungen: geöffnetes Sheet hat keinen eigenen Verlaufseintrag (Zurück würde die Seite verlassen)');
+    for (const [role, name] of [['switch', 'Push-Meldungen'], ['switch', 'Nur rund um die Abfahrtszeit benachrichtigen'], ['button', '3 Min.'], ['button', '5 Min.'], ['button', '10 Min.'], ['button', 'Senden'], ['button', /Neues Handy/], ['button', 'Schließen']]) {
+      if (!(await dlg.getByRole(role, { name }).count())) problems.push(`Einstellungen: „${name}“ fehlt im Sheet`);
+    }
+    if (!(await dlg.locator('a[href^="https://github.com/K0RBI02/ReGo/issues/new"]').count())) problems.push('Einstellungen: Link „Rückmeldung senden“ fehlt im Sheet');
+    if (!(await dlg.evaluate((el) => el.contains(document.activeElement)))) problems.push('Einstellungen: Fokus liegt nach dem Öffnen nicht im Sheet');
+    if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Einstellungen: Seite scrollt seitlich');
+    // Bedienen im Sheet: Hinweis erscheint oben (nicht über den Einstellungen), das Sheet wird dabei nicht neu aufgebaut
+    await dlg.evaluate((el) => { el.__keep = 1; });
+    await dlg.getByRole('switch', { name: 'Nur rund um die Abfahrtszeit benachrichtigen' }).click(); await p.waitForTimeout(700);
+    const toast = p.locator('.rg-toast');
+    if (!(await toast.count())) problems.push('Einstellungen: keine Rückmeldung nach dem Umschalten');
+    else { const tb = await toast.boundingBox(), db = await dlg.boundingBox(); if (tb.y + tb.height > db.y + 1) problems.push('Einstellungen: Hinweis verdeckt die Einstellungen (soll über dem Sheet stehen)'); }
+    if (!(await dlg.evaluate((el) => el.__keep === 1))) problems.push('Einstellungen: Sheet wird beim Umschalten neu aufgebaut (Scroll und Fokus gehen verloren)');
+    await dlg.getByRole('switch', { name: 'Nur rund um die Abfahrtszeit benachrichtigen' }).click();   // wieder zurück
+    // „Neues Handy?“ klappt auf, Sheet wächst höchstens bis 90 % und scrollt; Rückmeldung und Version bleiben erreichbar
+    await dlg.getByRole('button', { name: /Neues Handy/ }).click(); await p.waitForTimeout(300);
+    if ((await dlg.getByRole('button', { name: /Neues Handy/ }).getAttribute('aria-expanded')) !== 'true') problems.push('Einstellungen: „Neues Handy?“ meldet nicht „aufgeklappt“');
+    if (!(await dlg.getByPlaceholder('Code eingeben').count())) problems.push('Einstellungen: „Neues Handy?“ zeigt nach dem Aufklappen keine Code-Eingabe');
+    const big = await dlg.boundingBox();
+    if (big.height > H * 0.9 + 1 || big.y < 0) problems.push(`Einstellungen: aufgeklapptes Sheet ist zu hoch (${Math.round(big.height)} px)`);
+    const fb = dlg.getByText('Rückmeldung senden'); await fb.scrollIntoViewIfNeeded();
+    const fbb = await fb.boundingBox();
+    if (fbb.y + fbb.height > H || fbb.y < 0) problems.push('Einstellungen: „Rückmeldung senden“ ist nach dem Aufklappen nicht erreichbar');
+    await dlg.getByRole('link', { name: 'ReGo auf GitHub' }).scrollIntoViewIfNeeded();
+    // Zurück-Taste (Android): schließt nur das Sheet, bleibt auf der Seite, baut sie nicht neu auf
+    await p.goBack(); await p.waitForTimeout(500);
+    if (await dlg.count()) problems.push('Einstellungen: Zurück schließt das Sheet nicht');
+    if (!/\/Strecken$/.test(p.url())) problems.push(`Einstellungen: Zurück landet auf ${p.url()} statt auf der Streckenliste`);
+    if (!(await p.evaluate(() => document.querySelector('#screen > div').__keep === 1))) problems.push('Einstellungen: Zurück baut die Streckenliste neu auf');
+    // ✕, Abdunklung (auch über „Zurück“-Knopf der Seite) und Escape schließen; der Verlauf wächst dabei nicht
+    for (const [how, close] of [
+      ['✕', () => p.getByRole('button', { name: 'Schließen' }).click()],
+      ['Abdunklung', () => p.mouse.click(60, 40)],
+      ['Escape', () => p.keyboard.press('Escape')],
+    ]) {
+      await open();
+      if (!(await dlg.count())) { problems.push(`Einstellungen (${how}): Sheet öffnet nicht erneut`); continue; }
+      await close(); await p.waitForTimeout(500);
+      if (await dlg.count()) problems.push(`Einstellungen: ${how} schließt das Sheet nicht`);
+      if (/#einstellungen/.test(p.url()) || !/\/Strecken$/.test(p.url())) problems.push(`Einstellungen (${how}): Adresse nach dem Schließen ist ${p.url()}`);
+      if (!(await p.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-sheet-open')))) problems.push(`Einstellungen (${how}): Fokus kehrt nicht zum Satz in der Liste zurück`);
+    }
+    if ((await p.evaluate(() => history.length)) > len0 + 1) problems.push('Einstellungen: Öffnen und Schließen füllt den Verlauf auf');
+    // Direktaufruf mit #einstellungen (z. B. aus einem Kurzbefehl): Sheet offen, Zurück schließt zuerst das Sheet
+    const q = await c.newPage(); q.setDefaultTimeout(8000);
+    await q.goto(base + '/Strecken#einstellungen'); await q.waitForTimeout(1300);
+    if (!(await q.getByRole('dialog', { name: 'Einstellungen' }).count())) problems.push('Einstellungen: #einstellungen öffnet das Sheet nicht');
+    await q.goBack(); await q.waitForTimeout(500);
+    if (await q.getByRole('dialog', { name: 'Einstellungen' }).count() || !/\/Strecken$/.test(q.url())) problems.push(`Einstellungen: Zurück nach Direktaufruf schließt nicht nur das Sheet (${q.url()})`);
+    await q.goForward(); await q.waitForTimeout(500);
+    if (!(await q.getByRole('dialog', { name: 'Einstellungen' }).count())) problems.push('Einstellungen: Vorwärts öffnet das Sheet nicht wieder');
+    await q.close();
+  } finally { await c.close(); }
+  // Kleines Handy (320 × 568): Sheet bleibt im Bild, alles per Scrollen erreichbar, nichts läuft seitlich über
+  const sc = await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true }); await sc.addInitScript(initFor(), [DEV]);
+  try {
+    const sp = await sc.newPage(); sp.setDefaultTimeout(8000);
+    await sp.goto(base + '/Strecken#einstellungen'); await sp.waitForTimeout(1300);
+    const sd = sp.getByRole('dialog', { name: 'Einstellungen' });
+    await sd.getByRole('button', { name: /Neues Handy/ }).click(); await sp.waitForTimeout(300);
+    const sb = await sd.boundingBox();
+    if (sb.height > 568 * 0.9 + 1) problems.push(`Einstellungen (320 × 568): Sheet zu hoch (${Math.round(sb.height)} px)`);
+    if (!(await sd.evaluate((el) => el.scrollHeight > el.clientHeight))) problems.push('Einstellungen (320 × 568): aufgeklapptes Sheet scrollt nicht');
+    const out = await sp.evaluate(() => [...document.querySelectorAll('[role=dialog] *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(e).display !== 'none').map((e) => e.textContent.trim().slice(0, 20) || e.tagName));
+    if (out.length) problems.push(`Einstellungen (320 × 568): ragt über den Rand: ${out.slice(0, 3).join(', ')}`);
+    if (await sp.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Einstellungen (320 × 568): Seite scrollt seitlich');
+  } finally { await sc.close(); }
 });
 
 // Einladungscode: Maske über der App, falscher Code wird abgelehnt, richtiger öffnet; danach läuft alles
@@ -363,6 +475,7 @@ await check('Ausfall in der Oberfläche', async () => {
     await page.goto(base + '/'); await page.waitForTimeout(1800);
     let t = await page.evaluate(() => document.querySelector('#screen').innerText);
     if (!/Fällt aus/.test(t)) problems.push('Ausfall: Hauptbildschirm zeigt „Fällt aus“ nicht');
+    if (!(await beside(page, '#screen a.rg-in'))) problems.push('Ausfall: Häkchen rutscht auf dem Hauptbildschirm unter „Fällt aus“');
     if (!/Ausfall · S ?1 ab/.test(t) || !/Nächste Fahrt/.test(t)) problems.push('Ausfall: Hauptbildschirm nennt die ausfallende Fahrt oder die nächste Fahrt nicht');
     await page.goto(base + '/Meldungen'); await page.waitForTimeout(1400);
     t = await page.evaluate(() => document.querySelector('#screen').innerText);
@@ -375,6 +488,64 @@ await check('Ausfall in der Oberfläche', async () => {
   } finally { await page.unroute('**/api/state**'); }
 });
 
+// Hauptbildschirm: das Symbol bleibt neben der großen Zeile (auch auf schmalen Handys). Detailseite: „Danach“ führt zur nächsten Abfahrt der Liste.
+await check('Hero und Danach', async () => {
+  const prof = (await j('/api/profile')).tours;
+  const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
+  const mk = (t, min, o = {}) => ({ line: { name: 'S 1', product: 'suburban' }, direction: t.to.name, origin: t.from, destination: t.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 40), arr: iso(min + 40), arrDelay: 0, plannedPlatform: '2', platform: '2', stopovers: [], remarks: [], ...o });
+  // vier Fahrten je Strecke: pünktlich, +2 Min. (unter der Schwelle), pünktlich, pünktlich. Die vierte hat keine eigene Detailseite (nur die ersten drei).
+  // Alle Strecken bekommen dieselben Fahrten: Welche Strecke oben steht, hängt von Tageszeit und Standort ab.
+  const legsFor = (t) => [mk(t, 25), mk(t, 45, { dep: iso(47), depDelay: 2 }), mk(t, 65), mk(t, 85)];
+  const install = (c) => c.route('**/api/state**', async (route) => {
+    const res = await route.fetch(); const body = await res.json();
+    const mine = new Set(prof.map((t) => t.id));
+    let incidents = body.incidents.filter((i) => !mine.has(i.tourId)); const tours = [];
+    for (const x of body.tours) {
+      const t = prof.find((p) => p.id === x.id);
+      if (!t) { tours.push(x); continue; }
+      const r = await buildTour(t, legsFor(t).map((l) => ({ legs: [l] })), { now: Date.now(), minDelay: 3, linesAt: async () => [], lines: body.lines });
+      tours.push({ ...x, ...r.tour }); incidents = [...incidents, ...r.incidents];
+    }
+    body.tours = tours; body.incidents = incidents;
+    await route.fulfill({ response: res, json: body });
+  });
+  for (const [w, h] of [[390, 844], [360, 740], [320, 568]]) {
+    const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true }); await c.addInitScript(initFor(), [DEV]); await install(c);
+    const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+    try {
+      await pg.goto(base + '/'); await pg.waitForTimeout(1600);
+      if (!(await beside(pg, '#screen a.rg-in'))) problems.push(`Hauptbildschirm (${w} px): Häkchen rutscht unter die große Zeile`);
+      const big = await pg.evaluate(() => { const a = document.querySelector('#screen a.rg-in'), t = a.querySelector('span[style*="nowrap"]'); return t ? { text: t.textContent.trim(), px: parseFloat(getComputedStyle(t).fontSize), over: t.getBoundingClientRect().right > a.getBoundingClientRect().right } : null; });
+      if (!big || big.over) problems.push(`Hauptbildschirm (${w} px): große Zeile ragt über die Karte`);
+      if (!big || big.text !== 'pünktlich') problems.push(`Hauptbildschirm (${w} px): erwartet „pünktlich“ (untergeschobener Zustand), gefunden: ${big && big.text}`);
+      if (w === 390 && big && !(big.px >= 44 && big.px <= 58)) problems.push(`Hauptbildschirm: große Zeile hat eine unpassende Größe (${big.px} px)`);
+      if (w === 390) {
+        const times = await pg.locator('a.rg-dep').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent.trim()));
+        if (times.length !== 3) { problems.push(`Danach: Abfahrtsliste hat ${times.length} statt 3 Zeilen`); continue; }
+        // Seite der ersten Abfahrt: „Danach“ ist ein Link auf die zweite, dort auf die dritte; die dritte hat keinen Link mehr (vierte Fahrt ohne Detailseite)
+        await pg.locator('a.rg-dep').nth(0).click(); await pg.waitForTimeout(1200);
+        const danach = () => pg.locator('a[href^="Detail.dc.html#"]').filter({ hasText: 'Danach' });
+        if (!(await beside(pg, null, '#screen svg[width="56"]'))) problems.push('Detailseite: Häkchen rutscht unter die große Zeile');
+        if ((await danach().count()) !== 1) { problems.push('Danach: auf der Seite der ersten Abfahrt ist „Danach“ kein Link'); continue; }
+        await danach().click(); await pg.waitForTimeout(1200);
+        if (!/\.1-m$/.test(pg.url()) && !/\.1-m/.test(await pg.evaluate(() => location.hash))) problems.push(`Danach: führt auf ${pg.url()} statt auf die zweite Abfahrt`);
+        if (!(await pg.evaluate(() => document.querySelector('#screen').innerText)).includes(times[1])) problems.push(`Danach: Seite der zweiten Abfahrt zeigt ${times[1]} nicht`);
+        await pg.goBack(); await pg.waitForTimeout(900);
+        if (!(await pg.evaluate(() => document.querySelector('#screen').innerText)).includes(times[0])) problems.push('Danach: Zurück führt nicht auf die erste Abfahrt');
+        await danach().click(); await pg.waitForTimeout(900);
+        await danach().click(); await pg.waitForTimeout(1200);
+        if (!(await pg.evaluate(() => document.querySelector('#screen').innerText)).includes(times[2])) problems.push(`Danach: Seite der dritten Abfahrt zeigt ${times[2]} nicht`);
+        if (await danach().count() || !(await pg.getByText('Danach').count())) problems.push('Danach: auf der dritten Abfahrt soll „Danach“ da sein, aber ohne Link (die vierte hat keine Detailseite)');
+        // Antippen der großen Karte (Strecke) zeigt „Danach“ mit Link auf die zweite Abfahrt
+        await pg.goto(base + '/'); await pg.waitForTimeout(1500);
+        await pg.locator('#screen a.rg-in').first().click(); await pg.waitForTimeout(1200);
+        if ((await pg.locator('a[href$=".1-m"]').filter({ hasText: 'Danach' }).count()) !== 1) problems.push('Danach: Streckenseite (große Karte) verlinkt „Danach“ nicht auf die zweite Abfahrt');
+      }
+      if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push(`Hauptbildschirm/Detail (${w} px): Seite scrollt seitlich`);
+    } finally { await c.close(); }
+  }
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Bildschirmtest FEHLGESCHLAGEN:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einladungscode, Gleiswechsel, Ausfall).');
+console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach).');

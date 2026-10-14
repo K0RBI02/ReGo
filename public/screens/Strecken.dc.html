@@ -26,6 +26,12 @@ a:active,button:active{transform:scale(.97)}
 [role=status]{animation:rg-down .35s ease-out}
 .rg-in{animation:rg-in .45s ease-out both}
 .rg-toast{animation:rg-up .3s ease-out both}
+@keyframes rg-sheet{from{transform:translateY(100%)}to{transform:none}}
+@keyframes rg-scrim{from{opacity:0}to{opacity:1}}
+.rg-sheet{animation:rg-sheet .28s ease-out both;padding-bottom:calc(20px + env(safe-area-inset-bottom)) !important}
+.rg-scrim{animation:rg-scrim .2s ease-out both}
+/* Hinweis über dem offenen Sheet: oben, und er lässt Tippen durch (sonst fängt er den Tipp auf die Abdunklung ab) */
+.rg-toast-top{top:calc(12px + env(safe-area-inset-top,0px)) !important;bottom:auto !important;animation-name:rg-down !important;pointer-events:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 /*rg-dark-start*/
 @media (prefers-color-scheme: dark){html{color-scheme:dark}
@@ -158,51 +164,7 @@ Zurück</a>
 </sc-for>
 <div style="font-size: 15px; font-weight: 600; color: #4A4747; line-height: 1.35; padding: 0 4px">Pendel-Push kommt nur für Strecken, die an sind. Im Urlaub einfach ausschalten.</div>
 
-<div style="background: #fff; border-radius: 28px; padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 10px">
-<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
-<span style="font-size: 17px; font-weight: 700">Push-Meldungen</span>
-<button type="button" role="switch" aria-checked="{{pushOn}}" aria-label="Push-Meldungen" onClick="{{togglePush}}" style="{{pushStyle}}"><span style="{{pushKnob}}"></span></button>
-</div>
-<span style="font-size: 17px; font-weight: 700; padding-top: 4px">Push ab Verspätung von</span>
-<div style="display: flex; gap: 8px">
-<sc-for list="{{pushChips}}" as="c" hint-placeholder-count="3">
-<button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
-</sc-for>
-</div>
-<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px">
-<span style="font-size: 16px; font-weight: 600; line-height: 1.3">Nur rund um die Abfahrt<br><span style="font-size: 14px; color: #4A4747">±20 Min. um die Zeit deiner Strecke</span></span>
-<button type="button" role="switch" aria-checked="{{pwOn}}" aria-label="Nur rund um die Abfahrtszeit benachrichtigen" onClick="{{togglePw}}" style="{{pwStyle}}"><span style="{{pwKnob}}"></span></button>
-</div>
-<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px">
-<span style="font-size: 16px; font-weight: 600; line-height: 1.3; min-width: 0">Testmeldung<br><span style="font-size: 14px; color: #4A4747">{{testHint}}</span></span>
-<button type="button" onClick="{{sendTest}}" aria-disabled="{{testBlocked}}" style="{{testStyle}}">{{testLabel}}</button>
-</div>
-</div>
-
-<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: #F3F3F3">
-<span style="font-size: 17px; font-weight: 700">Neues Handy?</span>
-<span style="font-size: 14px; font-weight: 600; line-height: 1.35; color: #4A4747">Code hier erzeugen, auf dem neuen Handy eingeben: Strecken und Einstellungen kommen mit. Tickets bitte über „Tickets sichern“ übertragen.</span>
-<sc-if value="{{hasCode}}" hint-placeholder-val="{{ false }}">
-<div style="font-size: 34px; font-weight: 800; letter-spacing: 6px; text-align: center; padding: 6px 0">{{code}}</div>
-<span style="font-size: 13px; font-weight: 600; text-align: center; color: #4A4747">10 Minuten gültig, nur einmal nutzbar</span>
-</sc-if>
-<button type="button" onClick="{{makeCode}}" style="min-height: 52px; border: 0; border-radius: 999px; background: #1C1A1A; color: #fff; font-size: 16px; font-weight: 700">Code erzeugen</button>
-<div style="display: flex; flex-wrap: wrap; gap: 8px">
-<input type="text" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Code eingeben" value="{{claim}}" onInput="{{setClaim}}" style="flex: 1 1 150px; min-width: 0; min-height: 52px; border: 1.5px solid #E8E8E8; border-radius: 26px; padding: 0 18px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A">
-<button type="button" onClick="{{doClaim}}" style="flex: 1 1 auto; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">{{claimLabel}}</button>
-</div>
-<sc-if value="{{claimWarn}}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size: 14px; font-weight: 700; line-height: 1.35">{{claimWarnText}}</span></sc-if>
-</div>
-
-<a href="{{contactHref}}" style="display: block; padding: 12px 4px; min-height: 44px; box-sizing: border-box; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</span>.</a>
-
-<div style="padding: 0 4px 4px; display: flex; flex-direction: column; gap: 0; font-size: 13px; font-weight: 600; line-height: 1.4; color: #4A4747">
-<span>{{versionLine}}</span>
-<span style="display: flex; flex-wrap: wrap; gap: 0 16px">
-<a href="https://github.com/K0RBI02/ReGo/blob/main/DATENSCHUTZ.md" target="_blank" rel="noopener" style="min-height: 44px; display: inline-flex; align-items: center; color: #1C1A1A; text-decoration: underline">Datenschutz</a>
-<a href="https://github.com/K0RBI02/ReGo" target="_blank" rel="noopener" style="min-height: 44px; display: inline-flex; align-items: center; color: #1C1A1A; text-decoration: underline">ReGo auf GitHub</a>
-</span>
-</div>
+<button type="button" data-sheet-open aria-haspopup="dialog" onClick="{{openSheet}}" style="display: block; width: 100%; min-height: 44px; box-sizing: border-box; padding: 12px 4px 4px; border: 0; background: transparent; text-align: left; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Push, neues Handy und Rückmeldung findest du in den <span style="white-space: nowrap"><span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Einstellungen</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -2px; margin-left: 4px"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></button>
 
 </div>
 
@@ -276,8 +238,69 @@ Strecke hinzufügen</button>
 <button type="button" onClick="{{saveAdd}}" aria-disabled="{{saveBlocked}}" style="{{saveStyle}}">{{saveLabel}}</button>
 </div>
 </sc-if>
+<sc-if value="{{sheet}}" hint-placeholder-val="{{ false }}">
+<div class="rg-scrim" onClick="{{closeSheet}}" aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 40; background: rgba(0, 0, 0, 0.38)"></div>
+<div class="rg-sheet" role="dialog" aria-modal="true" aria-label="Einstellungen" tabindex="-1" data-sheet onKeydown="{{sheetKey}}" style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 90%; overflow-y: auto; box-sizing: border-box; background: #fff; color: #1C1A1A; border-top: 1.5px solid #E8E8E8; border-radius: 32px 32px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.12); padding: 0 20px 20px; display: flex; flex-direction: column; outline: none">
+<div style="display: flex; justify-content: center; padding: 10px 0 4px"><span style="width: 40px; height: 5px; border-radius: 3px; background: #D9D9D9"></span></div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 8px">
+<h2 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em">Einstellungen</h2>
+<button type="button" data-sheet-close aria-label="Schließen" onClick="{{closeSheet}}" style="flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 50%; background: #F3F3F3; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1.5px solid #ECECEC">
+<span style="font-size: 17px; font-weight: 700">Push-Meldungen</span>
+<button type="button" role="switch" aria-checked="{{pushOn}}" aria-label="Push-Meldungen" onClick="{{togglePush}}" style="{{pushStyle}}"><span style="{{pushKnob}}"></span></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 0 14px; border-top: 1.5px solid #ECECEC">
+<span style="font-size: 17px; font-weight: 700">Push ab Verspätung von</span>
+<div style="display: flex; gap: 8px">
+<sc-for list="{{pushChips}}" as="c" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1.5px solid #ECECEC">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">Nur rund um die Abfahrt</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">±20 Min. um die Zeit deiner Strecke</span></span>
+<button type="button" role="switch" aria-checked="{{pwOn}}" aria-label="Nur rund um die Abfahrtszeit benachrichtigen" onClick="{{togglePw}}" style="{{pwStyle}}"><span style="{{pwKnob}}"></span></button>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1.5px solid #ECECEC">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">Testmeldung</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">{{testHint}}</span></span>
+<button type="button" onClick="{{sendTest}}" aria-disabled="{{testBlocked}}" style="{{testStyle}}">{{testLabel}}</button>
+</div>
+<button type="button" aria-expanded="{{handyOpen}}" onClick="{{toggleHandy}}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 60px; box-sizing: border-box; padding: 8px 0; border: 0; border-top: 1.5px solid #ECECEC; background: transparent; text-align: left; color: #1C1A1A">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">Neues Handy?</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">Strecken und Einstellungen mitnehmen</span></span>
+<sc-if value="{{handyOpen}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg></sc-if>
+<sc-if value="{{handyClosed}}" hint-placeholder-val="{{ true }}"><svg style="flex: none" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></sc-if>
+</button>
+<sc-if value="{{handyOpen}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 0 0 16px">
+<span style="font-size: 14px; font-weight: 600; line-height: 1.35; color: #4A4747">Code hier erzeugen, auf dem neuen Handy eingeben: Strecken und Einstellungen kommen mit. Tickets bitte über „Tickets sichern“ übertragen.</span>
+<sc-if value="{{hasCode}}" hint-placeholder-val="{{ false }}">
+<div style="font-size: 34px; font-weight: 800; letter-spacing: 6px; text-align: center; padding: 6px 0">{{code}}</div>
+<span style="font-size: 13px; font-weight: 600; text-align: center; color: #4A4747">10 Minuten gültig, nur einmal nutzbar</span>
+</sc-if>
+<button type="button" onClick="{{makeCode}}" style="min-height: 52px; border: 0; border-radius: 999px; background: #1C1A1A; color: #fff; font-size: 16px; font-weight: 700">Code erzeugen</button>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<input type="text" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Code eingeben" value="{{claim}}" onInput="{{setClaim}}" style="flex: 1 1 150px; min-width: 0; min-height: 52px; border: 1.5px solid #E8E8E8; border-radius: 26px; padding: 0 18px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A">
+<button type="button" onClick="{{doClaim}}" style="flex: 1 1 auto; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; font-size: 16px; font-weight: 700">{{claimLabel}}</button>
+</div>
+<sc-if value="{{claimWarn}}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size: 14px; font-weight: 700; line-height: 1.35">{{claimWarnText}}</span></sc-if>
+</div>
+</sc-if>
+
+<a href="{{contactHref}}" style="display: block; padding: 12px 4px; min-height: 44px; box-sizing: border-box; border-top: 1.5px solid #ECECEC; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</span>.</a>
+
+<div style="padding: 0 4px 4px; display: flex; flex-direction: column; gap: 0; font-size: 13px; font-weight: 600; line-height: 1.4; color: #4A4747">
+<span>{{versionLine}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 0 16px">
+<a href="https://github.com/K0RBI02/ReGo/blob/main/DATENSCHUTZ.md" target="_blank" rel="noopener" style="min-height: 44px; display: inline-flex; align-items: center; color: #1C1A1A; text-decoration: underline">Datenschutz</a>
+<a href="https://github.com/K0RBI02/ReGo" target="_blank" rel="noopener" style="min-height: 44px; display: inline-flex; align-items: center; color: #1C1A1A; text-decoration: underline">ReGo auf GitHub</a>
+</span>
+</div>
+</div>
+</sc-if>
 <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
-<div class="rg-toast" role="status" style="position: absolute; left: 20px; right: 20px; bottom: 112px; min-height: 56px; background: #1C1A1A; color: #fff; border-radius: 999px; padding: 0 8px 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 600; animation: rg-up .3s ease-out both">
+<div class="rg-toast {{toastTop}}" role="status" style="position: absolute; z-index: 60; left: 20px; right: 20px; bottom: 112px; min-height: 56px; background: #1C1A1A; color: #fff; border-radius: 999px; padding: 0 8px 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 600; animation: rg-up .3s ease-out both">
 <span>{{toast}}</span>
 <button type="button" onClick="{{undo}}" style="{{undoStyle}}">Rückgängig</button>
 </div>
@@ -291,9 +314,12 @@ class Component extends DCLogic {
     // Kurzbefehl „Neue Strecke“ (Android) öffnet die Seite mit dem Zusatz #neu: dann steht das Formular schon offen
     const wantAdd = /^#neu\b/.test(location.hash);
     if (wantAdd) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+    // #einstellungen öffnet das Einstellungs-Sheet. Es bekommt einen eigenen Verlaufseintrag: Die Zurück-Taste (Android) schließt erst das Sheet.
+    const wantSheet = !wantAdd && /^#einstellungen\b/.test(location.hash);
+    if (wantSheet) { try { history.replaceState(null, '', location.pathname); history.pushState(null, '', location.pathname + '#einstellungen'); this._pushed = true; } catch (e) {} }
     this.state = {
       list: this._fromRego(),
-      adding: wantAdd, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
+      adding: wantAdd, sheet: wantSheet, handyOpen: false, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
       days: [true, true, true, true, true, false, false],
       trip: 'both', backTime: '16:30', toast: '', prev: null, focus: '', err: ''
     };
@@ -310,6 +336,23 @@ class Component extends DCLogic {
     });
   }
   onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
+  // Einstellungs-Sheet (Push, Neues Handy, Rückmeldung, Version). Der Router ruft onHash, wenn nur der Anker wechselt, ohne die Seite neu aufzubauen.
+  openSheet() {
+    try { history.pushState(null, '', location.pathname + '#einstellungen'); this._pushed = true; } catch (e) {}
+    this.setState({ sheet: true });
+    const d = document.querySelector('#screen [data-sheet]'); if (d) d.focus({ preventScroll: true });
+  }
+  closeSheet() {
+    this.setState({ sheet: false });
+    if (this._pushed && /^#einstellungen\b/.test(location.hash)) { this._pushed = false; try { history.back(); } catch (e) {} }
+    else { this._pushed = false; try { if (location.hash) history.replaceState(null, '', location.pathname); } catch (e) {} }
+    const o = document.querySelector('#screen [data-sheet-open]'); if (o) o.focus({ preventScroll: true });
+  }
+  onHash(h) {
+    const want = /^#einstellungen\b/.test(h || '');
+    if (want === !!this.state.sheet || this.state.adding) return;
+    this._pushed = want; this.setState({ sheet: want });
+  }
   flash(msg, prev) {
     clearTimeout(this._tm);
     this.setState({ toast: msg, prev: prev || null });
@@ -388,6 +431,11 @@ class Component extends DCLogic {
       },
       hasContact: !!window.REGO.contact, contact: window.REGO.contact || '', contactHref: /@/.test(window.REGO.contact || '') ? 'mailto:' + window.REGO.contact : (window.REGO.contact || '#'),
       pushChips, routes, days, empty: st.list.length === 0,
+      sheet: !!st.sheet, handyOpen: !!st.handyOpen, handyClosed: !st.handyOpen,
+      toastTop: st.sheet ? 'rg-toast-top' : '',
+      openSheet: () => this.openSheet(), closeSheet: () => this.closeSheet(),
+      toggleHandy: () => this.setState({ handyOpen: !st.handyOpen }),
+      sheetKey: (e) => { if (e && e.key === 'Escape') { e.stopPropagation(); this.closeSheet(); } },
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
       formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
       from: st.from, to: st.to, time: st.time,
@@ -424,7 +472,7 @@ class Component extends DCLogic {
       // Testmeldung: nur mit eingeschaltetem Push sinnvoll; ein zweiter Tipp während des Sendens zählt nicht
       testHint: pushOn ? 'Prüft, ob Meldungen bei dir ankommen' : 'Schalte zuerst Push-Meldungen ein',
       testBlocked: !pushOn || !!this._testBusy, testLabel: this._testBusy ? 'Sendet …' : 'Senden',
-      testStyle: 'flex: none; min-height: 52px; padding: 0 22px; border-radius: 999px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A; border: 1.5px solid ' + (pushOn ? '#1C1A1A' : '#DCDCDC') + (pushOn ? '' : '; color: #9A9A9A'),
+      testStyle: 'flex: none; min-height: 52px; padding: 0 22px; border-radius: 999px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A; border: 1.5px solid ' + (pushOn ? '#1C1A1A' : '#E8E8E8') + (pushOn ? '' : '; color: #9A9A9A'),
       sendTest: () => {
         if (!pushOn) { this.flash('Schalte zuerst die Push-Meldungen ein', null); return; }
         if (this._testBusy) return;

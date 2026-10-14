@@ -232,6 +232,9 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) { return null; }
     }
 
+    /** Heller Untergrund: dann bekommen Statusleiste und Navigationsleiste dunkle Symbole. */
+    static boolean isLight(int c) { return (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) > 150; }
+
     /** Was die Oberfläche von der App aus aufrufen kann (window.RegoNative). */
     class Bridge {
         /** Versionsnummer der App für die Zeile unter „Strecken“. */
@@ -251,17 +254,18 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface public void keepScreenOn(boolean on) {
             runOnUiThread(() -> { if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); });
         }
-        @JavascriptInterface public void setBars(String color) {
-            Integer parsed = cssColor(color);
-            if (parsed == null) return;
-            final int c = parsed;
+        @JavascriptInterface public void setBars(String color) { setBarColors(color, color); }
+        /** Statusleiste oben und Navigationsleiste unten getrennt färben (Detailseite: grüne Karte oben, weißes Blatt unten). */
+        @JavascriptInterface public void setBarColors(String top, String bottom) {
+            Integer t = cssColor(top), b = cssColor(bottom);
+            if (t == null || b == null) return;
+            final int ct = t, cb = b;
             runOnUiThread(() -> {
                 try {
-                    getWindow().setStatusBarColor(c); getWindow().setNavigationBarColor(c);
-                    boolean light = (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) > 150;
+                    getWindow().setStatusBarColor(ct); getWindow().setNavigationBarColor(cb);
                     WindowInsetsControllerCompat ic = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-                    ic.setAppearanceLightStatusBars(light);
-                    ic.setAppearanceLightNavigationBars(light);
+                    ic.setAppearanceLightStatusBars(isLight(ct));
+                    ic.setAppearanceLightNavigationBars(isLight(cb));
                 } catch (Exception ignored) { }
             });
         }
