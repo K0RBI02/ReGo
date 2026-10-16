@@ -5,7 +5,7 @@ import { config } from '../server/config.mjs';
 import { createDbClient, createOebbClient } from '../server/providers/lib.mjs';
 
 const [fromQ = 'Freising', toQ = 'München Hbf'] = process.argv.slice(2);
-const out = new URL('../fixtures/real/', import.meta.url);
+const out = new URL('../test/fixtures/', import.meta.url);
 await mkdir(out, { recursive: true });
 const save = (n, d) => writeFile(new URL(n, out), JSON.stringify(d, null, 2));
 const step = async (name, fn) => { try { const r = await fn(); console.log('ok     ', name); return r; } catch (e) { console.log('FEHLER ', name, '->', e.message); } };

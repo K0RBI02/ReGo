@@ -102,7 +102,7 @@ test('Echte Antworten (Mitschnitt 10.10.2026): Umwandlung und Meldungen', async 
   assert.equal(cleanStopName('München Hbf Gl.27-36'), 'München Hbf');
   assert.equal(cleanStopName('Wien Hbf (Bahnsteige 3-12)'), 'Wien Hbf');
   assert.equal(lineLabel('RJX19915'), 'RJX'); assert.equal(lineLabel('IC 745'), 'IC'); assert.equal(lineLabel('RE25'), 'RE25'); assert.equal(lineLabel('S 1'), 'S1');
-  const load = async (n) => JSON.parse(await readFile(new URL(`../fixtures/real/${n}`, import.meta.url), 'utf8'));
+  const load = async (n) => JSON.parse(await readFile(new URL(`./fixtures/${n}`, import.meta.url), 'utf8'));
   // db-journeys.json ist schon normalisiert (Ausgabe von probe.mjs)
   const dbJ = await load('db-journeys.json'), oebbJ = await load('oebb-journeys.json');
   const ctx = (now) => ({ now, minDelay: 3, linesAt: async () => [], lines: {}, graceMin: 10 });
