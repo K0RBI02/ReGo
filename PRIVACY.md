@@ -1,4 +1,4 @@
-# Privacy Policy (Full Translation)
+# Privacy Policy
 
 ReGo is a private hobby project in beta. This document explains what data is stored and where it is sent. There are no user accounts, no advertising, and no usage analytics. The app does not load third-party scripts.
 
