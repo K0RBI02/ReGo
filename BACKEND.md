@@ -1,0 +1,175 @@
+# ReGo Backend
+
+The server side of ReGo, a minimalist public-transport app for commuters in the Alpine region of Bavaria and Austria. The Android app is described in [README.md](README.md), privacy in [PRIVACY.md](PRIVACY.md). This page is a short overview of how the backend works, not a manual.
+
+It is a small Node.js server (Node ≥ 20, one runtime dependency: `hafas-client`). It
+
+- fetches timetable data from several sources (regional transport associations, ÖBB, Deutsche Bahn),
+- keeps the routes ("tours" in the API) and settings of each device,
+- turns them into one ready-to-show state: next departures, delays, cancellations, platform changes, construction, replacement transport and connections with one transfer,
+- decides when a device should be notified and nudges the app to fetch the message,
+- serves the UI files that the app bundles, plus a status page.
+
+There are no user accounts: a device is an anonymous random ID, and tickets never reach the server. It usually runs as a Home Assistant add-on on a Raspberry Pi behind Tailscale, but it also runs standalone.
+
+## Running it
+
+```sh
+npm install
+npm run demo     # sample data, no internet needed
+npm start        # real data
+npm test
+```
+
+Then open `http://127.0.0.1:8080/status` for the status page. The UI is also served at `/`, which is handy for trying things out; the product is the Android app.
+
+### Home Assistant add-on
+
+The recommended way. Setup and options are in [rego/DOCS.md](rego/DOCS.md). GitHub Actions builds the image for `aarch64` and `amd64`; the Pi only downloads it.
+
+### Standalone
+
+```sh
+npm install --omit=dev
+HOST=0.0.0.0 PORT=8080 REGO_DATA=/var/lib/rego npm start
+```
+
+The server speaks plain http; TLS is not part of it, put it behind a reverse proxy or Tailscale. For autostart, a minimal systemd user unit (`~/.config/systemd/user/rego.service`; adjust `WorkingDirectory`, then `systemctl --user enable --now rego` and `loginctl enable-linger $USER`):
+
+```ini
+[Unit]
+Description=ReGo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/rego
+Environment=HOST=127.0.0.1
+Environment=PORT=8080
+ExecStart=/usr/bin/env node server/index.mjs
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+## Configuration
+
+All settings are optional environment variables; the add-on options map onto them (`provider` → `REGO_PROVIDER`, `fcm_key` → `REGO_FCM_KEY`, `invite_code` → `REGO_INVITE`). The main ones:
+
+| Variable | Meaning |
+|---|---|
+| `PORT`, `HOST` | Port (default 8080) and bind address (default `127.0.0.1`, `0.0.0.0` for the LAN). |
+| `REGO_DATA` | Data directory. |
+| `REGO_PROVIDER` | `library` (default), `transport-rest` or `mock`, see below. |
+| `REGO_INVITE` | Invitation code: new devices need it, known devices keep working. Empty: open. |
+| `REGO_FCM_KEY` | Firebase service-account JSON for instant push (or a file `fcm.json` in the data directory). |
+| `REGO_VERBOSE` | `1` logs source errors, slow requests and push activity. |
+| `REGO_CORS` | Additional allowed origin for the API, for working on the UI. |
+
+Source URLs, timeouts, retries, push interval and retention are in `server/config.mjs`.
+
+## Timetable sources
+
+ReGo is a private hobby project. The data comes from publicly reachable but **unofficial** interfaces, without any commitment or warranty: a source can change, become slower or be blocked. ReGo therefore stays deliberately small (few devices, few requests, rate limiting, optional invitation code). If it grew, the data would have to come from the official interfaces of the operators and associations.
+
+| Source | Reached through |
+|---|---|
+| MVV, Bahnland Bayern (MoBY) | EFA services |
+| ÖBB | `hafas-client`, transport.rest as fallback |
+| Deutsche Bahn | transport.rest |
+
+- `REGO_PROVIDER` selects how they are reached: `library` (EFA for the associations, ÖBB through the library with transport.rest as fallback, Deutsche Bahn through transport.rest), `transport-rest` (ÖBB and Deutsche Bahn both through transport.rest) or `mock` (sample data without network access, used by `npm run demo` and the tests).
+- Which source answers a route depends on its stops: the association if both stops belong to the same one (MoBY, the wider one, if they belong to two), otherwise ÖBB if one end is in Austria, otherwise Deutsche Bahn. Stops are translated between sources by name and position.
+- The station search asks all sources in parallel, removes duplicates and caches the result.
+- Answers are cached for a short time and concurrent requests share one source query. If a source fails, the last value is used for up to 30 minutes and marked as stale, and the source is left alone for a short pause. A route without usable data says so; it never shows "on time" without data.
+
+## HTTP API
+
+JSON over plain http. Every path except `/api/health` and `/api/status` needs the header `X-Device: <id>` (the anonymous ID the app generates once); a device the server does not know yet also needs `X-Invite` if an invitation code is set. Errors are `{error}` with a matching HTTP status. All responses carry security headers, and CORS is limited to the app's own origin.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | Liveness check (used by the add-on watchdog). |
+| `GET /api/status` | Version, state of the sources, number of devices and push subscriptions; no personal data. The page `/status` shows the same. |
+| `GET /api/stations?q=` | Station search. |
+| `GET /api/state` | The complete state of the device: routes with departures, incidents, settings. |
+| `POST /api/connections/search` | Looks for a connection with at most one transfer. |
+| `POST /api/tours`, `PATCH /api/tours/:id`, `DELETE /api/tours/:id` | Create, change or delete a route. |
+| `GET/PUT/DELETE /api/profile` | Read, replace (the app's undo) or delete the data of the device. |
+| `PUT /api/settings` | Push threshold (3, 5 or 10 minutes). |
+| `PUT /api/push/native`, `DELETE /api/push` | Enable or disable push for the device. |
+| `POST /api/push/test` | Send a test notification. |
+| `GET /api/notifications` | Collect the pending notifications (after a nudge, or about every 15 minutes). |
+| `POST /api/transfer`, `POST /api/transfer/claim` | "New phone": a one-time code (valid for 10 minutes) moves routes and settings to another device. |
+
+Creating a route checks it against the source first. Without a direct connection the answer is **422** (`no-direct`), and the app then offers to search with one transfer. "Hin und zurück" creates two linked routes; a device can have up to 20.
+
+## What the state contains
+
+`GET /api/state` returns what the UI needs, with the display text already in German. Per route: its schedule and commute window, up to three departures (planned and expected time, platform, delay) and a detail view for each. Next to the routes comes a list of incidents:
+
+| Incident | Meaning | Push |
+|---|---|---|
+| `delay` | First delayed departure of a route (at least 3 minutes). | From the device's threshold. |
+| `replacement` | Replacement transport, from the remarks of the source. | Always. |
+| `construction` | Construction, from the remarks of the source. | Always. |
+| `cancelled` | Cancelled trips in the next 3 hours. | Always. |
+| `platform` | Platform change within the next 45 minutes. | Always, on a quiet channel. |
+| `tight` | Connection at risk (routes with a transfer). | Always. |
+| `missed` | Connection missed or cancelled. | Always. |
+
+An incident has a stable ID (a hash of the route and its identifying details): it stays the same when only its numbers change, and a new day or another train is a new incident.
+
+## Rules in short
+
+**Commute window.** Every route has days and a departure window, for example 07:00–08:00. Before and during the window ReGo evaluates the trips in it. Outside it shows the next trains as usual, but without push. A departure more than 45 minutes away says "planmäßig" instead of "pünktlich", because the sources know few delays that far ahead.
+
+**Routes with one transfer.** They are created on the user's choice when there is no direct connection. The source only returns connections that still work in real time, so ReGo rates the transfer itself: for every departure it picks feeder, transfer station and connection anew and decides between ok, at risk and missed.
+
+**Shortcut hint.** If a route without transfer has replacement transport, ReGo also looks for a safe connection with one transfer that arrives at least five minutes earlier and shows it on the incident page. It is only a hint, there is no extra incident and no push.
+
+**Push.** Android only. With a Firebase key the server sends an **empty** nudge and the app fetches the text itself, so no message text goes to Google. Without a key the app asks about every 15 minutes. Every minute the server goes through the devices with push enabled:
+
+- A delay is relevant from the device's threshold, every other kind while it is active. Each incident is reported once.
+- A changed delay, number of cancelled trips or platform updates the notification silently. When an incident is over, the app rewrites the notification to "behoben" and removes it.
+- New notifications come only in the push period of a route: on its days, from an hour before the window until 10 minutes after it ends. Outside, incidents stay visible in the app without push.
+- Night quiet 23:00–04:00 (Berlin): no push at night, except for routes whose push period reaches into the night. A departure at 04:20 pushes from 03:20. Other routes and their notifications stay untouched until the morning.
+- Routes with stale data produce no new notifications. If the push service cannot be reached, the batch is tried again at the next check.
+
+How to set up instant push is described in the [README](README.md#instant-push-firebase). The app's settings have a test notification.
+
+## Data and limits
+
+- Each device has one small profile file in the data directory. There are no tickets, names, e-mail addresses or accounts on the server; transfer codes and rate-limit counters live in memory only. Profiles of devices that have not been seen for 180 days are deleted, and there are at most 2000 profiles. More in [PRIVACY.md](PRIVACY.md).
+- For a server that is reachable from the internet (for example through Tailscale Funnel): rate limits per address and per device (stricter for searches, ten new devices per hour and address), the optional invitation code (wrong codes are slowed down) and a size limit for request bodies.
+
+## Troubleshooting
+
+- `/status` shows version, sources, devices, push subscriptions and whether instant push is on. The add-on log starts with a network test and lists the errors of the sources. If ReGo hangs, switch on **Watchdog** in the add-on.
+- If the timetable sources are down, the app shows the last state (at most 30 minutes old) with "Keine aktuellen Daten".
+- The test notification arrives only after minutes although Firebase is set up: open `/status`. "Sofort-Push: aus" means the key is missing or unreadable (the log says so at start). "an" with "0 mit Firebase-Kennung" means the phone never reported a token: use an APK built with Firebase and switch push off and on again in the app.
+- The app asks for an invitation code: `invite_code` is set and the server does not know the device yet (fresh install, or after "delete profile").
+
+## Development
+
+```text
+server/     index.mjs     HTTP server, routes, static files, background timers
+            config.mjs    environment variables → settings
+            service.mjs   builds the state of a device
+            guard.mjs     rate limits, invitation code
+            notifier.mjs  push decisions (fcm.mjs: Firebase delivery)
+            providers/    timetable sources: EFA, HAFAS, hafas-client, mock
+            domain/       incidents, transfers, commute window
+            store/        profiles on disk, cache
+public/     the UI (screens/*.dc.html, js/), also bundled into the Android app
+android/    the Android app (WebView shell, notification service)
+rego/       Home Assistant add-on: config.yaml, Dockerfile, run.sh, DOCS.md, CHANGELOG.md
+test/       unit and API tests, with recorded responses in fixtures/
+scripts/    ui-smoke.mjs (screen test), probe.mjs (records real responses)
+```
+
+- `npm test` runs all unit and API tests offline. `node scripts/ui-smoke.mjs` is the screen test: it starts ReGo with sample data, opens every screen in phone size and walks through the main flows; it needs Playwright (`npm i --no-save playwright && npx playwright install chromium`).
+- CI (GitHub Actions): `build.yml` runs both tests and then builds the add-on images; `apk.yml` builds the signed APK (see the [README](README.md#building-the-apk)).
+- Releasing: raise `version` in `package.json` and `rego/config.yaml` and add a heading `## <version> – <title>` at the top of `rego/CHANGELOG.md` (a test checks that all three agree), then push to `main`. A server-only change reaches the Pi through the add-on update; a change to `public/` or `android/` also needs the new APK.
