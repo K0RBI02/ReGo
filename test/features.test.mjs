@@ -147,9 +147,12 @@ test('Strecke ohne Direktverbindung wird nicht angelegt (422), mit Direktverbind
     const orig = service.hasDirect; service.hasDirect = async () => null;
     r = await post({ from: FS, to: SZ }); assert.equal(r.status, 201);
     service.hasDirect = orig;
-    // dieselbe Strecke noch einmal (Doppeltippen, Umzug): keine neue Prüfung nötig
-    let asked = 0; service.hasDirect = async () => { asked++; return false; };
-    r = await post({ from: FS, to: SZ }); assert.equal(r.status, 201); assert.equal(asked, 0);
+    // dieselbe Strecke noch einmal (Doppeltippen): mit Direktverbindung bleibt es bei der vorhandenen Strecke
+    r = await post({ from: MH, to: FS }); assert.equal(r.status, 201);
+    assert.equal((await (await fetch(`${base}/api/profile`, { headers: h })).json()).tours.length, 3);
+    // eine vorhandene Strecke ohne Direktverbindung (aus einer älteren Version) wird nicht stillschweigend „noch einmal angelegt“: der Hinweis kommt wieder (seit 0.7.0 mit „Mit 1 Umstieg suchen“)
+    service.hasDirect = async () => false;
+    r = await post({ from: FS, to: SZ }); assert.equal(r.status, 422); assert.equal((await r.json()).code, 'no-direct');
     // unsinnige Eingabe bleibt ein 400, nicht 422
     assert.equal((await post({ from: FS, to: FS })).status, 400);
   } finally { server.close(); }

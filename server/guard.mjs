@@ -84,7 +84,7 @@ export function createGuard({ cfg, store, now = () => Date.now() }) {
     /** Zweite Schranke für Anfragen mit Geräte-ID: Begrenzung je Gerät; unbekannte Geräte brauchen (falls eingestellt) den Einladungscode und sind je Adresse begrenzt. */
     async device(req, url, dev) {
       let wait = byDevice.take(dev);
-      if (!wait && url.pathname === '/api/stations') wait = bySearch.take(dev);
+      if (!wait && (url.pathname === '/api/stations' || url.pathname === '/api/connections/search')) wait = bySearch.take(dev);
       if (wait) throw tooMany(wait);
       if (await store.has(dev)) return;                                                     // bekanntes Gerät: kein Code nötig, auch nach dem Einschalten der Einladung
       const ip = clientIp(req);

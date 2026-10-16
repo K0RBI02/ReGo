@@ -45,13 +45,13 @@ export class EfaClient {
     return parseStops({ locations: locations.filter((x) => x && !seen.has(x.id) && seen.add(x.id)) }, this.key, query);
   }
 
-  /** Direktverbindungen (ohne Umstieg) ab "when" inkl. Zwischenhalte und Hinweise. */
-  async journeys({ fromId, toId, when, results = 5 }) {
+  /** Verbindungen ab "when" inkl. Zwischenhalte und Hinweise. transfers = höchstens so viele Umstiege (0 = nur Direktverbindungen). */
+  async journeys({ fromId, toId, when, results = 5, transfers = 0 }) {
     const b = berlin(new Date(when).getTime());
     const data = await this.get('XML_TRIP_REQUEST2', {
       type_origin: 'any', name_origin: this.raw(fromId), type_destination: 'any', name_destination: this.raw(toId),
       itdDate: b.date.replaceAll('-', ''), itdTime: b.time.replace(':', ''), itdTripDateTimeDepArr: 'dep',
-      calcNumberOfTrips: results, maxChanges: 0, useRealtime: 1,
+      calcNumberOfTrips: results, maxChanges: transfers, useRealtime: 1,
     });
     const errs = (data?.systemMessages || []).filter((m) => m.type === 'error' && m.code !== -8011);
     if (!data?.journeys?.length && errs.length) throw new ProviderError(`${this.name}: ${errs[0].text || 'Fehler ' + errs[0].code}`, { kind: 'http' });
@@ -168,6 +168,8 @@ export function parseLeg(l, key) {
     plannedArr: d.arrivalTimePlanned || d.arrivalTimeBaseTimetable, arr: d.arrivalTimeEstimated || d.arrivalTimePlanned, arrDelay: delayMin(d.arrivalTimePlanned, d.arrivalTimeEstimated),
     plannedPlatform: o.properties?.plannedPlatformName || o.properties?.platformName || null,
     platform: o.properties?.platformName || o.properties?.plannedPlatformName || null,
+    plannedArrPlatform: d.properties?.plannedPlatformName || d.properties?.platformName || null,
+    arrPlatform: d.properties?.platformName || d.properties?.plannedPlatformName || null,
     cancelled: Boolean(l.isCancelled) || rt.some((x) => /CANCEL/i.test(String(x))),
     tripId: t.properties?.AVMSTripID || t.id || '',
     stopovers: seq, remarks,

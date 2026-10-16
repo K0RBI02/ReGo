@@ -26,6 +26,8 @@ export const THEME = {
     none:         { label: 'Keine Daten',   bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M24 21v13M24 14.5v.1'] },
     cancelled:    { label: 'Ausfall',       bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
     platform:     { label: 'Gleiswechsel',  bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M13 20h19M27 15l5 5-5 5M35 29H16M21 24l-5 5 5 5'] },
+    tight:        { label: 'Anschluss wackelt', bg: '#FDE3CF', icon: ['M24 8c1 0 2 .6 2.6 1.6L41 36c1 2-.2 4.2-2.6 4.2H9.6C7.2 40.2 6 38 7 36L21.4 9.6C22 8.6 23 8 24 8z', 'M24 18v11M24 34.5v.1'] },
+    missed:       { label: 'Anschluss verpasst', bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
   },
 };
 
@@ -252,4 +254,4 @@ export function stillVisible(inc, now, graceMin) {
   return now <= until + (inc.kind === 'delay' ? graceMin * 60000 : 0);
 }
 
-export { distanceKm };
+export { distanceKm, localIso, hash, validityLabel, ticketHintFor, appLinkFor, times, andList, sub, CANCEL_HORIZON, PLATFORM_HORIZON };

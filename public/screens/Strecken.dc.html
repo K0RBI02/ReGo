@@ -150,10 +150,17 @@ Zurück</a>
 <span style="font-size: 14px; font-weight: 600; color: #4A4747">{{r.when}}</span>
 <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1">{{r.name}}</span>
 <span style="{{r.noteStyle}}">{{r.note}}</span>
-<span style="display: flex; align-items: center; gap: 10px; padding-top: 2px">
-<span style="{{r.chipStyle}}">{{r.line}}</span>
+<span style="display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; padding-top: 2px">
+<span style="{{r.chipsStyle}}">
+<sc-for list="{{r.chips}}" as="c" hint-placeholder-count="2">
+<sc-if value="{{c.isChev}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" aria-hidden="true"><path d="M1.5 1.5L6.5 6l-5 4.5"></path></svg></sc-if>
+<sc-if value="{{c.isChip}}" hint-placeholder-val="{{ true }}"><span style="{{c.style}}">{{c.label}}</span></sc-if>
+</sc-for>
+</span>
+<span style="display: flex; align-items: center; gap: 10px">
 <button type="button" onClick="{{r.edit}}" aria-label="{{r.editLabel}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 15px; font-weight: 600; color: #1C1A1A; text-decoration: underline">Ändern</button>
 <button type="button" onClick="{{r.remove}}" aria-label="{{r.removeLabel}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 15px; font-weight: 600; color: #4A4747; text-decoration: underline">Entfernen</button>
+</span>
 </span>
 </div>
 <div style="width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px 8px 0">
@@ -205,7 +212,26 @@ Strecke hinzufügen</button>
 </sc-if>
 </div>
 </sc-if>
-<sc-if value="{{hasSaveErr}}" hint-placeholder-val="{{ false }}"><div role="alert" style="background: #F9D6D2; color: #1C1A1A; border-radius: 20px; padding: 12px 16px; font-size: 15px; font-weight: 600; line-height: 1.35">{{saveErr}}</div></sc-if>
+<sc-if value="{{hasSaveErr}}" hint-placeholder-val="{{ false }}"><div role="alert" style="background: #F9D6D2; color: #1C1A1A; border-radius: 20px; padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; font-weight: 600; line-height: 1.35"><span>{{saveErr}}</span>
+<sc-if value="{{showXferBtn}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{searchXfer}}" aria-disabled="{{xbusy}}" style="align-self: flex-start; min-height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: #1C1A1A; color: #fff; font-size: 15px; font-weight: 700">{{xferBtnLabel}}</button></sc-if></div></sc-if>
+<sc-if value="{{hasXroute}}" hint-placeholder-val="{{ false }}">
+<div class="rg-in" role="status" style="background: #EAF6CF; color: #1C1A1A; border-radius: 24px; padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 700"><span>{{xrouteHead}}</span><span>{{xrouteDur}}</span></div>
+<div style="display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: center">
+<sc-for list="{{xrows}}" as="x" hint-placeholder-count="3">
+<sc-if value="{{x.isLeg}}" hint-placeholder-val="{{ true }}">
+<span style="{{x.chipStyle}}">{{x.line}}</span>
+<span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.2">{{x.title}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747">{{x.times}}</span></span>
+</sc-if>
+<sc-if value="{{x.isXfer}}" hint-placeholder-val="{{ false }}">
+<svg style="justify-self: center" width="36" height="30" viewBox="0 0 36 30" fill="none" aria-hidden="true"><path d="M18 3v24" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 7"></path></svg>
+<span style="font-size: 14px; font-weight: 700">{{x.text}}</span>
+</sc-if>
+</sc-for>
+</div>
+<span style="font-size: 13px; font-weight: 600; color: #4A4747; line-height: 1.35">ReGo wählt den Umstieg für jede Abfahrt neu.</span>
+</div>
+</sc-if>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 14px; font-weight: 600; color: #4A4747">Tage</span><span style="display: flex; gap: 4px"><button type="button" onClick="{{daysWork}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Mo–Fr</button><button type="button" onClick="{{daysAll}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Täglich</button></span></div>
 <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px">
@@ -321,7 +347,7 @@ class Component extends DCLogic {
       list: this._fromRego(),
       adding: wantAdd, sheet: wantSheet, handyOpen: false, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
       days: [true, true, true, true, true, false, false],
-      trip: 'both', backTime: '16:30', toast: '', prev: null, focus: '', err: ''
+      trip: 'both', backTime: '16:30', toast: '', prev: null, focus: '', err: '', errCode: '', xroute: null, xbusy: false
     };
     window.REGO.loadInfo().then(() => this.setState({}), () => {});       // Versionszeile
   }
@@ -329,10 +355,13 @@ class Component extends DCLogic {
     const R = window.REGO, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     return R.tours.map((t) => {
       const d = t.schedule.days, work = d.length === 5 && names.slice(0, 5).every((n) => d.includes(n));
-      const L = R.lines[t.lineId];
+      // Mit 1 Umstieg: beide Linien als Chips ("S1 › RE") und der Bahnhof, an dem meist gewechselt wird
+      const xfer = t.transfers === 1, ids = xfer && t.lineIds && t.lineIds.length ? t.lineIds : [t.lineId];
+      const chips = ids.filter(Boolean).map((id) => R.lines[id]).filter((l) => l && l.label).map((l) => ({ label: l.label, color: l.color }));
+      const xnote = xfer ? '1 Umstieg' + (t.via ? ' · meist ' + t.via : '') : '';
       // Aktive Strecke ohne Abfahrt: kurz sagen warum (die Hauptseite zeigt dasselbe groß)
-      const b = t.view && t.view.big, note = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : 'Keine Direktverbindung';
-      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ab ' + t.schedule.departAfter, name: t.name, line: L.label, color: L.color, on: t.active, note };
+      const b = t.view && t.view.big, why = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : xfer ? 'Keine Verbindung mit 1 Umstieg' : 'Keine Direktverbindung';
+      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ab ' + t.schedule.departAfter, name: t.name, chips, on: t.active, note: why || xnote, noteOff: xnote };
     });
   }
   onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
@@ -362,14 +391,16 @@ class Component extends DCLogic {
   _rv() {
     const st = this.state;
     const names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const chipCss = (c) => 'min-width: 36px; height: 34px; padding: 0 10px; border-radius: 17px; background: ' + c + '; color: #fff; display: inline-grid; place-items: center; font-size: 15px; font-weight: 700; box-sizing: border-box';
     const routes = st.list.map((d, i) => ({
-      when: d.when, name: d.name, line: d.line, note: d.on ? d.note || '' : '',
-      noteStyle: d.on && d.note ? 'font-size: 14px; font-weight: 600; line-height: 1.3; color: #4A4747' : 'display: none',
-      chipStyle: d.line ? 'min-width: 36px; height: 34px; padding: 0 10px; border-radius: 17px; background: ' + d.color + '; color: #fff; display: inline-grid; place-items: center; font-size: 15px; font-weight: 700; box-sizing: border-box' : 'display: none',
+      when: d.when, name: d.name, note: d.on ? d.note || '' : d.noteOff || '',
+      noteStyle: (d.on ? d.note : d.noteOff) ? 'font-size: 14px; font-weight: 600; line-height: 1.3; color: #4A4747' : 'display: none',
+      chips: d.chips.flatMap((c, k) => (k ? [{ isChev: true }] : []).concat({ isChip: true, label: c.label, style: chipCss(c.color) })),
+      chipsStyle: d.chips.length ? 'display: flex; align-items: center; gap: 4px; min-height: 44px' : 'display: none',
       on: d.on, state: d.on ? 'An' : 'Aus',
       label: 'Warnungen für ' + d.name,
       removeLabel: d.name + ' entfernen', editLabel: d.name + ' ändern',
-      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, time: t.schedule.departAfter, days: names.map((n) => t.schedule.days.includes(n)) }); },
+      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, err: '', errCode: '', xroute: null, time: t.schedule.departAfter, days: names.map((n) => t.schedule.days.includes(n)) }); },
       switchStyle: 'width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (d.on ? 'flex-end' : 'flex-start') + '; background: ' + (d.on ? '#1C1A1A' : '#DCDCDC'),
       knobStyle: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
       toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
@@ -384,7 +415,13 @@ class Component extends DCLogic {
     const T = window.REGO;
     const editing = !!st.editId;
     const valid = editing || T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
-    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => this.setState({ [st.focus]: q.name, focus: '' }) })) : [];
+    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => this.setState({ [st.focus]: q.name, focus: '', err: '', errCode: '', xroute: null }) })) : [];
+    // Vorschau „Mit 1 Umstieg“: die beiden Fahrten und dazwischen die Umstiegszeile
+    const xr = st.xroute, xrows = [];
+    if (xr) (xr.legs || []).forEach((l, k) => {
+      if (k === 1) xrows.push({ isXfer: true, text: 'Umstieg ' + (xr.via || '') + (xr.wait != null ? ' · ' + xr.wait + ' Min.' : '') });
+      xrows.push({ isLeg: true, line: l.line, title: l.title, times: l.times, chipStyle: chipCss(l.color) });
+    });
     const pushChips = [3, 5, 10].map((v) => ({
       label: v + ' Min.', on: st.threshold === v,
       style: 'flex: 1; min-height: 52px; border: 1.5px solid ' + (st.threshold === v ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; font-size: 16px; font-weight: 700; ' + (st.threshold === v ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
@@ -439,12 +476,31 @@ class Component extends DCLogic {
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
       formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
       from: st.from, to: st.to, time: st.time,
-      setFrom: (e) => this.setState({ from: val(e), focus: 'from', err: '' }),
-      setTo: (e) => this.setState({ to: val(e), focus: 'to', err: '' }),
+      setFrom: (e) => this.setState({ from: val(e), focus: 'from', err: '', errCode: '', xroute: null }),
+      setTo: (e) => this.setState({ to: val(e), focus: 'to', err: '', errCode: '', xroute: null }),
       hasSaveErr: !!st.err, saveErr: st.err,
+      // Keine Direktverbindung: erst nach dem ausdrücklichen Tipp wird mit 1 Umstieg gesucht; gefunden = Vorschau, Speichern legt die Strecke dann mit Umstieg an
+      showXferBtn: st.errCode === 'no-direct' || st.errCode === 'retry',
+      xbusy: !!st.xbusy, xferBtnLabel: st.xbusy ? 'Suche läuft …' : st.errCode === 'retry' ? 'Nochmal suchen' : 'Mit 1 Umstieg suchen',
+      hasXroute: !!xr, xrows, xrouteHead: xr && (xr.legs || []).length > 1 ? 'Gefunden · 1 Umstieg' : 'Gefunden · ohne Umstieg', xrouteDur: xr ? xr.duration || '' : '',
+      searchXfer: () => {
+        if (this.state.xbusy) return;
+        const a = st.from.trim(), b = st.to.trim();
+        const same = () => this.state.from.trim() === a && this.state.to.trim() === b;      // zwischendurch geändert: Ergebnis gilt nicht mehr
+        this.setState({ xbusy: true });
+        window.REGO.actions.searchTransfer({ from: a, to: b }).then(
+          (r) => {
+            if (!same()) { this.setState({ xbusy: false }); return; }
+            if (r && r.found === true && r.route) this.setState({ xbusy: false, xroute: r.route, err: '', errCode: '' });
+            else if (r && r.found === false) this.setState({ xbusy: false, xroute: null, err: 'Auch mit 1 Umstieg habe ich zwischen ' + a + ' und ' + b + ' nichts gefunden.', errCode: 'no-connection' });
+            else this.setState({ xbusy: false, err: 'Die Suche war gerade nicht möglich. Bitte gleich noch einmal versuchen.', errCode: 'retry' });
+          },
+          (e) => { if (same()) this.setState({ xbusy: false, err: e && e.message ? e.message : 'Keine Verbindung', errCode: 'retry' }); else this.setState({ xbusy: false }); }
+        );
+      },
       setTime: (e) => this.setState({ time: val(e) }),
-      openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
-      cancelAdd: () => this.setState({ adding: false, editId: '', err: '' }),
+      openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', errCode: '', xroute: null, xbusy: false, from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
+      cancelAdd: () => this.setState({ adding: false, editId: '', err: '', errCode: '', xroute: null, xbusy: false }),
       saveAdd: () => {
         if (!valid || this._saving) return;                       // schon unterwegs: ein zweiter Tipp darf nichts doppelt anlegen
         const sel = names.filter((n, i) => st.days[i]);
@@ -459,12 +515,13 @@ class Component extends DCLogic {
           return;
         }
         const from = st.from.trim(), to = st.to.trim();
-        window.REGO.actions.addTour({ from, to, days: sel, time: st.time, trip: st.trip, backTime: st.backTime }).then(
-          () => { end(); this.setState({ adding: false, list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
+        window.REGO.actions.addTour({ from, to, days: sel, time: st.time, trip: st.trip, backTime: st.backTime, transfers: st.xroute ? 1 : 0 }).then(
+          () => { end(); this.setState({ adding: false, xroute: null, err: '', errCode: '', list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
           (e) => {
             end();
-            // Keine Direktverbindung: die Strecke wird nicht angelegt. Der Grund steht im Formular, das dafür nach oben springt.
-            if (e && e.status === 422) { this.setState({ err: e.message }); const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0; return; }
+            // Keine Verbindung: die Strecke wird nicht angelegt. Der Grund steht im Formular, das dafür nach oben springt.
+            // Bei „no-direct“ bietet das Formular die Suche mit 1 Umstieg an, bei „no-connection“ gibt es nichts mehr zu suchen.
+            if (e && e.status === 422) { this.setState({ err: e.message, errCode: e.code || '', xroute: e.code === 'no-connection' ? null : this.state.xroute }); const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0; return; }
             this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null);
           }
         );

@@ -1,5 +1,31 @@
 # Änderungen
 
+## 0.7.0 – Strecken mit 1 Umstieg
+
+**Strecken**
+- **„Mit 1 Umstieg suchen“:** Gibt es zwischen zwei Haltestellen keine Direktverbindung, sagt das Formular „Neue Strecke“ das wie bisher und zeigt darunter den Knopf „Mit 1 Umstieg suchen“. Findet ReGo etwas, erscheint eine Vorschau („Gefunden · 1 Umstieg“) mit beiden Linien, dem Umstiegsbahnhof und der Wartezeit; „Speichern“ legt die Strecke dann mit Umstieg an, bei „Hin und zurück“ beide Richtungen. Findet ReGo auch so nichts, steht das ehrlich da („Auch mit 1 Umstieg habe ich zwischen A und B nichts gefunden.“), und es wird nichts angelegt. Ändert man eine Haltestelle, verschwindet die Vorschau wieder.
+- **Kein Schalter:** Es gibt keine Einstellung „immer mit Umstieg“. Ein Umstieg kommt nur dazu, wenn du ihn bei einer Strecke ausdrücklich suchst. Der Satz „ReGo zeigt nur Fahrten ohne Umstieg.“ aus der Fehlermeldung ist entfallen.
+- **Liste:** Eine Strecke mit Umstieg zeigt zwei Linienpunkte mit Pfeil und darunter „1 Umstieg · meist München Hbf“.
+- **Ältere Strecken ohne Direktverbindung** („Keine“) lassen sich umstellen: Legst du eine solche Strecke mit denselben Tagen und derselben Zeit noch einmal an, kommt wieder der Hinweis mit „Mit 1 Umstieg suchen“. Findet ReGo etwas, wird die vorhandene Strecke zur Strecke mit Umstieg, statt doppelt zu erscheinen.
+
+**Hauptbildschirm und Detailseite**
+- **ReGo wählt den Umstieg für jede Abfahrt neu:** Zubringer, Umstiegsbahnhof und Anschluss können bei jeder Abfahrt anders sein. Jede Zeile zeigt Abfahrt, beide Linien, die Ankunft am Ziel und den Umstieg („Umstieg München Hbf · 9 Min.“). Mehr als 30 Minuten geplante Wartezeit am Umstieg zählen nicht, es sei denn, es gibt sonst nichts.
+- **Die Lagen:** „pünktlich“; „Anschluss wackelt“ (der Zubringer ist verspätet, es bleiben weniger als 3 Minuten); „Anschluss verpasst“ (kein Puffer mehr, ReGo zeigt den nächsten Anschluss mit der neuen Ankunft) und „Anschluss fällt aus“ (die Anschlussfahrt fällt aus, auch bei pünktlichem Zubringer). Ersatzverkehr auf dem Zubringer: „Anschluss bleibt erreichbar“, solange die genannte Mehrzeit reicht, sonst wackelt oder verpasst er.
+- **Detailseite:** zwei Abschnitte („1. Fahrt“, „2. Fahrt“) mit einer Umstiegskarte dazwischen (Gleis → Gleis, Minuten). Die Karte zeigt beide Linien, markiert den Umstiegsbahnhof (bei wackelt/verpasst mit Warnring), den gestörten Abschnitt und die Zeitpillen für Abfahrt und Ankunft, die sich bei Verspätung färben. Lange Strecken sind gekürzt dargestellt, ausgelassene Halte stehen als „+5“ an der Linie.
+- Gibt die Fahrplanquelle für eine Strecke mit Umstieg nur Direktfahrten zurück, gelten die gewohnten Regeln für Direktstrecken.
+
+**Meldungen und Push**
+- **Neue Arten:** „Anschluss wackelt“ (orange) und „Anschluss verpasst“ (rot). Beide kommen immer als Push, solange sie aktuell sind, unabhängig von der Verspätungsschwelle. Wird aus „wackelt“ ein „verpasst“, ist das eine neue Meldung (neuer Push, keine stille Aktualisierung). In Android laufen sie über den Kanal „Verspätungen“.
+- Ausfall des Zubringers, Gleiswechsel (auch der Anschlussfahrt), Ersatzverkehr, Baustelle und Verspätung gibt es wie bei Direktstrecken, jeweils mit der betroffenen Linie.
+
+**Schnittstelle**
+- Neu: `POST /api/connections/search` sucht eine Verbindung (direkt oder mit 1 Umstieg) und liefert eine Vorschau, `found: null` heißt „Quelle antwortet gerade nicht“.
+- `POST /api/tours` nimmt `transfers: 1` an. Ohne Direktverbindung antwortet er mit 422 und `code: "no-direct"`, mit `transfers: 1` und ohne jede Verbindung mit 422 und `code: "no-connection"`; ein anderer Wert für `transfers` ist ein 400. Antwortet die Quelle nicht, wird wie bisher angelegt.
+- Strecken tragen `transfers`, `via` und `lineIds`, Abfahrten `lineIds`, `arrTime` und `transfer`, Ansichten `sections`. Die flache Liste `rows` bleibt für ältere Oberflächen erhalten. Mehr im Datenvertrag.
+
+**Neu bauen**
+- Aussehen und Server haben sich geändert: neue APK (`app-v0.7.0`) installieren und das Add-on aktualisieren. Eine alte App kennt Strecken mit Umstieg nicht und kann sie nicht richtig anzeigen.
+
 ## 0.6.2 – Neues App-Symbol
 
 **Android**

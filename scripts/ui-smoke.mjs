@@ -8,6 +8,7 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 import { addTours } from '../server/store/profile.mjs';
 import { buildTour } from '../server/domain/state.mjs';
+import { buildTransferTour } from '../server/domain/transfer.mjs';
 import { readFileSync } from 'node:fs';
 
 const pw = await import('playwright').catch(() => import('/opt/npm-tools/node_modules/playwright/index.mjs'));
@@ -61,7 +62,8 @@ if (!dl) problems.push('Ticket sichern: keine Datei erzeugt');
 
 // ---------- Fälle aus der großen Prüfung (0.5.0) ----------
 // Jeder Fall läuft für sich; scheitert eine Bedienung, wird das als Fund gemeldet statt den ganzen Test abzubrechen.
-const check = async (name, fn) => { where = name; try { await fn(); } catch (e) { problems.push(`${name}: ${String(e.message).split('\n')[0]}`); } };
+// SMOKE_ONLY=<Teil des Namens> führt nur passende Fälle aus (zum Nachbessern eines einzelnen Falls)
+const check = async (name, fn) => { if (process.env.SMOKE_ONLY && !name.includes(process.env.SMOKE_ONLY)) return; where = name; try { await fn(); } catch (e) { problems.push(`${name}: ${String(e.message).split('\n').slice(0, 2).join(' ')}`); } };
 const suggest = async (n, text) => { const i = page.locator('input[type=text]').nth(n); await i.click(); await i.pressSequentially(text, { delay: 40 }); await page.waitForTimeout(1400); await page.getByRole('option').first().click(); };
 
 // Doppeltipp auf „Speichern“: Hin- und Rückweg nur einmal
@@ -546,6 +548,191 @@ await check('Hero und Danach', async () => {
   }
 });
 
+// ---------- Neu in 0.7.0: Fahrten mit 1 Umstieg ----------
+// Eigene Geräte, damit die Strecken der Fälle oben unverändert bleiben.
+const jx = async (dev, p, m = 'GET', b) => (await fetch(base + p, { method: m, headers: { 'x-device': dev, 'content-type': 'application/json' }, body: b ? JSON.stringify(b) : undefined })).json();
+const watch = (pg) => {
+  pg.on('pageerror', (e) => problems.push(`${where}: JavaScript-Fehler: ${e.message}`));
+  pg.on('console', (m) => { if (m.type() === 'error' && !ignore(m.text())) problems.push(`${where}: Konsole: ${m.text().slice(0, 200)}`); });
+  pg.on('response', (r) => { if (r.status() >= 400 && !ignore(r.url())) problems.push(`${where}: HTTP ${r.status()} ${r.url()}`); });
+};
+const suggestOn = async (pg, n, text) => { const i = pg.locator('input[type=text]').nth(n); await i.click(); await i.fill(''); await i.pressSequentially(text, { delay: 40 }); await pg.waitForTimeout(1400); await pg.getByRole('option').first().click(); };
+const sideways = (pg) => pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+// Kontrast Text gegen Untergrund (nächster nicht durchsichtiger Vorfahre).
+// items = [[Tag, Text], …] liefert [[Text, Kennzahl], …] (0 = nicht gefunden); root = Auswahl liefert alle sichtbaren Texte darunter mit Kontrast unter min.
+const contrastScan = (pg, args) => pg.evaluate(({ items, root, min }) => {
+  const lum = (c) => { const m = c.match(/\d+(\.\d+)?/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+  const ratioOf = (el) => {
+    let bg = el; while (bg && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(bg).backgroundColor)) bg = bg.parentElement;
+    const a = lum(getComputedStyle(el).color), b = lum(bg ? getComputedStyle(bg).backgroundColor : 'rgb(255, 255, 255)');
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  if (items) return items.map(([tag, label]) => { const el = [...document.querySelectorAll(tag)].find((x) => x.textContent.trim() === label); return [label, el ? ratioOf(el) : 0]; });
+  const bad = [];
+  for (const el of document.querySelectorAll(root + ' *')) {
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim()).map((n) => n.textContent.trim()).join(' ');
+    const r = el.getBoundingClientRect();
+    if (!own || !r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue;
+    const ratio = ratioOf(el);
+    if (ratio < min) bad.push(`„${own.slice(0, 28)}“ ${ratio.toFixed(1)}:1`);
+  }
+  return bad;
+}, { items: args.items || null, root: args.root || '', min: args.min || 4.5 });
+const contrastOf = (pg, items) => contrastScan(pg, { items });
+const lowContrast = (pg, root, min = 4.5) => contrastScan(pg, { root, min });
+
+// Anlegen: keine Direktverbindung → „Mit 1 Umstieg suchen“ → Vorschau (zwei Linien, Umstiegsbahnhof) → Speichern legt Hin- und Rückweg mit Umstieg an
+await check('Anlegen mit Umstieg', async () => {
+  const XD = 'smokexfer1123456789abcdefg';
+  expect422 = true;
+  const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [XD]);
+  const p = await c.newPage(); p.setDefaultTimeout(8000); watch(p);
+  const hint = () => p.getByRole('alert').filter({ hasText: 'keine Direktverbindung gefunden' });
+  const find = () => p.getByRole('button', { name: 'Mit 1 Umstieg suchen' });
+  const card = () => p.getByRole('status').filter({ hasText: 'Gefunden · 1 Umstieg' });
+  const save = async () => { await p.getByRole('button', { name: 'Speichern' }).click(); await p.waitForTimeout(1300); };
+  try {
+    await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
+    await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb');
+    // 1) Speichern: nichts wird angelegt, die Erklärung steht im Formular und bietet die Suche mit 1 Umstieg an
+    await save();
+    if (!(await hint().count())) { problems.push('Anlegen mit Umstieg: keine Erklärung im Formular'); return; }
+    if (!(await find().count())) { problems.push('Anlegen mit Umstieg: Knopf „Mit 1 Umstieg suchen“ fehlt unter der Erklärung'); return; }
+    if ((await jx(XD, '/api/profile')).tours.length) problems.push('Anlegen mit Umstieg: Strecke wurde schon vor der Suche angelegt');
+    // 2) Suche: Vorschau mit beiden Linien und dem Umstiegsbahnhof; der rote Hinweis geht
+    await find().click(); await p.waitForTimeout(2500);
+    if (!(await card().count())) { problems.push('Anlegen mit Umstieg: keine Vorschau nach der Suche'); return; }
+    const t = await card().innerText();
+    if (!/München Hbf/.test(t) || !/S ?1/.test(t) || !/RE ?5/.test(t) || !/Umstieg München Hbf · \d+ Min\./.test(t)) problems.push(`Anlegen mit Umstieg: Vorschau nennt Linien und Umstieg nicht (${t.replace(/\s+/g, ' ').slice(0, 120)})`);
+    if (await hint().count()) problems.push('Anlegen mit Umstieg: roter Hinweis bleibt nach gefundener Verbindung stehen');
+    if (await sideways(p)) problems.push('Anlegen mit Umstieg: Seite scrollt seitlich (Vorschau)');
+    // 3) Haltestelle ändern: die Vorschau gilt nicht mehr
+    await p.locator('input[type=text]').nth(1).fill(''); await p.waitForTimeout(500);
+    if (await card().count()) problems.push('Anlegen mit Umstieg: Vorschau bleibt nach Ändern der Haltestelle stehen');
+    await suggestOn(p, 1, 'Salzb');
+    await save();
+    if (!(await find().count())) { problems.push('Anlegen mit Umstieg: nach dem Ändern fehlt der Knopf erneut'); return; }
+    await find().click(); await p.waitForTimeout(2500);
+    if (!(await card().count())) { problems.push('Anlegen mit Umstieg: zweite Suche ergibt keine Vorschau'); return; }
+    // 4) Speichern mit Vorschau: Hin- und Rückweg, beide mit Umstieg; die Liste nennt Umstieg und Bahnhof
+    await save(); await p.waitForTimeout(600);
+    const tours = (await jx(XD, '/api/profile')).tours;
+    if (tours.length !== 2 || tours.some((x) => x.transfers !== 1)) problems.push(`Anlegen mit Umstieg: ${tours.length} Strecke(n) mit Umstieg ${tours.map((x) => x.transfers).join('/')} statt 2 × 1`);
+    await p.goto(base + '/Strecken'); await p.waitForTimeout(1800);
+    const list = await p.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/1 Umstieg · meist München Hbf/.test(list)) problems.push(`Anlegen mit Umstieg: Streckenliste nennt „1 Umstieg · meist München Hbf“ nicht (${list.replace(/\s+/g, ' ').slice(0, 160)})`);
+    if (await sideways(p)) problems.push('Anlegen mit Umstieg: Streckenliste scrollt seitlich');
+    // 5) Ohne Verbindung auch mit Umstieg (Passau → Wien gibt es in den Beispieldaten nicht): ehrlicher Satz, kein Knopf mehr
+    await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+    await suggestOn(p, 0, 'Passau'); await suggestOn(p, 1, 'Wien');
+    await save();
+    if (!(await find().count())) { problems.push('Anlegen mit Umstieg (Passau → Wien): Knopf „Mit 1 Umstieg suchen“ fehlt'); return; }
+    await find().click(); await p.waitForTimeout(2500);
+    if (!(await p.getByRole('alert').filter({ hasText: 'Auch mit 1 Umstieg habe ich zwischen' }).count())) problems.push('Anlegen mit Umstieg (Passau → Wien): keine Erklärung „Auch mit 1 Umstieg …“');
+    if (await find().count()) problems.push('Anlegen mit Umstieg (Passau → Wien): Knopf bleibt nach der erfolglosen Suche stehen');
+    if ((await jx(XD, '/api/profile')).tours.length !== 2) problems.push('Anlegen mit Umstieg (Passau → Wien): trotz fehlender Verbindung wurde etwas angelegt');
+  } finally { expect422 = false; await c.close(); }
+  // Dunkelmodus: roter Hinweis, Knopf und grüne Vorschau bleiben lesbar
+  expect422 = true;
+  const dk = await browser.newContext({ ...NEW_CTX, colorScheme: 'dark' }); await dk.addInitScript(initFor(), ['smokexfer3123456789abcdefg']);
+  try {
+    const dp = await dk.newPage(); dp.setDefaultTimeout(8000); watch(dp);
+    await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1000);
+    await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+    await suggestOn(dp, 0, 'Freis'); await suggestOn(dp, 1, 'Salzb');
+    await dp.getByRole('button', { name: 'Speichern' }).click(); await dp.waitForTimeout(1300);
+    const verdict = (what, rows) => { for (const [label, ratio] of rows) if (ratio < 4.5) problems.push(`Dunkelmodus: ${what} „${label}“ schlecht lesbar${ratio ? ` (Kontrast ${ratio.toFixed(1)}:1)` : ' (nicht gefunden)'}`); };
+    verdict('Hinweis „keine Direktverbindung“', await contrastOf(dp, [['span', 'Zwischen Freising und Salzburg Hbf habe ich keine Direktverbindung gefunden.'], ['button', 'Mit 1 Umstieg suchen']]));
+    await dp.getByRole('button', { name: 'Mit 1 Umstieg suchen' }).click(); await dp.waitForTimeout(2500);
+    const bad = await lowContrast(dp, '[role=status]');
+    if (bad.length) problems.push(`Dunkelmodus: Vorschau „Gefunden · 1 Umstieg“ schlecht lesbar: ${bad.slice(0, 4).join(', ')}`);
+    if (!(await dp.getByRole('status').filter({ hasText: 'Gefunden · 1 Umstieg' }).count())) problems.push('Dunkelmodus: keine Vorschau „Gefunden · 1 Umstieg“');
+  } finally { expect422 = false; await dk.close(); }
+});
+
+// Umstiegsfahrt in der Oberfläche: der Zustand wird vom echten Aufbau (buildTransferTour) erzeugt und der Seite untergeschoben, mit Zeiten ab jetzt.
+// Drei Lagen: Anschluss pünktlich, wackelt (Zubringer +8 Min.), verpasst (Zubringer +12 Min.). Hauptseite, Streckenseite, Meldungen, Dunkelmodus, schmales Handy.
+await check('Umstiegsfahrt in der Oberfläche', async () => {
+  const XD2 = 'smokexfer2123456789abcdefg';
+  const sa = (await j('/api/stations?q=Salzburg')).stations[0];
+  const made = await jx(XD2, '/api/tours', 'POST', { from: st, to: sa, transfers: 1 });
+  const tour = (made.tours || [])[0];
+  if (!tour) { problems.push(`Umstiegsfahrt: Strecke mit Umstieg ließ sich nicht anlegen (${made.error || 'keine Antwort'})`); return; }
+  const MH = { id: '8000261', name: 'München Hbf' };
+  const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
+  const S1 = (min, o = {}) => { const d = o.late || 0; return { line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: tour.from, destination: MH, plannedDep: iso(min), dep: iso(min + d), depDelay: d, plannedArr: iso(min + 35), arr: iso(min + 35 + d), arrDelay: d, plannedPlatform: '3', platform: '3', plannedArrPlatform: '2', arrPlatform: '2', stopovers: [tour.from, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MH], remarks: [], cancelled: false }; };
+  const RE = (min) => ({ line: { name: 'RE 5', product: 'regionalExpress' }, direction: 'Salzburg Hbf', origin: MH, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 95), arr: iso(min + 95), arrDelay: 0, plannedPlatform: '14', platform: '14', stopovers: [MH, { id: 'c', name: 'Rosenheim' }, { id: 'd', name: 'Prien' }, tour.to], remarks: [], cancelled: false });
+  const J = (a, b) => ({ legs: [a, b] });
+  const anschluesse = () => new Map([['münchen hbf', [RE(24), RE(54), RE(84), RE(114)]]]);
+  const scen = [
+    { name: 'pünktlich', state: 'ok', hero: /pünktlich/, detail: [/Umstieg/, /Gleis 2\s*→\s*Gleis 14/], js: () => [J(S1(10), RE(54)), J(S1(30), RE(84)), J(S1(50), RE(114))] },
+    { name: 'wackelt', state: 'tight', hero: /\+8 Min/, detail: [/Anschluss wackelt/, /Nächster Anschluss/], card: /Anschluss wackelt/, js: () => [J(S1(10, { late: 8 }), RE(84)), J(S1(30), RE(84)), J(S1(50), RE(114))] },
+    { name: 'verpasst', state: 'missed', hero: /Verpasst/, detail: [/Anschluss verpasst/, /Nächster RE ?5 ab/], card: /Anschluss verpasst/, js: () => [J(S1(10, { late: 12 }), RE(84)), J(S1(30), RE(84)), J(S1(50), RE(114))] },
+  ];
+  for (const sc of scen) for (const [w, h, dark] of [[390, 844, false], [320, 568, false], [390, 844, true]]) {
+    const tag = `Umstiegsfahrt ${sc.name} (${w} px${dark ? ', dunkel' : ''})`;
+    where = tag;
+    const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, colorScheme: dark ? 'dark' : 'light' });
+    await c.addInitScript(initFor(), [XD2]);
+    let built = null;
+    await c.route('**/api/state**', async (route) => {
+      const res = await route.fetch(); const body = await res.json();
+      built = await buildTransferTour(tour, sc.js(), { now: Date.now(), minDelay: 3, linesAt: async () => [], lines: body.lines, bLists: anschluesse() });
+      body.tours = body.tours.map((x) => (x.id === tour.id ? { ...x, ...built.tour } : x));
+      body.incidents = built.incidents;
+      await route.fulfill({ response: res, json: body });
+    });
+    const pg = await c.newPage(); pg.setDefaultTimeout(8000); watch(pg);
+    const text = () => pg.evaluate(() => document.querySelector('#screen').innerText);
+    try {
+      // Hauptseite: große Karte, drei Zeilen mit je zwei Linien und der Umstiegszeile
+      await pg.goto(base + '/'); await pg.waitForTimeout(1800);
+      if (!built) { problems.push(`${tag}: Zustand wurde nicht untergeschoben`); continue; }
+      const states = built.tour.departures.map((d) => d.transfer && d.transfer.state);
+      if (states[0] !== sc.state) problems.push(`${tag}: erste Abfahrt hat den Zustand ${states[0]} statt ${sc.state}`);
+      const hero = await pg.locator('#screen a.rg-in').first().innerText();
+      if (!sc.hero.test(hero)) problems.push(`${tag}: große Karte zeigt nicht ${sc.hero} (${hero.replace(/\s+/g, ' ').slice(0, 80)})`);
+      const rows = pg.locator('a.rg-xdep');
+      if ((await rows.count()) !== 3) { problems.push(`${tag}: ${await rows.count()} statt 3 Umstiegszeilen`); continue; }
+      for (let i = 0; i < 3; i++) {
+        const rt = await rows.nth(i).innerText();
+        if (!/S ?1/.test(rt) || !/RE ?5/.test(rt)) problems.push(`${tag}: Zeile ${i + 1} zeigt nicht beide Linien (${rt.replace(/\s+/g, ' ')})`);
+        if (!rt.includes(built.tour.departures[i].transfer.text)) problems.push(`${tag}: Zeile ${i + 1} nennt „${built.tour.departures[i].transfer.text}“ nicht (${rt.replace(/\s+/g, ' ')})`);
+      }
+      if (await sideways(pg)) problems.push(`${tag}: Hauptseite scrollt seitlich`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: Hauptseite schlecht lesbar: ${bad.slice(0, 4).join(', ')}`); }
+      // Seite der ersten Abfahrt: zwei Abschnitte, Umstiegskarte, Karte der Strecke
+      await rows.first().click(); await pg.waitForTimeout(1600);
+      const dt = await text();
+      for (const re of sc.detail) if (!re.test(dt)) problems.push(`${tag}: Seite der Abfahrt zeigt ${re} nicht`);
+      if (!/Freising\s*→\s*München Hbf/.test(dt) || !/München Hbf\s*→\s*Salzburg Hbf/.test(dt)) problems.push(`${tag}: Seite der Abfahrt zeigt die beiden Fahrten nicht`);
+      if (!/1\. Fahrt/.test(dt) || !/2\. Fahrt/.test(dt)) problems.push(`${tag}: Seite der Abfahrt nennt „1. Fahrt“ und „2. Fahrt“ nicht`);
+      if (await sideways(pg)) problems.push(`${tag}: Seite der Abfahrt scrollt seitlich`);
+      const cut = await pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /rotate\(-45deg\)/.test(e.getAttribute('style') || '') && e.textContent.trim()).filter((e) => e.getBoundingClientRect().right > innerWidth + 1 || e.getBoundingClientRect().left < -1).map((e) => e.textContent));
+      if (cut.length) problems.push(`${tag}: Beschriftung der Karte ragt über den Rand: ${cut.join(', ')}`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: Seite der Abfahrt schlecht lesbar: ${bad.slice(0, 4).join(', ')}`); }
+      await pg.evaluate(() => { const s = [...document.querySelectorAll('[style*="overflow-y: auto"]')].pop(); if (s) s.scrollTop = 9999; }); await pg.waitForTimeout(300);
+      if (await sideways(pg)) problems.push(`${tag}: Seite der Abfahrt scrollt unten seitlich`);
+      // Meldungen: bei wackelt/verpasst genau eine Karte für den Anschluss, bei pünktlich keine
+      await pg.goto(base + '/Meldungen'); await pg.waitForTimeout(1500);
+      const cards = pg.locator('a[href^="Detail.dc.html#"]');
+      if (sc.card) {
+        if ((await cards.count()) !== 1) problems.push(`${tag}: ${await cards.count()} Karten unter „Meldungen“ statt 1`);
+        else {
+          const ct = await cards.first().innerText();
+          if (!sc.card.test(ct) || !/RE ?5/.test(ct) || !/München Hbf/.test(ct)) problems.push(`${tag}: Karte unter „Meldungen“ nennt Zustand, Linie oder Bahnhof nicht (${ct.replace(/\s+/g, ' ')})`);
+          await cards.first().click(); await pg.waitForTimeout(1500);
+          const mt = await text();
+          for (const re of sc.detail) if (!re.test(mt)) problems.push(`${tag}: Streckenseite über „Meldungen“ zeigt ${re} nicht`);
+        }
+      } else if (await cards.count()) problems.push(`${tag}: Meldung trotz pünktlichem Anschluss`);
+      if (await sideways(pg)) problems.push(`${tag}: „Meldungen“ scrollt seitlich`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: „Meldungen“ schlecht lesbar: ${bad.slice(0, 4).join(', ')}`); }
+    } finally { await c.close(); }
+  }
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Bildschirmtest FEHLGESCHLAGEN:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach).');
+console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach, Anlegen mit Umstieg, Umstiegsfahrt pünktlich / wackelt / verpasst).');

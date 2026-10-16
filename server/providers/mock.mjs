@@ -29,7 +29,7 @@ const ref = (s) => ({ type: 'stop', id: s.id, name: s.name, location: s.location
 const ROUTES = [
   { name: 'S1', product: 'suburban', every: 20, mins: 46, stops: ids('Freising', 'Neufahrn', 'Feldmoching', 'Moosach', 'München Hbf'), headsign: ['Freising', 'München Hbf'] },
   { name: 'RE 2', product: 'regionalExpress', every: 60, mins: 24, stops: ids('Freising', 'München Hbf'), headsign: ['Freising', 'München Hbf'] },
-  { name: 'RE 5', product: 'regionalExpress', every: 60, mins: 78, stops: ids('München Hbf', 'Rosenheim', 'Prien', 'Traunstein', 'Freilassing', 'Salzburg'), headsign: ['Salzburg Hbf', 'München Hbf'], replacement: true },
+  { name: 'RE 5', product: 'regionalExpress', every: 30, mins: 78, stops: ids('München Hbf', 'Rosenheim', 'Prien', 'Traunstein', 'Freilassing', 'Salzburg'), headsign: ['Salzburg Hbf', 'München Hbf'], replacement: true },
   { name: 'RJX 61', product: 'nationalExpress', every: 60, mins: 100, stops: ids('München Hbf', 'Rosenheim', 'Salzburg Hbf', 'Linz', 'Wien'), headsign: ['Wien Hbf', 'München Hbf'] },
   { name: 'RE 1', product: 'regionalExpress', every: 60, mins: 50, stops: ids('München Hbf', 'Ingolstadt'), headsign: ['Ingolstadt Hbf', 'München Hbf'] },
 ];
@@ -42,40 +42,64 @@ function route(fromId, toId) {
   return null;
 }
 
-// Zeitpunkt wählt das Szenario: kurz nach "jetzt" gibt es Verspätung auf der S1 sowie Ersatzverkehr und Verspätung auf der RE 5.
-function journeysFor({ from, to, departure, results = 5, now }) {
-  const hit = route(from, to);
-  if (!hit) return [];
-  const { r, a, b } = hit;
-  const dir = b > a ? 1 : 0;
+const MCT = 4;                                   // Mindestzeit zum Umsteigen in den Beispieldaten (Min.)
+const iso = (ms) => new Date(ms).toISOString();
+
+/** Haltefolge und Fahrzeit einer Strecke zwischen zwei Halten (in Fahrtrichtung) */
+function sliceOf({ r, a, b }) {
   const slice = (b > a ? r.stops.slice(a, b + 1) : r.stops.slice(b, a + 1).reverse());
-  const total = Math.max(r.mins * (slice.length - 1) / Math.max(r.stops.length - 1, 1), 8);
+  return { r, slice, total: Math.max(r.mins * (slice.length - 1) / Math.max(r.stops.length - 1, 1), 8) };
+}
+
+// Eine Fahrt zur geplanten Abfahrt `plan`. i = laufende Nummer ab "jetzt": nach ihr richten sich die Beispielstörungen,
+// damit dieselbe Fahrt in jeder Abfrage (direkt oder als Teil einer Verbindung mit Umstieg) dieselbe Störung hat.
+function tripOf({ r, slice, total }, plan, i, now) {
+  const late = r.name === 'S1' && i === 0 ? 8 : r.name === 'S1' && i === 1 ? 4 : r.name === 'RE 5' && i === 0 ? 12 : 0;   // RE 5: Ersatzverkehr UND Verspätung (zwei Meldungen, eine Streckenseite)
+  const planArr = plan + total * 60000;
+  const remarks = [];
+  if (late) remarks.push({ type: 'status', code: 'delay', summary: r.name === 'S1' ? 'Stellwerksstörung' : 'Fahrzeugstörung', text: r.name === 'S1' ? 'Wegen einer Stellwerksstörung kommt es zu Verspätungen und Teilausfällen.' : 'Wegen einer Fahrzeugstörung verspätet sich der Zug.', validFrom: iso(now - 3600000), validUntil: iso(now + 5400000), priority: 80 });
+  if (r.replacement && i >= 0 && i < 2) remarks.push({ type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Rosenheim und Prien Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: iso(now - 86400000), validUntil: iso(now + 3 * 86400000), priority: 90 });
+  return {
+    tripId: `mock-${r.name}-${plan}`.replace(/\s/g, ''),
+    origin: ref(slice[0]), destination: ref(slice[slice.length - 1]),
+    departure: iso(plan + late * 60000), plannedDeparture: iso(plan), departureDelay: late * 60,
+    arrival: iso(planArr + late * 60000), plannedArrival: iso(planArr), arrivalDelay: late * 60,
+    departurePlatform: late ? '3' : '2', plannedDeparturePlatform: '2',
+    arrivalPlatform: late ? '5' : '4', plannedArrivalPlatform: '4',
+    direction: slice[slice.length - 1].name,
+    line: { type: 'line', name: r.name, product: r.product },
+    stopovers: slice.map((s, k) => ({ stop: ref(s), plannedDeparture: iso(plan + (total * 60000 * k) / (slice.length - 1)) })),
+    remarks, cancelled: false,
+  };
+}
+
+/** Fahrten einer Strecke ab t0: [{ plan, i }] */
+function gridFrom(r, t0, now, count) {
+  const step = r.every * 60000, first = Math.ceil(t0 / step) * step, base = Math.ceil(now / step) * step;
+  return Array.from({ length: count }, (_, k) => { const plan = first + k * step; return { plan, i: Math.round((plan - base) / step) }; });
+}
+
+// Zeitpunkt wählt das Szenario: kurz nach "jetzt" gibt es Verspätung auf der S1 sowie Ersatzverkehr und Verspätung auf der RE 5.
+// transfers >= 1: gibt es keine Direktfahrt, werden zwei Strecken über einen gemeinsamen Halt (meist München Hbf) verbunden – wie ein echter Fahrplan nur mit dem
+// Anschluss, der nach der tatsächlichen Ankunft noch erreichbar ist.
+function journeysFor({ from, to, departure, results = 5, now, transfers = 0 }) {
   const t0 = Math.max(Date.parse(departure) || now, now - 5 * 60000);
-  const step = r.every * 60000;
-  const first = Math.ceil(t0 / step) * step;
+  const hit = route(from, to);
+  if (hit) {
+    const sl = sliceOf(hit);
+    return gridFrom(sl.r, t0, now, results).map(({ plan, i }) => ({ type: 'journey', legs: [tripOf(sl, plan, i, now)] }));
+  }
+  if (transfers < 1) return [];
+  const hub = MOCK_STOPS.find((s) => s.id !== from && s.id !== to && route(from, s.id) && route(s.id, to));
+  if (!hub) return [];
+  const one = sliceOf(route(from, hub.id)), two = sliceOf(route(hub.id, to));
+  const tripsB = gridFrom(two.r, t0, now, 24).map(({ plan, i }) => tripOf(two, plan, i, now));
   const out = [];
-  for (let i = 0; i < results; i++) {
-    const plan = first + i * step;
-    const late = r.name === 'S1' && i === 0 ? 8 : r.name === 'S1' && i === 1 ? 4 : r.name === 'RE 5' && i === 0 ? 12 : 0;   // RE 5: Ersatzverkehr UND Verspätung (zwei Meldungen, eine Streckenseite)
-    const planArr = plan + total * 60000;
-    const iso = (ms) => new Date(ms).toISOString();
-    const remarks = [];
-    if (late) remarks.push({ type: 'status', code: 'delay', summary: r.name === 'S1' ? 'Stellwerksstörung' : 'Fahrzeugstörung', text: r.name === 'S1' ? 'Wegen einer Stellwerksstörung kommt es zu Verspätungen und Teilausfällen.' : 'Wegen einer Fahrzeugstörung verspätet sich der Zug.', validFrom: iso(now - 3600000), validUntil: iso(now + 5400000), priority: 80 });
-    if (r.replacement && i < 2) remarks.push({ type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Rosenheim und Prien Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: iso(now - 86400000), validUntil: iso(now + 3 * 86400000), priority: 90 });
-    out.push({
-      type: 'journey',
-      legs: [{
-        tripId: `mock-${r.name}-${plan}`.replace(/\s/g, ''),
-        origin: ref(slice[0]), destination: ref(slice[slice.length - 1]),
-        departure: iso(plan + late * 60000), plannedDeparture: iso(plan), departureDelay: late * 60,
-        arrival: iso(planArr + late * 60000), plannedArrival: iso(planArr), arrivalDelay: late * 60,
-        departurePlatform: late ? '3' : '2', plannedDeparturePlatform: '2',
-        direction: slice[slice.length - 1].name,
-        line: { type: 'line', name: r.name, product: r.product },
-        stopovers: slice.map((s, k) => ({ stop: ref(s), plannedDeparture: iso(plan + (total * 60000 * k) / (slice.length - 1)) })),
-        remarks, cancelled: false,
-      }],
-    });
+  for (const { plan, i } of gridFrom(one.r, t0, now, results + 6)) {
+    const a = tripOf(one, plan, i, now);
+    const b = tripsB.find((x) => Date.parse(x.departure) >= Date.parse(a.arrival) + MCT * 60000);
+    if (b) out.push({ type: 'journey', legs: [a, b] });
+    if (out.length >= results) break;
   }
   return out;
 }
@@ -103,7 +127,7 @@ export function mockFetch({ now = () => Date.now() } = {}) {
     }
     if (u.pathname === '/journeys') {
       const p = u.searchParams;
-      return json({ journeys: journeysFor({ from: p.get('from'), to: p.get('to'), departure: p.get('departure'), results: Number(p.get('results') || 5), now: now() }) });
+      return json({ journeys: journeysFor({ from: p.get('from'), to: p.get('to'), departure: p.get('departure'), results: Number(p.get('results') || 5), transfers: Number(p.get('transfers') || 0), now: now() }) });
     }
     return json({ message: 'unbekannt' }, 404);
   };

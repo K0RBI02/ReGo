@@ -88,14 +88,25 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/state' && m === 'GET') return send(res, 200, await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') }));
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
+    if (path === '/api/connections/search' && m === 'POST') {            // Vorschau „Mit 1 Umstieg suchen“: gibt es etwas, und wie sieht es aus?
+      const b = await readBody(req);
+      addTours({ tours: [], settings: {} }, b);                           // prüft Start und Ziel (400), speichert nichts
+      const r = await service.searchTransfer(toStop(b.from), toStop(b.to));
+      return send(res, 200, { found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
+    }
     if (path === '/api/tours' && m === 'POST') {
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                       // prüft die Eingabe (400), speichert nichts
       const mine = await store.load(dev);
-      // Strecken ohne Direktverbindung gar nicht erst anlegen (ReGo zeigt nur Fahrten ohne Umstieg). Weiß die Quelle es nicht, wird im Zweifel angelegt.
-      if (!mine.tours.some((x) => x.from?.id === b.from.id && x.to?.id === b.to.id)) {
+      // Strecken ohne Direktverbindung nicht von selbst anlegen: der Nutzer entscheidet („Mit 1 Umstieg suchen“, transfers: 1). Weiß die Quelle es nicht, wird im Zweifel angelegt.
+      // Das gilt auch für eine Strecke, die es schon gibt (aus einer älteren Version, ohne Direktverbindung): So bekommt der Nutzer den Hinweis und kann sie auf Umstieg umstellen.
+      // Nur wer für dieses Paar schon eine Strecke mit Umstieg hat und wieder „mit Umstieg“ anlegt, wird nicht noch einmal geprüft.
+      const haveX = mine.tours.some((x) => x.from?.id === b.from.id && x.to?.id === b.to.id && x.transfers === 1);
+      if (!(b.transfers === 1 && haveX)) {
         for (const [a, c] of b.roundTrip ? [[b.from, b.to], [b.to, b.from]] : [[b.from, b.to]]) {
-          if ((await service.hasDirect(toStop(a), toStop(c))) === false) throw new ValidationError(`Zwischen ${a.name} und ${c.name} habe ich keine Direktverbindung gefunden. ReGo zeigt nur Fahrten ohne Umstieg.`, 422);
+          if (b.transfers === 1) {
+            if ((await service.searchTransfer(toStop(a), toStop(c))).found === false) throw Object.assign(new ValidationError(`Auch mit 1 Umstieg habe ich zwischen ${a.name} und ${c.name} nichts gefunden.`, 422), { extra: { code: 'no-connection' } });
+          } else if ((await service.hasDirect(toStop(a), toStop(c))) === false) throw Object.assign(new ValidationError(`Zwischen ${a.name} und ${c.name} habe ich keine Direktverbindung gefunden.`, 422), { extra: { code: 'no-direct' } });
         }
       }
       const created = await store.update(dev, (p) => addTours(p, b));

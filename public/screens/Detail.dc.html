@@ -116,8 +116,8 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <div role="status" data-bar="top" style="flex: none; min-height: 36px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 700"><span>{{bannerLabel}}</span><span style="opacity: 0.5">|</span><span>Stand: {{offlineSince}}</span></div>
 </sc-if>
 
-<div data-bar="top" style="position: relative; height: 338px; flex: none; background: {{mapBg}}">
-<svg width="{{svgW}}" height="338" viewBox="{{svgVb}}" role="img" aria-label="Schematische Netzkarte" style="position: absolute; left: 0; top: 0">
+<div data-bar="top" style="position: relative; height: {{mapH}}px; flex: none; background: {{mapBg}}">
+<svg width="{{svgW}}" height="{{mapH}}" viewBox="{{svgVb}}" role="img" aria-label="{{mapLabel}}" style="position: absolute; left: 0; top: 0">
 <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7F95A0" stop-opacity="0.8"></stop><stop offset="1" stop-color="#7F95A0" stop-opacity="0"></stop></linearGradient></defs>
 <rect x="{{b0.x}}" y="{{b0.y}}" width="{{b0.w}}" height="{{b0.h}}" rx="3" fill="url(#fade)"></rect>
 <rect x="{{b1.x}}" y="{{b1.y}}" width="{{b1.w}}" height="{{b1.h}}" rx="3" fill="url(#fade)"></rect>
@@ -134,8 +134,13 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <path d="{{t0.d}}" fill="none" stroke="url(#tg0)" stroke-width="7" stroke-linecap="round"></path>
 <path d="{{t1.d}}" fill="none" stroke="url(#tg1)" stroke-width="7" stroke-linecap="round"></path>
 <path d="{{t2.d}}" fill="none" stroke="url(#tg2)" stroke-width="7" stroke-linecap="round"></path>
+<path d="{{xHaloD}}" fill="{{haloFill}}" stroke="#1C1A1A" stroke-width="2" stroke-dasharray="4 4"></path>
+<path d="{{leg1D}}" fill="none" stroke="{{leg1C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="{{leg2D}}" fill="none" stroke="{{leg2C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{mainD}}" fill="none" stroke="#0B6B3F" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{disD}}" fill="none" stroke="#8C8C8C" stroke-width="8" stroke-linecap="round" stroke-dasharray="0.1 11"></path>
+<path d="{{skipD}}" fill="#8C8C8C"></path>
+<path d="{{connD}}" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round"></path>
 <path d="{{altD}}" fill="none" stroke="#8ED3E8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{haloD}}" fill="#FDE3CF" stroke="#1C1A1A" stroke-width="2" stroke-dasharray="4 4"></path>
 <path d="{{smallD}}" fill="#fff" stroke="#1C1A1A" stroke-width="3.5"></path>
@@ -159,7 +164,16 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <span style="{{c4.s}}">{{c4.t}}</span>
 <span style="{{c5.s}}">{{c5.t}}</span>
 <span style="{{c6.s}}">{{c6.t}}</span>
-<div class="rg-in" style="{{route.s}}"><span style="{{route.bs}}">{{route.line}}</span><span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis">{{route.text}}</span></div>
+<sc-for list="{{skipLabels}}" as="k" hint-placeholder-count="1"><span style="{{k.s}}">{{k.t}}</span></sc-for>
+<span style="{{pDep.s}}">{{pDep.t}}</span>
+<span style="{{pArr.s}}">{{pArr.t}}</span>
+<span style="{{pX.s}}">{{pX.t}}</span>
+<div class="rg-in" style="{{route.s}}"><span style="{{route.cs}}">
+<sc-for list="{{route.chips}}" as="c" hint-placeholder-count="2">
+<sc-if value="{{c.isChev}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" aria-hidden="true"><path d="M1.5 1.5L6.5 6l-5 4.5"></path></svg></sc-if>
+<sc-if value="{{c.isChip}}" hint-placeholder-val="{{ true }}"><span style="{{c.s}}">{{c.t}}</span></sc-if>
+</sc-for>
+</span><span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis">{{route.text}}</span></div>
 <header style="position: absolute; left: 0; right: 0; top: 0; padding: 16px 12px 0 20px; display: flex; align-items: center; justify-content: space-between">
 <a href="{{backHref}}" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
@@ -181,6 +195,7 @@ Zurück</a>
 <svg width="56" height="56" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{icon1}}" fill="#fff"></path><path d="{{icon2}}" stroke-width="3"></path></svg>
 </div>
 
+<sc-if value="{{plainRows}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; padding: 0 2px">
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
 <div style="min-height: 60px; padding: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1.5px solid #ECECEC">
@@ -189,6 +204,34 @@ Zurück</a>
 </div>
 </sc-for>
 </div>
+</sc-if>
+
+<sc-for list="{{sections}}" as="s" hint-placeholder-count="3">
+<sc-if value="{{s.isLeg}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; padding: 0 2px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 8px 0 10px">
+<span style="{{s.chipStyle}}">{{s.chip}}</span>
+<span style="display: flex; flex-direction: column; gap: 1px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">{{s.title}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">{{s.sub}}</span></span>
+</div>
+<sc-for list="{{s.rows}}" as="r" hint-placeholder-count="2">
+<div style="{{r.style}}">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">{{r.label}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">{{r.sub}}</span></span>
+<span style="font-size: 17px; font-weight: 700; white-space: nowrap">{{r.value}} <span style="font-size: 13px; font-weight: 600; color: #4A4747">{{r.planned}}</span></span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{s.isXfer}}" hint-placeholder-val="{{ false }}">
+<div style="{{s.style}}">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 14px; font-weight: 700">{{s.label}}</span>
+<span style="font-size: 17px; font-weight: 700; line-height: 1.2">{{s.title}}</span>
+<span style="font-size: 15px; font-weight: 600">{{s.text}}</span>
+</div>
+<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{s.minutes}}</span>
+</div>
+</sc-if>
+</sc-for>
 
 <sc-if value="{{altPlain}}" hint-placeholder-val="{{ false }}">
 <div style="background: #D4EDF6; border-radius: 24px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px">
@@ -273,14 +316,15 @@ class Component extends DCLogic {
     // Weitere Meldungen der Strecke: Überschrift, Text der Meldung, darunter je eine kurze Zeile („ab 01:12 (geplant 01:00)“, „an 02:30“, „Nächster Zug: …“)
     const more = list.slice(1).map((m) => {
       const k = T.theme.kinds[m.kind] || T.theme.kinds.ok, rows = m.view.rows || [];
-      const dr = rows.find((r) => /^Abfahrt/.test(r.label)), ar = rows.find((r) => /^Ankunft/.test(r.label));
-      const at = (r) => r.value + (r.planned && r.planned !== r.value ? ' (geplant ' + r.planned + ')' : '');
+      // Mit Umstieg: erste Abfahrt und letzte Ankunft (die am Ziel), nicht die Ankunft am Umstiegshalt
+      const dr = rows.find((r) => /^Abfahrt/.test(r.label)), ar = rows.slice().reverse().find((r) => /^Ankunft/.test(r.label));
+      const at = (r) => r.value + (r.planned && r.planned !== r.value ? ' (' + (r.plannedLabel || 'geplant') + ' ' + r.planned + ')' : '');
       const alt = m.view.alternative;
       return {
         style: 'background: ' + k.bg + '; border-radius: 28px; padding: 14px 20px 16px; display: flex; flex-direction: column; gap: 4px',
         head: k.label + ' · ' + m.validity.label, sub: m.summary || m.view.sub,
         lines: [dr ? 'ab ' + at(dr) : '', ar ? 'an ' + at(ar) : '', alt ? alt.title.split(' · ')[0] + ': ' + alt.line1 : ''].filter(Boolean).map((text) => ({ text })),
-        big: m.kind === 'delay' ? '+' + m.delayMin + ' Min.' : m.kind === 'platform' ? (m.view && m.view.big) || '' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
+        big: m.kind === 'delay' || m.kind === 'tight' ? '+' + m.delayMin + ' Min.' : m.kind === 'platform' || m.kind === 'missed' ? (m.view && m.view.big) || '' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
       };
     });
     const kindKey = view.kind || 'ok';
@@ -295,19 +339,59 @@ class Component extends DCLogic {
     // Breite der Karte = Breite der App (schmale Handys, Tablets): sonst wird die Beschriftung rechts abgeschnitten
     const W = Math.max(280, (document.getElementById('app') || {}).clientWidth || 390);
     const x0 = 36, x1 = W - (n >= 6 ? 98 : 120);
-    const st = M.stations.map((s, i) => Object.assign({}, s, { x: n > 1 ? x0 + i * (x1 - x0) / (n - 1) : x0, big: i === 0 || i === n - 1 || i === M.hubIndex }));
+    // Fahrt mit Umstieg: zwei Linien in ihren Farben, der Umstiegshalt, Auslassungen („+5“ = 5 Halte nicht gezeigt) und Zeitpillen
+    const X = M.legs && M.legs.length === 2 ? M : null;
+    const skipOf = (i) => (X && (X.skips || []).find((k) => k.after === i)) || null;
+    const wt = (i) => (skipOf(i) ? 2 : 1);                    // eine Auslassung bekommt die doppelte Breite, damit das „+5“ zwischen den Punkten Platz hat
+    let wsum = 0; for (let i = 0; i < n - 1; i++) wsum += wt(i);
+    let acc = 0;
+    const st = M.stations.map((s, i) => { const x = n > 1 ? x0 + (x1 - x0) * acc / wsum : x0; acc += wt(i); return Object.assign({}, s, { x, big: i === 0 || i === n - 1 || i === M.hubIndex }); });
     const seg = (a, b) => [[st[a].x, Y], [st[b].x, Y]];
+    const inDis = (i) => !!M.disrupted && i >= M.disrupted.from && i + 1 <= M.disrupted.to;       // Abschnitt i → i+1 liegt im Ersatzverkehr
+    const gapHalf = (len) => Math.min(22.6, Math.max(8, len / 2 - 16));
+    const legPath = (from, to) => {
+      let d = '';
+      for (let i = from; i < to; i++) {
+        if (inDis(i)) continue;
+        const xa = st[i].x, xb = st[i + 1].x;
+        if (!skipOf(i)) { d += 'M' + xa + ' ' + Y + 'L' + xb + ' ' + Y; continue; }
+        const mid = (xa + xb) / 2, hw = gapHalf(xb - xa);
+        d += 'M' + xa + ' ' + Y + 'L' + (mid - hw) + ' ' + Y + 'M' + (mid + hw) + ' ' + Y + 'L' + xb + ' ' + Y;
+      }
+      return d;
+    };
 
-    let mainD = '', disD = '', haloD = '';
+    let mainD = '', disD = '', haloD = '', xHaloD = '', leg1D = '', leg2D = '', skipD = '', connD = '';
+    let pDep = none, pArr = none, pX = none;
+    const skipLabels = [];
     if (n > 1) {
-      if (M.disrupted) {
+      if (X) {
+        leg1D = legPath(X.legs[0].from, X.legs[0].to); leg2D = legPath(X.legs[1].from, X.legs[1].to);
+        if (M.disrupted) disD = pl(seg(M.disrupted.from, M.disrupted.to));
+        for (const k of X.skips || []) {
+          if (inDis(k.after) || !st[k.after + 1]) continue;
+          const xa = st[k.after].x, xb = st[k.after + 1].x, mid = (xa + xb) / 2, hw = gapHalf(xb - xa), off = hw * 0.535;
+          skipD += circ([mid - off, Y], 2.5) + circ([mid + off, Y], 2.5);
+          if (hw >= 17) skipLabels.push({ t: '+' + k.n, s: 'position: absolute; left: ' + mid + 'px; top: ' + Y + 'px; transform: translate(-50%, -50%); font-size: 12px; font-weight: 700; line-height: 1; color: #4A5A62' });
+        }
+      } else if (M.disrupted) {
         const a = M.disrupted.from, b = M.disrupted.to;
         disD = pl(seg(a, b));
         if (a > 0) mainD += pl(seg(0, a));
         if (b < n - 1) mainD += pl(seg(b, n - 1));
       } else mainD = pl(seg(0, n - 1));
     }
-    if (M.haloIndex >= 0 && st[M.haloIndex]) haloD = circ([st[M.haloIndex].x, Y], 21);
+    if (M.haloIndex >= 0 && st[M.haloIndex]) { if (X) xHaloD = circ([st[M.haloIndex].x, Y], 23); else haloD = circ([st[M.haloIndex].x, Y], 21); }
+    if (X && st[M.hubIndex]) {
+      const pill = (bg, fg) => 'white-space: nowrap; background: ' + bg + '; color: ' + fg + '; border: 2px solid #1C1A1A; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1';
+      const hx = st[M.hubIndex].x, tr = X.transfer || {}, tm = X.times || {}, label = tr.label || '';
+      const half = label.length * 3.8 + 14, px = Math.min(W - 12 - half, Math.max(12 + half, hx));      // die Umstiegspille bleibt im Bild, die Linie zum Halt bleibt senkrecht
+      connD = 'M' + hx + ' ' + (Y + 13.3) + 'L' + hx + ' 286';
+      const warn = tr.state === 'missed' ? '#F9D6D2' : tr.state === 'tight' ? '#FDE3CF' : '';
+      if (label) pX = { t: label, s: 'position: absolute; left: ' + px + 'px; top: 286px; transform: translateX(-50%); ' + (warn ? pill(warn, '#1C1A1A') : pill('#1C1A1A', '#fff')) };
+      if (tm.dep) pDep = { t: tm.dep, s: 'position: absolute; left: ' + (x0 - 16) + 'px; top: 248px; ' + (tm.depLate ? pill('#FDE3CF', '#1C1A1A') : pill('#1C1A1A', '#fff')) };
+      if (tm.arr) pArr = { t: tm.arr, s: 'position: absolute; right: ' + Math.max(8, W - st[n - 1].x - 34) + 'px; top: 248px; ' + (tm.arrLate ? pill('#FDE3CF', '#1C1A1A') : pill('#1C1A1A', '#fff')) };
+    }
 
     let altD = '', chip = none;
     if (M.alternative) {
@@ -316,11 +400,16 @@ class Component extends DCLogic {
       chip = { t: M.alternative.label, s: 'position: absolute; left: ' + ((a + b) / 2) + 'px; top: ' + (Y + d + 12) + 'px; transform: translateX(-50%); white-space: nowrap; background: #fff; border: 2px solid #8ED3E8; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1' };
     }
 
+    const mapH = X ? 360 : 338;
     const out = {
-      svgW: W, svgVb: '0 0 ' + W + ' 338',
+      svgW: W, svgVb: '0 0 ' + W + ' ' + mapH, mapH,
+      mapLabel: X && st[M.hubIndex] ? 'Schematische Netzkarte: ' + st[0].name + ', Umstieg in ' + st[M.hubIndex].name + ', weiter nach ' + st[n - 1].name : 'Schematische Netzkarte',
       more,
       mapBg: kindKey === 'ok' ? '#DCEFB8' : '#EEF1F2',
       mainD, disD, haloD, altD, chip,
+      xHaloD, haloFill: kindKey === 'missed' ? '#F9D6D2' : '#FDE3CF', skipD, connD, skipLabels, pDep, pArr, pX,
+      leg1D, leg1C: X ? (T.lines[X.legs[0].lineId] || {}).color || '#5B5B58' : '#5B5B58',
+      leg2D, leg2C: X ? (T.lines[X.legs[1].lineId] || {}).color || '#5B5B58' : '#5B5B58',
       smallD: st.filter((q) => !q.big).map((q) => circ([q.x, Y], 8)).join(''),
       bigD: st.filter((q) => q.big).map((q) => circ([q.x, Y], 11)).join('')
     };
@@ -351,18 +440,38 @@ class Component extends DCLogic {
 
     const mainConn = (M.connections || []).find((c) => c.dir === 'right');      // Linie der angezeigten Meldung, nicht die erste Linie der Strecke
     const rl = T.lines[mainConn ? mainConn.lineId : (tour ? tour.lineId : '')] || { label: '', color: '#5B5B58' };
-    const badge = !!rl.label;      // ohne Linie (Strecke ohne Abfahrt) kein leerer grauer Punkt
+    // Mit Umstieg zeigt das Schild beide Linien („S1 › RE“); ohne Linie (Strecke ohne Abfahrt) bleibt es ohne leeren grauen Punkt
+    const chipCss = (color) => 'min-width: 34px; height: 34px; border-radius: 17px; padding: 0 6px; box-sizing: border-box; background: ' + color + '; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700';
+    const routeLines = X ? X.legs.map((l) => T.lines[l.lineId]).filter((l) => l && l.label) : (rl.label ? [rl] : []);
+    const badge = routeLines.length > 0;
     out.route = {
-      line: rl.label, text: tour ? tour.name : '',
-      s: 'position: absolute; left: 20px; top: 78px; max-width: calc(100% - 40px); box-sizing: border-box; background: #fff; border-radius: 999px; padding: ' + (badge ? '5px 16px 5px 5px' : '10px 18px') + '; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)' + (tour ? '' : '; display: none'),
-      bs: badge ? 'min-width: 34px; height: 34px; border-radius: 17px; padding: 0 6px; box-sizing: border-box; background: ' + rl.color + '; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700' : 'display: none'
+      chips: routeLines.flatMap((l, k) => (k ? [{ isChev: true }] : []).concat({ isChip: true, t: l.label, s: chipCss(l.color) })),
+      cs: badge ? 'display: flex; align-items: center; gap: 4px' : 'display: none',
+      text: tour ? tour.name : '',
+      s: 'position: absolute; left: 20px; top: 78px; max-width: calc(100% - 40px); box-sizing: border-box; background: #fff; border-radius: 999px; padding: ' + (badge ? '5px 16px 5px 5px' : '10px 18px') + '; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)' + (tour ? '' : '; display: none')
     };
     out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px';
     out.head = view.head; out.big = view.big; out.sub = view.sub;
     // Große Zeile höchstens 48 px, aber so, dass das Häkchen daneben bleibt (Platz = Breite − 2 × 20 − 2 × 20 − 56 − 8)
     out.bigStyle = 'font-size: ' + Math.max(34, Math.min(48, Math.floor((W - 144) / (0.5 * Math.max(1, String(view.big || '').length))))) + 'px; line-height: 1.04; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap';
     out.icon1 = K.icon[0]; out.icon2 = K.icon[1];
-    out.rows = (view.rows || []).map((r) => Object.assign({}, r, { planned: r.planned ? 'geplant ' + r.planned : '' }));
+    out.rows = (view.rows || []).map((r) => Object.assign({}, r, { planned: r.planned ? (r.plannedLabel || 'geplant') + ' ' + r.planned : '' }));
+    // Fahrt mit Umstieg: erste Fahrt, Umstiegskarte, zweite Fahrt (der Server liefert die Abschnitte; ohne sie bleibt die einfache Liste)
+    out.plainRows = !(view.sections && view.sections.length);
+    out.sections = (view.sections || []).map((s) => {
+      if (s.type === 'transfer') {
+        const bg = s.state === 'missed' ? '#F9D6D2' : s.state === 'tight' ? '#FDE3CF' : '#EEF1F2';
+        return { isXfer: true, label: s.label, title: s.title, text: s.text, minutes: s.minutes ? s.minutes + ' Min.' : '', style: 'background: ' + bg + '; border-radius: 24px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px' };
+      }
+      const L = T.lines[s.lineId] || { label: '', color: '#5B5B58' };
+      return {
+        isLeg: true, chip: L.label, chipStyle: chipCss(L.color) + '; flex: none', title: s.title, sub: s.sub,
+        rows: (s.rows || []).map((r, i) => ({
+          label: r.label, sub: r.sub, value: r.value, planned: r.planned ? (r.plannedLabel || 'geplant') + ' ' + r.planned : '',
+          style: 'min-height: 60px; padding: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1.5px solid #ECECEC' + (i === 0 ? '; border-top: 1.5px solid #ECECEC' : '')
+        }))
+      };
+    });
     // „Danach“ / „Nächster Zug“ führt zur Seite dieser Abfahrt (Adresse <Strecke>.<n>-m), wenn es sie gibt (die ersten drei der Liste)
     const av = view.alternative;
     const altTo = av && tour && Number.isInteger(av.departure) && tour.departures[av.departure] ? 'Detail.dc.html#' + tour.id + '.' + av.departure + '-m' : '';

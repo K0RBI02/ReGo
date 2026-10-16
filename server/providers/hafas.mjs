@@ -5,7 +5,8 @@
 //   Stop   { id, name, lat, lon, products? }
 //   Leg    { line:{name,product}, direction, origin:Stop, destination:Stop,
 //            plannedDep, dep, depDelay (Min.), plannedArr, arr, arrDelay (Min.),
-//            plannedPlatform, platform, cancelled, tripId, stopovers:[Stop], remarks:[Remark] }
+//            plannedPlatform, platform (Abfahrtsgleis), plannedArrPlatform, arrPlatform (Ankunftsgleis),
+//            cancelled, tripId, stopovers:[Stop], remarks:[Remark] }
 //   Remark { type, code, text, summary, validFrom, validUntil, priority }
 //   Journey{ legs:Leg[] }
 export class ProviderError extends Error {
@@ -55,10 +56,10 @@ export class HafasClient {
     return stop;
   }
 
-  /** Direktverbindungen (ohne Umstieg) inkl. Zwischenhalte und Hinweise. */
-  async journeys({ fromId, toId, when, results = 5 }) {
+  /** Verbindungen inkl. Zwischenhalte und Hinweise. transfers = höchstens so viele Umstiege (0 = nur Direktverbindungen). */
+  async journeys({ fromId, toId, when, results = 5, transfers = 0 }) {
     const data = await this.get('/journeys', {
-      from: fromId, to: toId, departure: when, results, transfers: 0,
+      from: fromId, to: toId, departure: when, results, transfers,
       stopovers: true, remarks: true, language: 'de',
     });
     return (data.journeys || []).map(normJourney).filter((j) => j.legs.some((l) => l.line));
@@ -95,6 +96,8 @@ export function normLeg(l) {
     plannedArr: l.plannedArrival || l.arrival, arr: l.arrival || l.plannedArrival, arrDelay: min(l.arrivalDelay),
     plannedPlatform: l.plannedDeparturePlatform || l.departurePlatform || null,
     platform: l.departurePlatform || l.plannedDeparturePlatform || null,
+    plannedArrPlatform: l.plannedArrivalPlatform || l.arrivalPlatform || null,
+    arrPlatform: l.arrivalPlatform || l.plannedArrivalPlatform || null,
     cancelled: Boolean(l.cancelled), tripId: l.tripId || '',
     stopovers: (l.stopovers || []).map((x) => normStop(x.stop || x)),
     remarks: (l.remarks || []).filter((r) => r && (r.type === 'status' || r.type === 'warning') && (r.summary || r.text)).map(normRemark),

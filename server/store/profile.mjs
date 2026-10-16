@@ -140,23 +140,31 @@ function schedule(input = {}) {
 const sameSchedule = (a = {}, b = {}) => a.departAfter === b.departAfter && (a.days || []).join() === (b.days || []).join();
 
 /**
- * Neue Strecke. body: { from:{id,name}, to:{id,name}, schedule?, roundTrip?: boolean, returnAfter?: 'HH:MM' }
+ * Neue Strecke. body: { from:{id,name}, to:{id,name}, schedule?, roundTrip?: boolean, returnAfter?: 'HH:MM', transfers?: 1 }
+ * transfers: 1 = Fahrten mit einem Umstieg (nur nach ausdrücklicher Wahl des Nutzers, wenn es keine Direktverbindung gibt); gilt für Hin- und Rückweg.
  * Gibt die angelegten Touren zurück (1 oder 2). Gibt es genau diese Strecke mit denselben Tagen und Zeiten schon
- * (z. B. doppelt getippt), wird nichts angelegt und die vorhandene zurückgegeben.
+ * (z. B. doppelt getippt), wird nichts angelegt und die vorhandene zurückgegeben. Eine vorhandene Strecke ohne Umstieg
+ * (aus einer älteren Version, ohne Direktverbindung) wird dabei auf Umstieg umgestellt, wenn der Nutzer sie jetzt mit Umstieg anlegt.
  */
 export function addTours(profile, body) {
   if (!isStop(body?.from) || !isStop(body?.to)) throw new ValidationError('Start und Ziel müssen Haltestellen sein');
   if (body.from.id === body.to.id) throw new ValidationError('Start und Ziel sind gleich');
+  if (body.transfers !== undefined && body.transfers !== 0 && body.transfers !== 1) throw new ValidationError('transfers muss 1 sein (oder fehlen)');
   const from = pt(body.from), to = pt(body.to);
   const out = schedule(body.schedule);
   const dup = profile.tours.find((x) => x.from?.id === from.id && x.to?.id === to.id && sameSchedule(x.schedule, out));
-  if (dup) { const back = dup.returnId && profile.tours.find((x) => x.id === dup.returnId); return back ? [dup, back] : [dup]; }
+  if (dup) {
+    const back = dup.returnId && profile.tours.find((x) => x.id === dup.returnId);
+    if (body.transfers === 1) for (const x of [dup, back]) if (x && x.transfers !== 1) x.transfers = 1;
+    return back ? [dup, back] : [dup];
+  }
   if (profile.tours.length + (body.roundTrip ? 2 : 1) > MAX_TOURS) throw new ValidationError(`Maximal ${MAX_TOURS} Strecken`);
-  const t1 = { id: `t${rid()}`, name: `${from.name} → ${to.name}`.slice(0, 160), from, to, active: true, period: out.departAfter < '12:00' ? 'am' : 'pm', schedule: out };
+  const xfer = body.transfers === 1 ? { transfers: 1 } : {};
+  const t1 = { id: `t${rid()}`, name: `${from.name} → ${to.name}`.slice(0, 160), from, to, active: true, period: out.departAfter < '12:00' ? 'am' : 'pm', schedule: out, ...xfer };
   const list = [t1];
   if (body.roundTrip) {
     const back = schedule({ days: out.days, departAfter: HM.test(body.returnAfter || '') ? body.returnAfter : '16:30' });
-    const t2 = { id: `t${rid()}`, name: `${to.name} → ${from.name}`.slice(0, 160), from: to, to: from, active: true, period: back.departAfter < '12:00' ? 'am' : 'pm', schedule: back, returnOf: t1.id };
+    const t2 = { id: `t${rid()}`, name: `${to.name} → ${from.name}`.slice(0, 160), from: to, to: from, active: true, period: back.departAfter < '12:00' ? 'am' : 'pm', schedule: back, returnOf: t1.id, ...xfer };
     t1.returnId = t2.id; list.push(t2);
   }
   profile.tours.push(...list);
@@ -206,7 +214,8 @@ export function replaceProfile(profile, body) {
     ids.add(t.id);
     const sch = schedule(t.schedule);
     tours.push({ id: t.id, name: String(t.name || `${t.from.name} → ${t.to.name}`).slice(0, 160), from: pt(t.from), to: pt(t.to), active: t.active !== false, period: sch.departAfter < '12:00' ? 'am' : 'pm', schedule: sch,
-      ...(typeof t.returnId === 'string' && LINK_ID.test(t.returnId) ? { returnId: t.returnId } : {}), ...(typeof t.returnOf === 'string' && LINK_ID.test(t.returnOf) ? { returnOf: t.returnOf } : {}) });
+      ...(typeof t.returnId === 'string' && LINK_ID.test(t.returnId) ? { returnId: t.returnId } : {}), ...(typeof t.returnOf === 'string' && LINK_ID.test(t.returnOf) ? { returnOf: t.returnOf } : {}),
+      ...(t.transfers === 1 ? { transfers: 1 } : {}) });
   }
   for (const t of tours) { if (t.returnId && !ids.has(t.returnId)) delete t.returnId; if (t.returnOf && !ids.has(t.returnOf)) delete t.returnOf; }
   profile.tours = tours;

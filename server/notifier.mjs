@@ -7,13 +7,13 @@ import { berlin } from './lib/time.mjs';
 
 const DAY = 24 * 3600e3;
 
-/** Welche Vorfälle sind eine Benachrichtigung wert? Verspätung ab Schwelle, alles andere (Ersatzverkehr, Baustelle, Ausfall, Gleiswechsel) immer. */
+/** Welche Vorfälle sind eine Benachrichtigung wert? Verspätung ab Schwelle, alles andere (Ersatzverkehr, Baustelle, Ausfall, Gleiswechsel, wackelnder oder verpasster Anschluss) immer. */
 export function relevant(inc, threshold) {
   if (inc.kind === 'delay') return inc.delayMin >= threshold;
   return inc.validity?.activeNow !== false;
 }
 
-const LABEL = { replacement: 'Ersatzverkehr', construction: 'Baustelle', cancelled: 'Ausfall', platform: 'Gleiswechsel' };
+const LABEL = { replacement: 'Ersatzverkehr', construction: 'Baustelle', cancelled: 'Ausfall', platform: 'Gleiswechsel', tight: 'Anschluss wackelt', missed: 'Anschluss verpasst' };
 
 // Linienname kommt aus lineName (z. B. „RE 5“, „S 1“ mit Leerzeichen); ältere Meldungen ohne das Feld: erstes Wort des Titels
 export function lineOf(inc) {

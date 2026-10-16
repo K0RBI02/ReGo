@@ -3,6 +3,7 @@ import { TtlCache } from './store/cache.mjs';
 import { berlin, hhmm } from './lib/time.mjs';
 import { distanceKm, regionOf } from './lib/geo.mjs';
 import { buildTour, stillVisible, THEME, SCHEMA_VERSION } from './domain/state.mjs';
+import { buildTransferTour, transferVias, previewRoute } from './domain/transfer.mjs';
 import { createProviders } from './providers/index.mjs';
 
 /** Wartet höchstens ms auf p. Danach gilt fallback() (falls es etwas liefert), sonst ein Fehler. Der Abruf selbst läuft weiter und füllt den Cache. */
@@ -21,6 +22,8 @@ export function createService({ config, store, now = () => Date.now(), providers
   const DEADLINE_MS = config.tourDeadlineMs || 12000;          // so lange darf eine Strecke höchstens auf ihre Daten warten
   const MAP_BUDGET_MS = config.mapBudgetMs || 5000;            // und so lange das Nachschlagen weiterer Linien für die Karte
   const STALE_MAX_SEC = config.staleMaxSec?.journeys ?? 30 * 60;   // ältere Fahrten zeigen wir bei Störung nicht mehr
+  const B_DEADLINE_MS = config.transferDeadlineMs || 4000;     // Anschlussfahrten ab dem Umstiegsbahnhof: so lange warten wir höchstens (sonst gilt der Vorschlag des Anbieters)
+  const XFER_RESULTS = 8;                                      // Verbindungen mit Umstieg: etwas mehr abfragen, damit nach dem Zusammenfassen je Zubringer genug übrig bleiben
 
   async function searchStations(q) {
     const query = String(q || '').trim();
@@ -42,6 +45,41 @@ export function createService({ config, store, now = () => Date.now(), providers
     } catch (err) { log('Prüfung beim Anlegen fehlgeschlagen', from.id, to.id, err.message); return null; }
   }
 
+  /** Verbindungen mit höchstens einem Umstieg. Nutzt dieselbe Abfrage und denselben Zwischenspeicher wie getState. */
+  const transferJourneys = (from, to, t) => {
+    const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
+    const key = `jl:${from.id}:${to.id}:t1`;
+    return { key, load: () => cache.get(key, config.ttl.journeys, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 }), { maxStaleSec: STALE_MAX_SEC }) };
+  };
+
+  /** Gibt es zwischen den beiden Haltestellen Fahrten mit höchstens einem Umstieg? true | false | null (unbekannt) – und eine Beispielverbindung. */
+  async function searchTransfer(from, to) {
+    const t = now();
+    const q = transferJourneys(from, to, t);
+    try {
+      const r = await withDeadline(q.load(), DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
+      const route = previewRoute(r.value || []);
+      return { found: route ? true : (r.value || []).length ? null : false, route };
+    } catch (err) { log('Suche mit Umstieg fehlgeschlagen', from.id, to.id, err.message); return { found: null, route: null }; }
+  }
+
+  /** Anschlussfahrten ab dem Umstiegsbahnhof zum Ziel (zweite Abfrage), je Bahnhof; fehlt eine, bleibt sie weg und der Vorschlag des Anbieters gilt. */
+  async function loadBLists(tour, journeys, t) {
+    const out = new Map();
+    await Promise.all(transferVias(journeys).slice(0, 2).map(async (v) => {
+      const client = (providers.forTourSafe || providers.forTour).call(providers, v.stop, tour.to);
+      const key = `jb:${v.stop.id}:${tour.to.id}`;
+      const when = new Date(Math.max(t, v.firstArr - 10 * 60000)).toISOString();
+      try {
+        const r = await withDeadline(
+          cache.get(key, config.ttl.journeys, () => client.journeys({ from: v.stop, to: tour.to, fromId: v.stop.id, toId: tour.to.id, when, results: 10 }), { maxStaleSec: STALE_MAX_SEC }),
+          B_DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
+        out.set(v.key, (r.value || []).map((j) => j.legs?.[0]).filter((l) => l && l.line));
+      } catch (err) { log('Anschlussfahrten nicht verfügbar', v.name, err.message); }
+    }));
+    return out;
+  }
+
   const linesAt = async (id) => {
     const client = providers.forStop ? providers.forStop({ id }) : (regionOf({ id }) === 'AT' ? providers.oebb : providers.db);
     const { value } = await cache.get(`stop:${id}`, config.ttl.stop, () => client.stop(id));
@@ -57,13 +95,15 @@ export function createService({ config, store, now = () => Date.now(), providers
     const here = lat != null && lon != null ? { lat: Number(lat), lon: Number(lon) } : null;
 
     await Promise.all(profile.tours.map(async (tour, i) => {
-      if (tour.active === false) { tours[i] = { out: { id: tour.id, name: tour.name, lineId: '', active: false, period: tour.period, ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}), distanceKm: null, schedule: tour.schedule, departures: [] }, inc: [] }; return; }
+      if (tour.active === false) { tours[i] = { out: { id: tour.id, name: tour.name, lineId: '', active: false, period: tour.period, ...(tour.transfers === 1 ? { transfers: 1 } : {}), ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}), distanceKm: null, schedule: tour.schedule, departures: [] }, inc: [] }; return; }
       const client = (providers.forTourSafe || providers.forTour).call(providers, tour.from, tour.to);
       let journeys = [], tourStale = false;
-      const key = `jl:${tour.from.id}:${tour.to.id}`;
+      const xfer = tour.transfers === 1;
+      const q = xfer ? transferJourneys(tour.from, tour.to, t) : null;
+      const key = xfer ? q.key : `jl:${tour.from.id}:${tour.to.id}`;
       try {
         const r = await withDeadline(
-          cache.get(key, config.ttl.journeys, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(t).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
+          xfer ? q.load() : cache.get(key, config.ttl.journeys, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(t).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
           DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         journeys = r.value; hadData = true;
         if (r.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r.at); }
@@ -72,7 +112,8 @@ export function createService({ config, store, now = () => Date.now(), providers
       const linesAtBudget = (id) => (Date.now() - started > MAP_BUDGET_MS ? Promise.resolve([]) : withDeadline(linesAt(id), Math.max(300, MAP_BUDGET_MS - (Date.now() - started)), () => []));
       const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
-      const built = await buildTour(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale });
+      const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t) : undefined;
+      const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, bLists });
       if (tourStale) built.tour.stale = true;                  // diese Strecke zeigt alte Daten (oder gar keine)
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
@@ -101,5 +142,5 @@ export function createService({ config, store, now = () => Date.now(), providers
     } catch { return {}; }
   }
 
-  return { searchStations, getState, hasDirect, providers, cache };
+  return { searchStations, getState, hasDirect, searchTransfer, providers, cache };
 }

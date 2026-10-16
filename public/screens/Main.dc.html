@@ -26,7 +26,7 @@ a:active,button:active{transform:scale(.97)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @keyframes rg-pulse{0%,100%{opacity:1}50%{opacity:.55}}
 .rg-skel{background:#E9E9E9;animation:rg-pulse 1.4s ease-in-out infinite}
-@media (max-width:340px){.rg-dep{gap:6px !important;grid-template-columns:auto 34px minmax(0,1fr) auto !important}.rg-dep>span:first-child{font-size:23px !important}.rg-dep>span:nth-child(3){font-size:15px !important;gap:4px !important}}
+@media (max-width:340px){.rg-dep{gap:6px !important;grid-template-columns:auto 34px minmax(0,1fr) auto !important}.rg-dep>span:first-child{font-size:23px !important}.rg-dep>span:nth-child(3){font-size:15px !important;gap:4px !important}.rg-xdep{gap:3px 6px !important;grid-template-columns:auto auto minmax(0,1fr) auto !important}.rg-xdep>span:nth-child(3) svg{display:none}}
 /*rg-dark-start*/
 @media (prefers-color-scheme: dark){html{color-scheme:dark}
 [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
@@ -157,12 +157,29 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <span style="background: #1C1A1A; color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 14px; font-weight: 700; white-space: nowrap">{{near.inText}}</span>
 </a>
 <sc-for list="{{departures}}" as="d" hint-placeholder-count="3">
+<sc-if value="{{d.isDirect}}" hint-placeholder-val="{{ true }}">
 <a class="rg-dep" href="{{d.href}}" style="display: grid; grid-template-columns: minmax(70px, auto) 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: {{d.border}}">
 <span style="font-size: 27px; font-weight: 700; letter-spacing: -0.03em">{{d.time}}</span>
 <span style="{{d.badgeStyle}}">{{d.line}}</span>
 <span style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 700"><svg style="flex: none" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
 <span style="{{d.platformStyle}}">{{d.platform}}</span>
 </a>
+</sc-if>
+<sc-if value="{{d.isXfer}}" hint-placeholder-val="{{ false }}">
+<a class="rg-dep rg-xdep" href="{{d.href}}" style="display: grid; grid-template-columns: minmax(70px, auto) auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 3px; padding: 9px 0 10px; border-bottom: {{d.border}}">
+<span style="font-size: 27px; font-weight: 700; letter-spacing: -0.03em">{{d.time}}</span>
+<span style="display: flex; align-items: center; gap: 4px">
+<sc-for list="{{d.chips}}" as="c" hint-placeholder-count="3">
+<sc-if value="{{c.isChev}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" aria-hidden="true"><path d="M1.5 1.5L6.5 6l-5 4.5"></path></svg></sc-if>
+<sc-if value="{{c.isChip}}" hint-placeholder-val="{{ true }}"><span style="{{c.style}}">{{c.label}}</span></sc-if>
+</sc-for>
+</span>
+<span style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 700"><svg style="flex: none" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
+<span style="{{d.platformStyle}}">{{d.platform}}</span>
+<span style="font-size: 13px; font-weight: 600; color: #4A4747; white-space: nowrap">{{d.arrText}}</span>
+<span style="{{d.xferStyle}}">{{d.xferText}}</span>
+</a>
+</sc-if>
 </sc-for>
 </div>
 
@@ -229,7 +246,11 @@ class Component extends DCLogic {
       return diff <= 0 ? 'jetzt' : diff < 60 ? 'in ' + diff + ' Min.' : 'ab ' + d.expectedTime;
     };
     const parts = (...a) => a.filter(Boolean).join(' · ');            // leere Teile (z. B. keine Linie, weil keine Abfahrt) lassen keinen hängenden „ · “ zurück
-    const sub = (t) => parts(t.returnId ? 'Hinweg' : t.returnOf ? 'Rückweg' : '', T.lines[t.lineId].label);
+    // Mit 1 Umstieg stehen beide Linien da: „S1 › RE“
+    const lineText = (t) => (t.transfers === 1 && (t.lineIds || []).length > 1 ? t.lineIds.map((id) => T.lines[id].label).join(' › ') : T.lines[t.lineId].label);
+    const sub = (t) => parts(t.returnId ? 'Hinweg' : t.returnOf ? 'Rückweg' : '', lineText(t));
+    const chipFor = (id) => { const L = T.lines[id], n = L.label.length; return { isChip: true, label: L.label, style: 'width: 34px; height: 34px; border-radius: 50%; background: ' + L.color + '; color: #fff; display: grid; place-items: center; overflow: hidden; white-space: nowrap; font-size: ' + (n > 4 ? 10 : n > 3 ? 12 : 14) + 'px; font-weight: 700' }; };
+    const PILL = { tight: '#FDE3CF', missed: '#F9D6D2' };
     const near = tours[0];
     const common = { clockNow: T.clock.now };
     if (T.connection.loading) return Object.assign({ hasTours: false, noTours: false, hasBadge: false, badgeCount: 0, ticker: { href: '#', head: '', big: '', sub: '', icon1: '', icon2: '', style: 'display: none' }, departures: [], others: [], near: { name: '', sub: '', inText: '', href: '#' } }, common);
@@ -249,7 +270,13 @@ class Component extends DCLogic {
     const nd = near.departures.slice(0, 3);
     const departures = nd.map((d, idx) => {
       const late = d.delayMin > 0, moved = d.plannedPlatform !== d.expectedPlatform;
+      const x = d.transfer;            // Fahrt mit Umstieg: zwei Linien, Ankunft am Ziel und eine Zeile zum Umstieg
       return {
+        isDirect: !x, isXfer: !!x,
+        chips: x ? (d.lineIds || [d.lineId]).flatMap((id, k) => (k ? [{ isChev: true }] : []).concat(chipFor(id))) : [],
+        arrText: d.arrTime ? 'an ' + d.arrTime : '',
+        xferText: x ? x.text : '',
+        xferStyle: 'grid-column: 2 / -1; ' + (x && PILL[x.state] ? 'justify-self: start; background: ' + PILL[x.state] + '; border-radius: 999px; padding: 3px 10px; font-size: 14px; font-weight: 700; white-space: nowrap' : 'font-size: 14px; font-weight: 600; color: #4A4747'),
         href: 'Detail.dc.html#' + near.id + '.' + idx + '-m',
         border: idx === nd.length - 1 ? '0 solid transparent' : '1.5px solid #E3E3E3',
         time: d.expectedTime, line: T.lines[d.lineId].label,

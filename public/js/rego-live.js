@@ -23,6 +23,8 @@
     none: { label: 'Keine Daten', bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M24 21v13M24 14.5v.1'] },
     cancelled: { label: 'Ausfall', bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
     platform: { label: 'Gleiswechsel', bg: '#D4EDF6', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M13 20h19M27 15l5 5-5 5M35 29H16M21 24l-5 5 5 5'] },
+    tight: { label: 'Anschluss wackelt', bg: '#FDE3CF', icon: ['M24 8c1 0 2 .6 2.6 1.6L41 36c1 2-.2 4.2-2.6 4.2H9.6C7.2 40.2 6 38 7 36L21.4 9.6C22 8.6 23 8 24 8z', 'M24 18v11M24 34.5v.1'] },
+    missed: { label: 'Anschluss verpasst', bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
   } };
   // Strecke ohne Abfahrt: der Server liefert eine genaue Ansicht; ein älterer Server (oder ein alter Zwischenstand) nicht, dann gilt diese – nie „pünktlich“
   const NONE_VIEW = { kind: 'none', head: 'Nächste Abfahrt', big: 'Keine', sub: 'Keine Abfahrten gefunden.', rows: [], alternative: null, ticketHint: null, map: null };
@@ -46,7 +48,7 @@
     if (!res.ok) {
       const invite = res.status === 403 && !!body.invite;
       if (invite) { R.invite = { needed: true, wrong: !!body.wrong }; try { R.onInvite && R.onInvite(); } catch (e) {} }
-      throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, invite });
+      throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, invite, code: body.code || '' });
     }
     return body;
   };
@@ -196,14 +198,23 @@
     addTour(opts) {
       if (adding) return adding;                          // doppelt getippt: dieselbe Anfrage, nicht zwei
       adding = (async () => {
-        const { from, to, days, time, trip, backTime } = opts;
+        const { from, to, days, time, trip, backTime, transfers } = opts;
         const a = R.findStation(from), b = R.findStation(to);
         if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
         const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
-        await api('/tours', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b), schedule: { days, departAfter: time }, roundTrip: trip === 'both', returnAfter: backTime }) });
+        const body = { from: pt(a), to: pt(b), schedule: { days, departAfter: time }, roundTrip: trip === 'both', returnAfter: backTime };
+        if (transfers) body.transfers = 1;                  // nur nach ausdrücklichem „Mit 1 Umstieg suchen“
+        await api('/tours', { method: 'POST', body: JSON.stringify(body) });
         await R.refresh();
       })().finally(() => { adding = null; });
       return adding;
+    },
+    /** Verbindung mit höchstens 1 Umstieg zwischen zwei gewählten Haltestellen (Vorschau vor dem Anlegen). */
+    async searchTransfer({ from, to }) {
+      const a = R.findStation(from), b = R.findStation(to);
+      if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
+      const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
+      return api('/connections/search', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b) }) });
     },
     async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },
     async updateTour(id, { days, time }) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ schedule: { days, departAfter: time } }) }); await R.refresh(); },
