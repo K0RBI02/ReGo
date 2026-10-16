@@ -76,6 +76,10 @@ input{color-scheme:dark !important}
 :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
 svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
 svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+.rg-win-w .rg-trk{background:rgba(255,255,255,.22)}
+.rg-win-w .rg-fill{background:#F2F2F2}
+.rg-win-w .rg-knob{background:#F2F2F2;border-color:#1F1F1F}
+.rg-win-o input{color-scheme:light !important}
 }
 html.rg-dark{color-scheme:dark}
 html.rg-dark [style*="background: rgb(247, 247, 247)"]{background:#121212 !important}
@@ -119,6 +123,10 @@ html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: 
 html.rg-dark :is([style*="background: rgb(253, 227, 207)"],[style*="background: rgb(249, 214, 210)"],[style*="background: rgb(253, 243, 220)"],[style*="background: rgb(234, 246, 207)"],[style*="background: rgb(212, 237, 246)"]) [style*="border: 1.5px solid"]{border-color:#E8E8E8 !important}
 html.rg-dark svg[aria-label="Ticket-Barcode"]{background:#fff !important;border-radius:10px !important}
 html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
+html.rg-dark .rg-win-w .rg-trk{background:rgba(255,255,255,.22)}
+html.rg-dark .rg-win-w .rg-fill{background:#F2F2F2}
+html.rg-dark .rg-win-w .rg-knob{background:#F2F2F2;border-color:#1F1F1F}
+html.rg-dark .rg-win-o input{color-scheme:light !important}
 /*rg-dark-end*/
 </style>
 </helmet>
@@ -169,7 +177,7 @@ Zurück</a>
 </div>
 </div>
 </sc-for>
-<div style="font-size: 15px; font-weight: 600; color: #4A4747; line-height: 1.35; padding: 0 4px">Pendel-Push kommt nur für Strecken, die an sind. Im Urlaub einfach ausschalten.</div>
+<div style="font-size: 15px; font-weight: 600; color: #4A4747; line-height: 1.35; padding: 0 4px">Push kommt nur für Strecken, die an sind, und nur rund um ihre Pendelzeit. Im Urlaub einfach ausschalten.</div>
 
 <button type="button" data-sheet-open aria-haspopup="dialog" onClick="{{openSheet}}" style="display: block; width: 100%; min-height: 44px; box-sizing: border-box; padding: 12px 4px 4px; border: 0; background: transparent; text-align: left; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Push, neues Handy und Rückmeldung findest du in den <span style="white-space: nowrap"><span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Einstellungen</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -2px; margin-left: 4px"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></button>
 
@@ -240,9 +248,6 @@ Strecke hinzufügen</button>
 </sc-for>
 </div>
 </div>
-<label style="background: #fff; border: 1.5px solid #E8E8E8; border-radius: 24px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600">Abfahrt ab
-<input type="time" value="{{time}}" onInput="{{setTime}}" style="min-height: 52px; border: 0; padding: 0; font-size: 28px; font-weight: 700; background: transparent; color: #1C1A1A">
-</label>
 <sc-if value="{{showStops}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; gap: 8px">
 <div style="font-size: 14px; font-weight: 600; color: #4A4747">Pendelst du auch zurück?</div>
@@ -252,12 +257,29 @@ Strecke hinzufügen</button>
 </sc-for>
 </div>
 </div>
-<sc-if value="{{both}}" hint-placeholder-val="{{ true }}">
-<label style="background: #FDE3CF; border-radius: 24px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600">Rückweg ab
-<input type="time" value="{{backTime}}" onInput="{{setBackTime}}" style="min-height: 52px; border: 0; padding: 0; font-size: 28px; font-weight: 700; background: transparent; color: #1C1A1A">
-</label>
 </sc-if>
-</sc-if>
+<sc-for list="{{wins}}" as="w" hint-placeholder-count="2">
+<div class="rg-win {{w.tone}}" style="{{w.cardStyle}}">
+<div style="font-size: 14px; font-weight: 600; color: #4A4747">{{w.title}}</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px">
+<input type="time" value="{{w.fromText}}" onInput="{{w.setFromText}}" aria-label="{{w.fromLabel}}" style="flex: none; min-height: 48px; border: 0; padding: 0; font-size: {{w.timePx}}px; font-weight: 700; background: transparent; color: #1C1A1A">
+<span aria-hidden="true" style="flex: none; font-size: {{w.timePx}}px; font-weight: 700; color: #1C1A1A">–</span>
+<input type="time" value="{{w.untilText}}" onInput="{{w.setUntilText}}" aria-label="{{w.untilLabel}}" style="flex: none; min-height: 48px; border: 0; padding: 0; font-size: {{w.timePx}}px; font-weight: 700; background: transparent; color: #1C1A1A">
+</div>
+<div class="{{w.dualCls}}">
+<div class="rg-trk"></div>
+<div class="rg-fill" style="{{w.fillStyle}}"></div>
+<input class="rg-r" type="range" min="{{w.min}}" max="{{w.max}}" step="{{w.step}}" value="{{w.fromRange}}" onInput="{{w.setFromRange}}" aria-label="{{w.fromLabel}}" aria-valuetext="{{w.fromValue}}" style="{{w.fromClip}}">
+<div class="rg-knob" style="{{w.fromKnob}}"></div>
+<input class="rg-r" type="range" min="{{w.min}}" max="{{w.max}}" step="{{w.step}}" value="{{w.untilRange}}" onInput="{{w.setUntilRange}}" aria-label="{{w.untilLabel}}" aria-valuetext="{{w.untilValue}}" style="{{w.untilClip}}">
+<div class="rg-knob" style="{{w.untilKnob}}"></div>
+</div>
+<div aria-hidden="true" style="{{w.ticksStyle}}">
+<sc-for list="{{w.ticks}}" as="k" hint-placeholder-count="6"><span style="{{k.style}}">{{k.label}}</span></sc-for>
+</div>
+</div>
+</sc-for>
+<div style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.35; padding: 0 4px">Danach richtet sich alles: welche Züge ReGo für dich zeigt und wann es sich meldet (ab einer Stunde vorher).</div>
 </div>
 <div class="rg-dock" style="padding: 0 20px 28px; display: flex; gap: 10px">
 <button type="button" onClick="{{cancelAdd}}" style="flex: 1; min-height: 72px; background: #fff; color: #1C1A1A; border: 1.5px solid #1C1A1A; border-radius: 999px; font-size: 19px; font-weight: 700">Abbrechen</button>
@@ -284,10 +306,7 @@ Strecke hinzufügen</button>
 <button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button>
 </sc-for>
 </div>
-</div>
-<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1.5px solid #ECECEC">
-<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">Nur rund um die Abfahrt</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">±20 Min. um die Zeit deiner Strecke</span></span>
-<button type="button" role="switch" aria-checked="{{pwOn}}" aria-label="Nur rund um die Abfahrtszeit benachrichtigen" onClick="{{togglePw}}" style="{{pwStyle}}"><span style="{{pwKnob}}"></span></button>
+<span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.3">Meldungen kommen nur rund um deine Pendelzeit, ab einer Stunde vorher.</span>
 </div>
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1.5px solid #ECECEC">
 <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 17px; font-weight: 700; line-height: 1.15">Testmeldung</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.2">{{testHint}}</span></span>
@@ -345,9 +364,9 @@ class Component extends DCLogic {
     if (wantSheet) { try { history.replaceState(null, '', location.pathname); history.pushState(null, '', location.pathname + '#einstellungen'); this._pushed = true; } catch (e) {} }
     this.state = {
       list: this._fromRego(),
-      adding: wantAdd, sheet: wantSheet, handyOpen: false, editId: '', editName: '', from: '', to: '', time: '07:15', threshold: window.REGO.settings.pushThresholdMin,
+      adding: wantAdd, sheet: wantSheet, handyOpen: false, editId: '', editName: '', from: '', to: '', out: window.REGO.win.fresh('out'), back: window.REGO.win.fresh('back'), threshold: window.REGO.settings.pushThresholdMin,
       days: [true, true, true, true, true, false, false],
-      trip: 'both', backTime: '16:30', toast: '', prev: null, focus: '', err: '', errCode: '', xroute: null, xbusy: false
+      trip: 'both', toast: '', prev: null, focus: '', err: '', errCode: '', xroute: null, xbusy: false
     };
     window.REGO.loadInfo().then(() => this.setState({}), () => {});       // Versionszeile
   }
@@ -361,7 +380,8 @@ class Component extends DCLogic {
       const xnote = xfer ? '1 Umstieg' + (t.via ? ' · meist ' + t.via : '') : '';
       // Aktive Strecke ohne Abfahrt: kurz sagen warum (die Hauptseite zeigt dasselbe groß)
       const b = t.view && t.view.big, why = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : xfer ? 'Keine Verbindung mit 1 Umstieg' : 'Keine Direktverbindung';
-      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ab ' + t.schedule.departAfter, name: t.name, chips, on: t.active, note: why || xnote, noteOff: xnote };
+      const zeit = t.schedule.departUntil ? R.win.text(R.win.of(t.schedule.departAfter, t.schedule.departUntil)) : 'ab ' + t.schedule.departAfter;      // älterer Server kennt nur „ab“
+      return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ' + zeit, name: t.name, chips, on: t.active, note: why || xnote, noteOff: xnote };
     });
   }
   onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
@@ -400,7 +420,7 @@ class Component extends DCLogic {
       on: d.on, state: d.on ? 'An' : 'Aus',
       label: 'Warnungen für ' + d.name,
       removeLabel: d.name + ' entfernen', editLabel: d.name + ' ändern',
-      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, err: '', errCode: '', xroute: null, time: t.schedule.departAfter, days: names.map((n) => t.schedule.days.includes(n)) }); },
+      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, err: '', errCode: '', xroute: null, out: window.REGO.win.of(t.schedule.departAfter, t.schedule.departUntil), days: names.map((n) => t.schedule.days.includes(n)) }); },
       switchStyle: 'width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (d.on ? 'flex-end' : 'flex-start') + '; background: ' + (d.on ? '#1C1A1A' : '#DCDCDC'),
       knobStyle: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
       toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
@@ -428,14 +448,14 @@ class Component extends DCLogic {
       // Die Schwelle ändert nur die Schwelle: wer Push mit dem Schalter ausgemacht hat, bekommt ihn hier nicht heimlich wieder an
       pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => this.flash(window.REGO.pushActive() ? 'Push aktiv ab ' + v + ' Min.' : 'Gespeichert. Push ist aus (Schalter oben).', null), () => { this.setState({ threshold: window.REGO.settings.pushThresholdMin }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
     }));
-    const pwOn = !!window.REGO.settings.pushWindow;
     const pushOn = window.REGO.pushActive();
     const saving = !!this._saving;
+    // Pendelzeit: beim Anlegen mit Rückweg zwei Karten (Hin, Rück), sonst eine
+    const both = !editing && st.trip === 'both', R = window.REGO;
+    const wins = [R.win.view(st.out, (w) => this.setState({ out: w }), { title: both ? 'Hinweg · Abfahrt zwischen' : 'Abfahrt zwischen', tone: 'w' })]
+      .concat(both ? [R.win.view(st.back, (w) => this.setState({ back: w }), { title: 'Rückweg · Abfahrt zwischen', tone: 'o' })] : []);
     const sw = (on) => 'flex: none; width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (on ? 'flex-end' : 'flex-start') + '; background: ' + (on ? '#1C1A1A' : '#DCDCDC');
     return {
-      pwOn, pwStyle: sw(pwOn),
-      pwKnob: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
-      togglePw: () => { window.REGO.settings.pushWindow = !pwOn; this.setState({}); window.REGO.actions.setPushWindow(!pwOn).then(() => this.flash(!pwOn ? 'Push nur rund um die Abfahrt' : 'Push den ganzen Tag', null), () => { window.REGO.settings.pushWindow = pwOn; this.setState({}); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
       pushOn, pushStyle: sw(pushOn), pushKnob: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
       togglePush: () => {
         if (this._pushBusy) return; this._pushBusy = true;
@@ -447,7 +467,6 @@ class Component extends DCLogic {
         style: 'flex: 1; min-height: 52px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (st.trip === o[0] ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A'),
         pick: () => this.setState({ trip: o[0] })
       })),
-      both: st.trip === 'both', backTime: st.backTime, setBackTime: (e) => this.setState({ backTime: val(e) }),
       toast: st.toast, undo: () => { const had = st.prev; clearTimeout(this._tm); this.setState({ toast: '', prev: null }); if (had) { this.setState({ list: had }); window.REGO.actions.undoRemove().catch(() => { this.setState({ list: this._fromRego() }); this.flash('Rückgängig nicht möglich – keine Verbindung', null); }); } },
       undoStyle: 'min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; font-size: 15px; font-weight: 700' + (st.prev ? '' : '; display: none'),
       sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
@@ -475,7 +494,7 @@ class Component extends DCLogic {
       sheetKey: (e) => { if (e && e.key === 'Escape') { e.stopPropagation(); this.closeSheet(); } },
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
       formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
-      from: st.from, to: st.to, time: st.time,
+      from: st.from, to: st.to, wins,
       setFrom: (e) => this.setState({ from: val(e), focus: 'from', err: '', errCode: '', xroute: null }),
       setTo: (e) => this.setState({ to: val(e), focus: 'to', err: '', errCode: '', xroute: null }),
       hasSaveErr: !!st.err, saveErr: st.err,
@@ -498,8 +517,7 @@ class Component extends DCLogic {
           (e) => { if (same()) this.setState({ xbusy: false, err: e && e.message ? e.message : 'Keine Verbindung', errCode: 'retry' }); else this.setState({ xbusy: false }); }
         );
       },
-      setTime: (e) => this.setState({ time: val(e) }),
-      openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', errCode: '', xroute: null, xbusy: false, from: '', to: '', time: '07:15', trip: 'both', backTime: '16:30', days: [true, true, true, true, true, false, false] }),
+      openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', errCode: '', xroute: null, xbusy: false, from: '', to: '', out: window.REGO.win.fresh('out'), back: window.REGO.win.fresh('back'), trip: 'both', days: [true, true, true, true, true, false, false] }),
       cancelAdd: () => this.setState({ adding: false, editId: '', err: '', errCode: '', xroute: null, xbusy: false }),
       saveAdd: () => {
         if (!valid || this._saving) return;                       // schon unterwegs: ein zweiter Tipp darf nichts doppelt anlegen
@@ -508,14 +526,14 @@ class Component extends DCLogic {
         const end = () => { this._saving = false; };
         this._saving = true; this.setState({});
         if (st.editId) {
-          window.REGO.actions.updateTour(st.editId, { days: sel, time: st.time }).then(
+          window.REGO.actions.updateTour(st.editId, { days: sel, time: st.out.from, until: st.out.until }).then(
             () => { end(); this.setState({ adding: false, editId: '', list: this._fromRego() }); this.flash('Änderung gespeichert', null); },
             (e) => { end(); this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null); }
           );
           return;
         }
         const from = st.from.trim(), to = st.to.trim();
-        window.REGO.actions.addTour({ from, to, days: sel, time: st.time, trip: st.trip, backTime: st.backTime, transfers: st.xroute ? 1 : 0 }).then(
+        window.REGO.actions.addTour({ from, to, days: sel, time: st.out.from, until: st.out.until, trip: st.trip, backTime: st.back.from, backUntil: st.back.until, transfers: st.xroute ? 1 : 0 }).then(
           () => { end(); this.setState({ adding: false, xroute: null, err: '', errCode: '', list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
           (e) => {
             end();

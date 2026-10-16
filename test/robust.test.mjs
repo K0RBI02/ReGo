@@ -69,7 +69,7 @@ test('Strecke anlegen: Prüfungen und Obergrenze (Hin + Rück zählt doppelt)', 
 });
 
 test('Rückgängig: Koordinaten bleiben, Einstellungen und Abo bleiben unberührt, lose Verknüpfungen fliegen raus', () => {
-  const p = { tours: [], settings: { pushThresholdMin: 10, delayGraceMin: 10, pushWindow: true }, push: { native: true } };
+  const p = { tours: [], settings: { pushThresholdMin: 10, delayGraceMin: 10 }, push: { native: true } };
   const before = { tours: [{ id: 'tA', name: 'x', from: { ...FS, lat: 48.4, lon: 11.74 }, to: MH, active: false, schedule: { days: ['Mo'], departAfter: '07:00' }, returnId: 'tB', returnOf: 'tZ' }], settings: { pushThresholdMin: 3 } };
   replaceProfile(p, before);
   assert.equal(p.tours[0].from.lat, 48.4);
@@ -235,11 +235,12 @@ test('API (Beispieldaten): bestehende Strecke ohne Direktverbindung bleibt in de
 
 // ---------- Push ----------
 
+const PENDELN = { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], departAfter: '11:30', departUntil: '12:30' };      // Pendelzeit um die Testuhr (12:00): Push ist erlaubt
 const incident = (o = {}) => ({ id: 'a1', tourId: 'T', kind: 'delay', delayMin: 7, title: 'RE 5 München Hbf → Salzburg Hbf', lineName: 'RE 5', summary: 'x', validity: { activeNow: true }, ...o });
 async function notifierFor(state, { push = { native: true, fcm: 'fcm-token-0123456789abcdef' }, lastSeen, t = Date.parse('2026-10-12T12:00:00+02:00'), tours } = {}) {
   const dir = await tmp('rego-pn-'); const clock = { t }; const now = () => clock.t;
   const store = new ProfileStore(dir, now); const dev = 'pushgeraet123456789';
-  await store.update(dev, (p) => { p.tours = tours || [{ id: 'T', name: 'x', from: MH, to: FS, active: true, schedule: { days: ['Mo'], departAfter: '07:00' } }, { id: 'U', name: 'y', from: FS, to: MH, active: true, schedule: { days: ['Mo'], departAfter: '07:00' } }]; p.push = push; if (lastSeen !== undefined) p.lastSeen = lastSeen; });
+  await store.update(dev, (p) => { p.tours = tours || [{ id: 'T', name: 'x', from: MH, to: FS, active: true, schedule: PENDELN }, { id: 'U', name: 'y', from: FS, to: MH, active: true, schedule: PENDELN }]; p.push = push; if (lastSeen !== undefined) p.lastSeen = lastSeen; });
   const sent = [];
   const n = createNotifier({ config: { ...config, dataDir: dir }, store, service: { getState: async () => state.current() }, now, fcm: { enabled: true, send: async () => { sent.push(1); return 'ok'; } } });
   return { n, store, dev, clock, sent };

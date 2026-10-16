@@ -198,11 +198,11 @@
     addTour(opts) {
       if (adding) return adding;                          // doppelt getippt: dieselbe Anfrage, nicht zwei
       adding = (async () => {
-        const { from, to, days, time, trip, backTime, transfers } = opts;
+        const { from, to, days, time, until, trip, backTime, backUntil, transfers } = opts;
         const a = R.findStation(from), b = R.findStation(to);
         if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
         const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
-        const body = { from: pt(a), to: pt(b), schedule: { days, departAfter: time }, roundTrip: trip === 'both', returnAfter: backTime };
+        const body = { from: pt(a), to: pt(b), schedule: { days, departAfter: time, ...(until ? { departUntil: until } : {}) }, roundTrip: trip === 'both', returnAfter: backTime, ...(backUntil ? { returnUntil: backUntil } : {}) };
         if (transfers) body.transfers = 1;                  // nur nach ausdrücklichem „Mit 1 Umstieg suchen“
         await api('/tours', { method: 'POST', body: JSON.stringify(body) });
         await R.refresh();
@@ -217,7 +217,7 @@
       return api('/connections/search', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b) }) });
     },
     async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },
-    async updateTour(id, { days, time }) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ schedule: { days, departAfter: time } }) }); await R.refresh(); },
+    async updateTour(id, { days, time, until }) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ schedule: { days, departAfter: time, ...(until ? { departUntil: until } : {}) } }) }); await R.refresh(); },
     async removeTour(id) { R._before = await api('/profile'); await api(`/tours/${id}`, { method: 'DELETE' }); await R.refresh(); },
     async undoRemove() { if (R._before) { await api('/profile', { method: 'PUT', body: JSON.stringify(R._before) }); R._before = null; await R.refresh(); } },
     saveTicket(t) {
@@ -250,7 +250,6 @@
     },
     ticketExpired(t) { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(t && t.validUntil || ''); if (!m) return false; return new Date(+m[3], +m[2] - 1, +m[1], 23, 59, 59).getTime() < Date.now(); },
     removeTicket(id) { R.tickets = R.tickets.filter((x) => x.id !== id); LS.set('rego.tickets', R.tickets); },
-    async setPushWindow(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushWindow: v }) }); R.settings.pushWindow = v; },
     async setThreshold(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushThresholdMin: v }) }); R.settings.pushThresholdMin = v; },
   };
   /* --- Umzug auf ein neues Handy --- */
@@ -283,5 +282,77 @@
       (pos) => { R.position = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) }; resolve(true); },
       () => resolve(false), { maximumAge: 600000, timeout: 15000 });
   });
+
+  /* --- Pendelzeit: von wann bis wann man losfährt. Einrichtung und „Strecke ändern“ benutzen dieselben Schieber. --- */
+  // Die Leiste zeigt acht Stunden: für den Hinweg 4 bis 12 Uhr, für den Rückweg 12 bis 20 Uhr (so liegen die Griffe auch bei einer Stunde Abstand weit
+  // genug auseinander und jeder Schritt ist auf dem Handy leicht zu treffen). Liegt der Zeitraum außerhalb, wird die Leiste so lang, dass er hineinpasst.
+  const W = {
+    step: 15,                                          // Minuten je Schritt am Schieber; genauere Zeiten tippt man in die Uhrzeitfelder
+    gap: 10,                                           // so kurz darf ein Zeitraum höchstens sein (wie auf dem Server)
+    day: 24 * 60 - 1,
+    out: { from: '07:00', until: '08:00' }, back: { from: '16:30', until: '17:30' },
+  };
+  const toM = (s) => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : null; };
+  const toS = (n) => pad(Math.floor(n / 60)) + ':' + pad(n % 60);
+  const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  // Das Uhrzeitfeld des Browsers zeigt bei englischer Spracheinstellung „07:00 AM“ und braucht dann mehr Platz
+  const h12 = (() => { try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hour12 === true; } catch (e) { return false; } })();
+  /** Ausschnitt des Tages für die Leiste: Beginn vor 12 Uhr = 4 bis 12 Uhr, sonst 12 bis 20 Uhr; bei Bedarf länger (nachts, spät abends) */
+  const rangeFor = (f, u) => {
+    const base = f < 12 * 60 ? [4 * 60, 12 * 60] : [12 * 60, 20 * 60];
+    const lo = Math.min(base[0], Math.floor(f / 60) * 60);
+    const want = Math.min(W.day, Math.max(base[1], Math.ceil(u / 60) * 60));
+    return { lo, hi: lo + Math.floor((want - lo) / W.step) * W.step };
+  };
+  const frac = (w, v) => (clampN(v, w.lo, w.hi) - w.lo) / (w.hi - w.lo);
+  // Die Griffe laufen nicht bis an den Rand der Leiste, sondern mit ihrer Mitte von 18 px bis Breite − 18 px (unsichtbarer Griff = 36 px breit)
+  const at = (f) => 'calc(18px + (100% - 36px) * ' + f.toFixed(4) + ')';
+  R.win = {
+    RANGE: W,
+    /** Zeitraum samt Ausschnitt der Leiste: fehlt das Ende (älterer Server) oder taugt es nicht, gilt eine Stunde. */
+    of(from, until) {
+      const f = toM(from) == null ? toM(W.out.from) : toM(from);
+      const u = toM(until) != null && toM(until) >= f + W.gap ? toM(until) : Math.min(W.day, f + 60);
+      return Object.assign({ from: toS(f), until: toS(u) }, rangeFor(f, u));
+    },
+    /** Vorgabe für einen neuen Hinweg ('out', vormittags) bzw. Rückweg ('back', nachmittags) */
+    fresh(kind) { const d = kind === 'back' ? W.back : W.out; return R.win.of(d.from, d.until); },
+    text(w) { return w.from + '–' + w.until; },
+    /**
+     * Werte für eine Schieber-Karte. w = Zeitraum aus of(), set(neuerZeitraum) legt ihn im Zustand der Seite ab.
+     * o = { title, tone: 'w' (weiß) | 'o' (orange), compact }
+     */
+    view(w, set, o = {}) {
+      const f = toM(w.from), u = toM(w.until), len = u - f;
+      if (w.lo == null || w.hi == null) w = Object.assign({}, w, rangeFor(f, u));
+      const compact = !!o.compact;
+      const dir = String(o.title || '').includes(' · ') ? String(o.title).split(' · ')[0] + ': ' : '';      // „Hinweg: …“ / „Rückweg: …“ für Vorlese-Programme, wenn zwei Karten untereinander stehen
+      const keep = (nf, nu) => set({ from: toS(nf), until: toS(nu), lo: w.lo, hi: w.hi });      // Schieber: Ausschnitt bleibt, solange gezogen wird
+      const move = (nf, nu) => set(R.win.of(toS(nf), toS(nu)));                                // Uhrzeit getippt: Ausschnitt rückt nach
+      const ticks = compact ? [] : Array.from({ length: 25 }, (_, h) => h).filter((h) => h % 2 === 0 && h * 60 >= w.lo && h * 60 <= w.hi)
+        .map((h) => ({ label: String(h), style: 'position: absolute; top: 0; left: ' + at(frac(w, h * 60)) + '; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: #4A4747; line-height: 16px' }));
+      const target = (e) => (e && e.target ? e.target : null);
+      return {
+        title: o.title || 'Abfahrt zwischen', tone: o.tone === 'o' ? 'rg-win-o' : 'rg-win-w',
+        cardStyle: (o.tone === 'o' ? 'background: #FDE3CF; ' : 'background: #fff; ' + (compact ? '' : 'border: 1.5px solid #E8E8E8; ')) + 'border-radius: ' + (compact ? 22 : 24) + 'px; padding: ' + (compact ? '8px 16px 2px' : '12px 20px 2px') + '; display: flex; flex-direction: column; gap: 0',
+        fromText: w.from, untilText: w.until, timePx: compact ? (h12 ? 17 : 21) : (h12 ? 21 : 26),
+        min: w.lo, max: w.hi, step: W.step, fromRange: clampN(f, w.lo, w.hi), untilRange: clampN(u, w.lo, w.hi),
+        fromLabel: dir + 'Früheste Abfahrt', untilLabel: dir + 'Späteste Abfahrt',
+        fromValue: w.from + ' Uhr', untilValue: w.until + ' Uhr',
+        fillStyle: 'left: ' + at(frac(w, f)) + '; right: ' + at(1 - frac(w, u)),
+        dualCls: compact ? 'rg-dual rg-c' : 'rg-dual',
+        fromKnob: 'left: ' + at(frac(w, f)), untilKnob: 'left: ' + at(frac(w, u)),
+        // Jeder Schieber reagiert nur bis zur Mitte zwischen den beiden Griffen
+        fromClip: 'clip-path: inset(0 ' + at(1 - (frac(w, f) + frac(w, u)) / 2) + ' 0 0)', untilClip: 'clip-path: inset(0 0 0 ' + at((frac(w, f) + frac(w, u)) / 2) + ')',
+        ticks, hasTicks: ticks.length > 0, ticksStyle: 'position: relative; height: 16px; margin-bottom: 4px',
+        // Schieber: die Griffe können sich nicht überholen; sie rasten in Viertelstunden ein, mindestens 10 Minuten Abstand
+        setFromRange: (e) => { const t = target(e); if (!t) return; const raw = +t.value; if (!isFinite(raw)) return; const top = w.lo + Math.floor((u - W.gap - w.lo) / W.step) * W.step; const nf = clampN(raw, w.lo, Math.max(w.lo, top)); if (+t.value !== nf) t.value = String(nf); keep(nf, u); },
+        setUntilRange: (e) => { const t = target(e); if (!t) return; const raw = +t.value; if (!isFinite(raw)) return; const bottom = w.lo + Math.ceil((f + W.gap - w.lo) / W.step) * W.step; const nu = clampN(raw, Math.min(w.hi, bottom), w.hi); if (+t.value !== nu) t.value = String(nu); keep(f, nu); },
+        // Uhrzeit tippen: schiebt das andere Ende mit, wenn es im Weg ist (die Länge bleibt)
+        setFromText: (e) => { const t = target(e), m = t ? toM(t.value) : null; if (m == null) return; const nf = Math.min(m, W.day - W.gap); move(nf, nf + W.gap > u ? Math.min(W.day, nf + Math.max(len, W.gap)) : u); },
+        setUntilText: (e) => { const t = target(e), m = t ? toM(t.value) : null; if (m == null) return; const nu = Math.max(m, W.gap); move(nu - W.gap < f ? Math.max(0, nu - Math.max(len, W.gap)) : f, nu); },
+      };
+    },
+  };
   R.DAYS = DAYS;
 })();

@@ -34,7 +34,7 @@ async function setup(name, { push = NATIVE, incidents, fcm = fcmStub(), t = Date
   const store = new ProfileStore(dir, now);
   const dev = `${name.replace(/[^a-z0-9]/gi, '')}geraet12345678`;
   let tourId;
-  await store.update(dev, (p) => { tourId = addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' }, ...(tours || {}) })[0].id; p.push = push; });
+  await store.update(dev, (p) => { tourId = addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], departAfter: '11:30', departUntil: '12:30' }, ...(tours || {}) })[0].id; p.push = push; });   // Pendelzeit um die Testuhr herum: Push ist erlaubt
   const cur = { incidents };
   // Ohne eigene Vorfälle: der Mock liefert „jetzt“ eine Verspätung
   const service = incidents ? { getState: async () => ({ connection: { status: 'ok' }, incidents: cur.incidents }) } : createService({ config: cfg, store, now });
@@ -220,26 +220,45 @@ test('Profile ohne Nutzung werden gelöscht, benutzte bleiben', async () => {
   assert.equal(await store.purge(0), 0);
 });
 
-test('Push-Zeitfenster: nur ±20 Min. um die Abfahrt an den Strecken-Tagen', async () => {
-  const { setSettings } = await import('../server/store/profile.mjs');
-  const p = { settings: { pushThresholdMin: 5 } };
-  setSettings(p, { pushWindow: true }); assert.equal(p.settings.pushWindow, true);
+test('Der alte Schalter „Nur rund um die Abfahrt“ wird angenommen, hat aber keine Wirkung mehr', async () => {
+  const { setSettings, defaultProfile } = await import('../server/store/profile.mjs');
+  const p = defaultProfile();
+  assert.equal('pushWindow' in p.settings, false);
+  assert.deepEqual(setSettings(p, { pushWindow: true }), { pushThresholdMin: 5, delayGraceMin: 10 });      // ältere App: kein Fehler, nichts gespeichert
   assert.throws(() => setSettings(p, { pushWindow: 'ja' }));
   assert.throws(() => setSettings(p, {}));
 });
 
-test('Push-Zeitfenster greift: nur ±20 Min. um die Abfahrt, nur an Strecken-Tagen', async () => {
+test('Push folgt der Pendelzeit: ab einer Stunde vorher bis 10 Min. nach dem Fenster, nur an Strecken-Tagen', async () => {
   const inc = (tourId) => [{ id: 'w1', tourId, kind: 'delay', delayMin: 9, title: 'S1 Freising → München Hbf', summary: 'x', validity: { activeNow: true } }];
-  const s = await setup('rego-n4-', { t: Date.parse('2026-10-12T12:00:00+02:00'), tours: { schedule: { days: ['Mo', 'Di'], departAfter: '07:00' } } });   // Montag, Mittag
+  const s = await setup('rego-n4-', { t: Date.parse('2026-10-12T12:00:00+02:00'), tours: { schedule: { days: ['Mo', 'Di'], departAfter: '07:00', departUntil: '08:00' } } });   // Montag, Mittag
   s.cur.incidents = inc(s.tourId);
   const n = createNotifier({ config: s.cfg, store: s.store, service: { getState: async () => ({ connection: { status: 'ok' }, incidents: s.cur.incidents }) }, now: s.now, fcm: s.fcm });
-  await s.store.update(s.dev, (p) => { p.settings.pushWindow = true; });
-  assert.equal(await n.checkDevice(s.dev), 0);           // 12:00, weit weg von 07:00
-  s.clock.t = Date.parse('2026-10-12T07:15:00+02:00');
-  assert.equal(await n.checkDevice(s.dev), 1);           // 15 Min. nach Abfahrtszeit
-  await s.store.update(s.dev, (p) => { p.notified = {}; p.shownDelay = {}; });
-  s.clock.t = Date.parse('2026-10-14T07:00:00+02:00');   // Mittwoch, kein Strecken-Tag
-  assert.equal(await n.checkDevice(s.dev), 0);
+  const at = (hm, day = '12') => { s.clock.t = Date.parse(`2026-10-${day}T${hm}:00+02:00`); };
+  const reset = () => s.store.update(s.dev, (p) => { p.notified = {}; p.shownDelay = {}; p.goneCount = {}; p.outbox = []; });
+  assert.equal(await n.checkDevice(s.dev), 0);                       // 12:00: weit nach dem Fenster
+  at('05:50'); assert.equal(await n.checkDevice(s.dev), 0);          // noch mehr als eine Stunde vor dem Fenster
+  at('06:00'); assert.equal(await n.checkDevice(s.dev), 1);          // genau eine Stunde vorher: der Vorfall wird gemeldet
+  await reset(); at('07:30'); assert.equal(await n.checkDevice(s.dev), 1);   // mitten im Fenster
+  await reset(); at('08:10'); assert.equal(await n.checkDevice(s.dev), 1);   // 10 Min. nach dem Ende
+  await reset(); at('08:11'); assert.equal(await n.checkDevice(s.dev), 0);   // danach nicht mehr
+  await reset(); at('07:30', '14'); assert.equal(await n.checkDevice(s.dev), 0);    // Mittwoch: kein Strecken-Tag
+});
+
+test('Push: Ende der Pendelzeit nimmt eine gemeldete Störung nicht als „behoben“ weg, ihr Ende schon', async () => {
+  const s = await setup('rego-n5-', { t: Date.parse('2026-10-12T07:30:00+02:00'), tours: { schedule: { days: ['Mo'], departAfter: '07:00', departUntil: '08:00' } } });
+  const bau = (tourId) => [{ id: 'b1', tourId, kind: 'construction', delayMin: 0, title: 'S1 Freising → München Hbf', summary: 'Baustelle', validity: { activeNow: true } }];
+  s.cur.incidents = bau(s.tourId);
+  const n = createNotifier({ config: s.cfg, store: s.store, service: { getState: async () => ({ connection: { status: 'ok' }, incidents: s.cur.incidents }) }, now: s.now, fcm: s.fcm });
+  assert.equal(await n.checkDevice(s.dev), 1);                       // im Fenster gemeldet
+  await n.takeOutbox(s.dev);
+  for (const hm of ['08:30', '08:31', '09:00']) { s.clock.t = Date.parse(`2026-10-12T${hm}:00+02:00`); assert.equal(await n.checkDevice(s.dev), 0); }   // Fenster vorbei, Baustelle besteht noch: nichts neu, nichts weg
+  assert.deepEqual(await n.takeOutbox(s.dev), []);
+  s.cur.incidents = [];                                              // die Baustelle ist vorbei
+  s.clock.t = Date.parse('2026-10-12T09:10:00+02:00'); await n.checkDevice(s.dev);
+  s.clock.t = Date.parse('2026-10-12T09:11:00+02:00');
+  assert.equal(await n.checkDevice(s.dev), 1);                       // nach zwei Durchläufen: „behoben“
+  assert.deepEqual((await n.takeOutbox(s.dev)).map((o) => !!o.clear), [true]);
 });
 
 import { createFcm } from '../server/fcm.mjs';

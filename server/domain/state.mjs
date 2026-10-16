@@ -5,6 +5,7 @@ import { lineLabel, lineColor, productName } from '../lib/lines.mjs';
 import { regionOf, country, distanceKm } from '../lib/geo.mjs';
 import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
 import { buildMap, shortName } from './map.mjs';
+import { windowView, isFar } from './window.mjs';
 
 export const SCHEMA_VERSION = 1;
 // Namen wie "München, München Hbf" (Ort doppelt) kürzen, auch bei schon gespeicherten Strecken
@@ -69,13 +70,17 @@ function appLinkFor(tour) {
   return null;
 }
 
+/** „pünktlich“ sagen wir nur, wo die Quelle Verspätungen schon kennen kann; bei weit entfernten Fahrten heißt es „planmäßig“ */
+export const okWord = (leg, now) => (isFar(Date.parse(leg.dep), now) ? 'planmäßig' : 'pünktlich');
+const cap = (w) => w[0].toUpperCase() + w.slice(1);
 const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direction}${withPlatform && leg.platform ? ` · Gleis ${leg.platform}` : ''}`;
 
 /**
  * @param tour     Profil-Tour { id,name,from,to,active,period,returnId?,returnOf?,schedule }
  * @param journeys normalisierte Journeys (Direktverbindungen)
  * @param ctx      { now, minDelay, linesAt, lines (Registry), graceMin, stale (Daten stammen aus dem Zwischenspeicher oder fehlen wegen Störung),
- *                   shortcutFor? ({depart, arrive}) -> Karte „Schneller mit 1 Umstieg“ | null, für Meldungen zu Ersatzverkehr }
+ *                   shortcutFor? ({depart, arrive}) -> Karte „Schneller mit 1 Umstieg“ | null, für Meldungen zu Ersatzverkehr,
+ *                   window? Pendelzeit der Strecke (windowState): vor und im Fenster werden nur Fahrten bis zu seinem Ende bewertet }
  * @returns { tour, incidents }
  */
 export async function buildTour(tour, journeys, ctx) {
@@ -88,17 +93,24 @@ export async function buildTour(tour, journeys, ctx) {
   // Nur Fahrten, die noch nicht abgefahren sind (2 Min. Nachlauf), nach tatsächlicher Abfahrt sortiert; ausfallende Fahrten getrennt
   const upcoming = journeys.map((j) => j.legs[0]).filter(Boolean)
     .filter((l) => !(Date.parse(l.dep) < now - 120000)).sort((a, b) => Date.parse(a.dep) - Date.parse(b.dep));
-  const legs = upcoming.filter((l) => !l.cancelled);
-  const canceled = upcoming.filter((l) => l.cancelled && Date.parse(l.plannedDep || l.dep) >= now && Date.parse(l.plannedDep || l.dep) <= now + CANCEL_HORIZON);
+  // Vor und im Pendelfenster zählen nur die Fahrten bis zu seinem Ende (nur wenn darin etwas fährt). Das „Danach“ darf trotzdem hinter das Fenster schauen.
+  const win = ctx.window;
+  const scoped = win && (win.mode === 'now' || win.anchor) && win.endMs ? upcoming.filter((l) => Date.parse(l.plannedDep || l.dep) <= win.endMs) : null;
+  const inScope = scoped && scoped.some((l) => !l.cancelled) ? scoped : upcoming;
+  const legsAll = upcoming.filter((l) => !l.cancelled);
+  const legs = inScope.filter((l) => !l.cancelled);
+  const after = (l) => legsAll[legsAll.indexOf(l) + 1];
+  const canceled = inScope.filter((l) => l.cancelled && Date.parse(l.plannedDep || l.dep) >= now && Date.parse(l.plannedDep || l.dep) <= now + CANCEL_HORIZON);
   const out = {
     id: tour.id, name: tidyName(tour.name), appLink: appLinkFor(tour), lineId: legs[0] ? registerLine(legs[0].line) : '', active: tour.active !== false,
     period: tour.period || 'am', ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}),
     distanceKm: ctx.distanceKm ?? null,
-    schedule: tour.schedule || { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' },
+    ...windowView(tour.schedule || { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' }, now),
     departures: legs.slice(0, 3).map((l) => ({
       plannedTime: hhmm(l.plannedDep), expectedTime: hhmm(l.dep), lineId: registerLine(l.line),
       plannedPlatform: l.plannedPlatform || '', expectedPlatform: l.platform || '', delayMin: l.depDelay,
       ...(berlin(Date.parse(l.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
+      ...(isFar(Date.parse(l.dep), now) ? { far: true } : {}),      // weit weg: die App sagt „planmäßig“ statt „pünktlich“
     })),
   };
   const incidents = [];
@@ -106,7 +118,7 @@ export async function buildTour(tour, journeys, ctx) {
   const dest = tour.to.name;
   // Die Karte „Danach“ / „Nächster Zug“ führt zur Seite dieser Abfahrt, wenn sie zu den ersten drei der Liste gehört (nur für die gibt es eine Detailseite)
   const jump = (leg) => { const i = legs.indexOf(leg); return i >= 0 && i < out.departures.length ? { departure: i } : {}; };
-  const thenCard = (nxt) => nxt ? { title: 'Danach', line1: `${nxt.line.name} ab ${hhmm(nxt.dep)}${nxt.platform ? ` · Gleis ${nxt.platform}` : ''}`, line2: `An ${dest} ${hhmm(nxt.arr)}`, badge: nxt.depDelay >= minDelay ? `+${nxt.depDelay} Min.` : 'pünktlich', ...jump(nxt) } : null;
+  const thenCard = (nxt) => nxt ? { title: 'Danach', line1: `${nxt.line.name} ab ${hhmm(nxt.dep)}${nxt.platform ? ` · Gleis ${nxt.platform}` : ''}`, line2: `An ${dest} ${hhmm(nxt.arr)}`, badge: nxt.depDelay >= minDelay ? `+${nxt.depDelay} Min.` : okWord(nxt, now), ...jump(nxt) } : null;
 
   // 0) Ausfälle: eine Meldung je Linie mit allen ausfallenden Fahrten der nächsten Stunden – auch wenn gar keine Fahrt mehr übrig ist
   const byLine = new Map();
@@ -114,7 +126,7 @@ export async function buildTour(tour, journeys, ctx) {
   for (const group of [...byLine.values()].slice(0, 2)) {
     const c = group[0], lastC = group[group.length - 1], many = group.length > 1;
     const summary = `${many ? 'Fahrten' : 'Fahrt'} um ${andList(times(group.map((l) => hhmm(l.plannedDep))))} ${many ? 'fallen' : 'fällt'} aus`;
-    const alt = legs.find((l) => Date.parse(l.plannedDep) > Date.parse(c.plannedDep));
+    const alt = legsAll.find((l) => Date.parse(l.plannedDep) > Date.parse(c.plannedDep));
     const altLine1 = alt && `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`;
     const map = await buildMap(c, linesAt, { segment: [c.origin.name, c.destination.name], alternative: alt ? { label: `Alternative · ${alt.line.name} ${hhmm(alt.dep)}` } : null, registerLine });
     incidents.push({
@@ -128,7 +140,7 @@ export async function buildTour(tour, journeys, ctx) {
           { label: `Abfahrt ${c.origin.name}`, sub: sub(c), value: 'entfällt', planned: hhmm(c.plannedDep) },
           { label: `Ankunft ${dest}`, sub: c.line.name, value: 'entfällt', planned: hhmm(c.plannedArr) },
         ],
-        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : 'pünktlich', ...jump(alt) } : null,
+        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : okWord(alt, now), ...jump(alt) } : null,
         ticketHint: hint, map,
       },
     });
@@ -140,7 +152,7 @@ export async function buildTour(tour, journeys, ctx) {
 
   // Detailansicht je Abfahrt (die ersten drei): „zwei Bahnen später“ lässt sich einzeln öffnen
   for (let k = 0; k < out.departures.length; k++) {
-    const l = legs[k], nxt = legs[k + 1], isLate = l.depDelay >= minDelay;
+    const l = legs[k], nxt = after(l), isLate = l.depDelay >= minDelay;
     const platformChg = l.plannedPlatform && l.platform && l.plannedPlatform !== l.platform;
     const rows = [{ label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' }];
     if (platformChg) rows.push({ label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` });
@@ -148,8 +160,8 @@ export async function buildTour(tour, journeys, ctx) {
     const kmap = await buildMap(l, linesAt, { halo: isLate, registerLine });
     out.departures[k].view = {
       kind: isLate ? 'delay' : 'ok',
-      head: `${isLate ? 'Verspätung' : 'Pünktlich'} · ${l.line.name} ab ${hhmm(l.dep)}`,
-      big: isLate ? `+${l.depDelay} Min.` : 'pünktlich', sub: sub(l, false), rows,
+      head: `${isLate ? 'Verspätung' : cap(okWord(l, now))} · ${l.line.name} ab ${hhmm(l.dep)}`,
+      big: isLate ? `+${l.depDelay} Min.` : okWord(l, now), sub: sub(l, false), rows,
       alternative: thenCard(nxt),
       ticketHint: hint, map: kmap,
     };
@@ -166,7 +178,7 @@ export async function buildTour(tour, journeys, ctx) {
     const until = r.validUntil ? Date.parse(r.validUntil) : now + 24 * 3600e3;
     if (until < now) continue;
     const delay = extractMinutes(r.text);
-    const alt = legs.find((l) => l !== leg && !l.remarks.some((x) => classifyRemark(x) === kind));
+    const alt = legsAll.find((l) => l !== leg && !l.remarks.some((x) => classifyRemark(x) === kind));
     const seg = extractSegment(r.text);
     const label = validityLabel(from, until, now);
     const arrPlanned = hhmm(leg.plannedArr);
@@ -188,7 +200,7 @@ export async function buildTour(tour, journeys, ctx) {
           { label: `Abfahrt ${leg.origin.name}`, sub: sub(leg), value: hhmm(leg.dep), planned: hhmm(leg.plannedDep) !== hhmm(leg.dep) ? hhmm(leg.plannedDep) : '' },
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },
         ],
-        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : 'pünktlich', ...jump(alt) } : null,
+        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : okWord(alt, now), ...jump(alt) } : null,
         ...(shortcut ? { shortcut } : {}),
         ticketHint: hint, map,
       },
@@ -198,7 +210,7 @@ export async function buildTour(tour, journeys, ctx) {
   // 2) Verspätung der nächsten Abfahrt
   const late = legs.find((l) => l.depDelay >= minDelay);
   if (late) {
-    const next = legs.find((l) => l !== late && l.depDelay < minDelay && Date.parse(l.plannedDep) > Date.parse(late.plannedDep));
+    const next = legsAll.find((l) => l !== late && l.depDelay < minDelay && Date.parse(l.plannedDep) > Date.parse(late.plannedDep));
     const platformChanged = late.plannedPlatform && late.platform && late.plannedPlatform !== late.platform;
     const reason = late.remarks.find((r) => classifyRemark(r) === 'other')?.summary;
     const summary = platformChanged ? `Gleiswechsel Gl. ${late.plannedPlatform} → Gl. ${late.platform}` : reason || `${late.depDelay} Min. später`;
@@ -213,7 +225,7 @@ export async function buildTour(tour, journeys, ctx) {
       title: `${late.line.name} ${late.origin.name} → ${late.destination.name}`, summary,
       view: {
         kind: 'delay', head: `Verspätung · ${late.line.name} ab ${hhmm(late.dep)}`, big: `+${late.depDelay} Min.`, sub: summary, rows,
-        alternative: next ? { title: 'Nächster Zug', line1: `${next.line.name} ab ${hhmm(next.dep)}${next.platform ? ` · Gleis ${next.platform}` : ''}`, line2: `An ${dest} ${hhmm(next.arr)}`, badge: 'pünktlich', ...jump(next) } : null,
+        alternative: next ? { title: 'Nächster Zug', line1: `${next.line.name} ab ${hhmm(next.dep)}${next.platform ? ` · Gleis ${next.platform}` : ''}`, line2: `An ${dest} ${hhmm(next.arr)}`, badge: okWord(next, now), ...jump(next) } : null,
         ticketHint: hint, map,
       },
     });
@@ -243,12 +255,12 @@ export async function buildTour(tour, journeys, ctx) {
   if (!incidents.length) {
     const map = await buildMap(first, linesAt, { registerLine });
     out.view = {
-      kind: 'ok', head: `Pünktlich · ${first.line.name} ab ${hhmm(first.dep)}`, big: 'pünktlich', sub: sub(first, false),
+      kind: 'ok', head: `${cap(okWord(first, now))} · ${first.line.name} ab ${hhmm(first.dep)}`, big: okWord(first, now), sub: sub(first, false),
       rows: [
         { label: `Abfahrt ${first.origin.name}`, sub: sub(first), value: hhmm(first.dep), planned: '' },
         { label: `Ankunft ${dest}`, sub: first.line.name, value: hhmm(first.arr), planned: '' },
       ],
-      alternative: thenCard(legs[1]), ticketHint: hint, map,
+      alternative: thenCard(after(first)), ticketHint: hint, map,
     };
   }
   return { tour: out, incidents };

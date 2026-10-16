@@ -145,7 +145,7 @@
     if (name === 'Main' && window.REGO_pending && !R.tours.length) {
       const p = window.REGO_pending; window.REGO_pending = null; flag('rego.onboarded', true);
       R.lastAddError = '';
-      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: '07:00', trip: p.trip, backTime: '16:30' }); } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* Dashboard zeigt den Leerzustand mit dem Grund */ }
+      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: p.time || '07:00', until: p.until, trip: p.trip, backTime: p.backTime || '16:30', backUntil: p.backUntil }); } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* Dashboard zeigt den Leerzustand mit dem Grund */ }
     }
     if (name === 'Main' && R.tours.length) flag('rego.onboarded', true);
     if (push) history.pushState(null, '', u.pathname === '/index.html' ? '/' : u.pathname + u.hash); else if (u.hash !== location.hash) history.replaceState(null, '', u.pathname + u.hash);

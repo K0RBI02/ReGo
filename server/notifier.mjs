@@ -4,6 +4,7 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { berlin } from './lib/time.mjs';
+import { pushActive } from './domain/window.mjs';
 
 const DAY = 24 * 3600e3;
 
@@ -50,15 +51,7 @@ export function createNotifier({ config, store, service, now = () => Date.now(),
     return 'ok';
   }
 
-  // Nur rund um die eingestellte Abfahrtszeit (±20 Min.) an den Tagen der Strecke
-  const WINDOW_MIN = 20, WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-  function inWindow(tour, t) {
-    if (!tour?.schedule) return true;
-    const b = berlin(t), wd = WD[new Date(`${b.date}T12:00:00Z`).getUTCDay()];
-    if (!tour.schedule.days.includes(wd)) return false;
-    const m = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
-    return Math.abs(m(b.time) - m(tour.schedule.departAfter)) <= WINDOW_MIN;
-  }
+  // Push gibt es nur in der Pendelzeit der Strecke (ab einer Stunde vor dem Fenster bis kurz nach seinem Ende, an den Tagen der Strecke)
   const tagOf = (id) => `inc|${id}`;
   const GONE_TICKS = 2;       // erst nach zwei Durchläufen ohne den Vorfall die Meldung entfernen (Daten können kurz haken)
   const CLEAR_WINDOW = 12 * 3600e3;
@@ -77,10 +70,11 @@ export function createNotifier({ config, store, service, now = () => Date.now(),
     const stale = new Set(hasTours ? state.tours.filter((t) => t.stale).map((t) => t.id) : []);
     const tourOf = Object.fromEntries(profile.tours.map((t) => [t.id, t]));
     const usable = state.incidents.filter((i) => !stale.has(i.tourId));
-    const cur = new Map(usable.filter((i) => relevant(i, profile.settings.pushThresholdMin) && (!profile.settings.pushWindow || inWindow(tourOf[i.tourId], now()))).map((i) => [i.id, i]));
+    const cur = new Map(usable.filter((i) => relevant(i, profile.settings.pushThresholdMin)).map((i) => [i.id, i]));
     const present = new Set(state.incidents.map((i) => i.id));
     const notified = profile.notified || {}, shown = profile.shownDelay || {}, gone = profile.goneCount || {};
-    const fresh = [...cur.values()].filter((i) => !notified[i.id]);
+    // Neu gemeldet wird nur in der Pendelzeit. Außerhalb bleibt ein Vorfall „vorhanden“: er wird weder neu gemeldet noch als „behoben“ weggenommen.
+    const fresh = [...cur.values()].filter((i) => !notified[i.id] && pushActive(tourOf[i.tourId], now()));
     // Etwas an einer bekannten Meldung hat sich geändert (Verspätung, Zahl der Ausfälle, Gleis): bestehende Meldung leise aktualisieren
     const updates = [...cur.values()].filter((i) => notified[i.id] && changeOf(i) !== undefined && shown[i.id] != null && changeOf(i) !== shown[i.id]);
     // Vorfall ist weg (Verspätung vorbei, Zug abgefahren): Meldung entfernen

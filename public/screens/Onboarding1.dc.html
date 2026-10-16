@@ -48,7 +48,7 @@ a:active,button:active{transform:scale(.97)}
 </svg>
 </div>
 
-<p style="margin: 0 24px; font-size: 18px; font-weight: 500; line-height: 1.35">Sag uns, wo du pendelst. ReGo merkt sich deine Stammstrecke und zeigt dir sofort, ob sie läuft.</p>
+<p style="margin: 0 24px; font-size: 18px; font-weight: 500; line-height: 1.35">Sag uns, wo du pendelst und wann du losfährst. ReGo zeigt dir dann sofort, ob dein Zug läuft.</p>
 
 <div style="margin: 14px 24px 0; display: flex; flex-direction: column; gap: 10px">
 <div style="position: relative">
@@ -81,7 +81,30 @@ a:active,button:active{transform:scale(.97)}
 </sc-for>
 </div>
 
-<div style="padding: 20px 24px 32px; display: flex; align-items: center; gap: 16px">
+<div style="margin: 10px 24px 0; display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{wins}}" as="w" hint-placeholder-count="2">
+<div class="rg-win {{w.tone}}" style="{{w.cardStyle}}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px">
+<span style="font-size: 13px; font-weight: 600; color: #4A4747">{{w.title}}</span>
+<span style="display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px">
+<input type="time" value="{{w.fromText}}" onInput="{{w.setFromText}}" aria-label="{{w.fromLabel}}" style="flex: none; min-height: 40px; border: 0; padding: 0; font-size: {{w.timePx}}px; font-weight: 700; background: transparent; color: #1C1A1A">
+<span aria-hidden="true" style="flex: none; font-size: {{w.timePx}}px; font-weight: 700">–</span>
+<input type="time" value="{{w.untilText}}" onInput="{{w.setUntilText}}" aria-label="{{w.untilLabel}}" style="flex: none; min-height: 40px; border: 0; padding: 0; font-size: {{w.timePx}}px; font-weight: 700; background: transparent; color: #1C1A1A">
+</span>
+</div>
+<div class="{{w.dualCls}}">
+<div class="rg-trk"></div>
+<div class="rg-fill" style="{{w.fillStyle}}"></div>
+<input class="rg-r" type="range" min="{{w.min}}" max="{{w.max}}" step="{{w.step}}" value="{{w.fromRange}}" onInput="{{w.setFromRange}}" aria-label="{{w.fromLabel}}" aria-valuetext="{{w.fromValue}}" style="{{w.fromClip}}">
+<div class="rg-knob" style="{{w.fromKnob}}"></div>
+<input class="rg-r" type="range" min="{{w.min}}" max="{{w.max}}" step="{{w.step}}" value="{{w.untilRange}}" onInput="{{w.setUntilRange}}" aria-label="{{w.untilLabel}}" aria-valuetext="{{w.untilValue}}" style="{{w.untilClip}}">
+<div class="rg-knob" style="{{w.untilKnob}}"></div>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="position: sticky; bottom: 0; background: #F9D6D2; padding: 20px 24px 32px; display: flex; align-items: center; gap: 16px">
 <a href="{{next}}" aria-disabled="{{notReady}}" style="{{ctaStyle}}">Weiter</a>
 <span style="font-size: 14px; font-weight: 600; line-height: 1.25; color: #3A3737">{{hint}}</span>
 </div>
@@ -89,7 +112,7 @@ a:active,button:active{transform:scale(.97)}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { from: '', to: '', trip: 'both', focus: '' }; }
+  constructor(props) { super(props); this.state = { from: '', to: '', trip: 'both', focus: '', out: window.REGO.win.fresh('out'), back: window.REGO.win.fresh('back') }; }
   renderVals() {
     const T = window.REGO, st = this.state;
     const val = (e) => (e && e.target ? e.target.value : '');
@@ -100,9 +123,12 @@ class Component extends DCLogic {
       pick: () => this.setState({ [st.focus]: q.name, focus: '' })
     })) : [];
     const typed = (st.from.trim() !== '' && !okFrom) || (st.to.trim() !== '' && !okTo);
-    window.REGO_pending = ok ? { from: st.from, to: st.to, trip: st.trip } : null;
+    window.REGO_pending = ok ? { from: st.from, to: st.to, trip: st.trip, time: st.out.from, until: st.out.until, backTime: st.back.from, backUntil: st.back.until } : null;
+    // Pendelzeit: wann du losfährst (bei Hin und zurück auch für den Rückweg)
+    const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: st.trip === 'both' ? 'Hinweg · Abfahrt' : 'Abfahrt', tone: 'w', compact: true })]
+      .concat(st.trip === 'both' ? [T.win.view(st.back, (w) => this.setState({ back: w }), { title: 'Rückweg · Abfahrt', tone: 'w', compact: true })] : []);
     return {
-      from: st.from, to: st.to, sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
+      wins, from: st.from, to: st.to, sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
       setFrom: (e) => this.setState({ from: val(e), focus: 'from' }), setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
       tripOpts: [['one', 'Nur Hinweg'], ['both', 'Hin und zurück']].map((o) => ({
         label: o[1], on: st.trip === o[0],

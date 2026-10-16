@@ -9,6 +9,7 @@ import { config } from '../server/config.mjs';
 import { addTours } from '../server/store/profile.mjs';
 import { buildTour } from '../server/domain/state.mjs';
 import { buildTransferTour, shortcutFor } from '../server/domain/transfer.mjs';
+import { berlin, weekday, toMin } from '../server/lib/time.mjs';
 import { readFileSync } from 'node:fs';
 
 const pw = await import('playwright').catch(() => import('/opt/npm-tools/node_modules/playwright/index.mjs'));
@@ -66,16 +67,72 @@ if (!dl) problems.push('Ticket sichern: keine Datei erzeugt');
 const check = async (name, fn) => { if (process.env.SMOKE_ONLY && !name.includes(process.env.SMOKE_ONLY)) return; where = name; try { await fn(); } catch (e) { problems.push(`${name}: ${String(e.message).split('\n').slice(0, 2).join(' ')}`); } };
 const suggest = async (n, text) => { const i = page.locator('input[type=text]').nth(n); await i.click(); await i.pressSequentially(text, { delay: 40 }); await page.waitForTimeout(1400); await page.getByRole('option').first().click(); };
 
-// Doppeltipp auf „Speichern“: Hin- und Rückweg nur einmal
+// Doppeltipp auf „Speichern“: Hin- und Rückweg nur einmal. Die Pendelzeit wird dabei von Hand getippt (05:30), weil der Server dieselbe Strecke mit denselben
+// Zeiten nicht noch einmal anlegt (die Strecke vom Anfang hat die Standardzeit 07:00–08:00).
 await check('Doppeltipp', async () => {
   const before = (await j('/api/profile')).tours.length;
   await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
   await page.getByRole('button', { name: /Strecke hinzufügen/ }).click();
   await suggest(0, 'Freis'); await suggest(1, 'Münch');
+  await page.locator('input[type=time]').nth(0).fill('05:30'); await page.locator('input[type=time]').nth(1).fill('06:30');
   await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Speichern'); b.click(); b.click(); });
   await page.waitForTimeout(1500);
-  const added = (await j('/api/profile')).tours.length - before;
+  const tours = (await j('/api/profile')).tours, added = tours.length - before;
   if (added !== 2) problems.push(`Doppeltipp: ${added} Strecken angelegt statt 2 (Hin + Rück)`);
+  const hin = tours.find((t) => t.schedule.departAfter === '05:30');
+  if (!hin || hin.schedule.departUntil !== '06:30') problems.push(`Doppeltipp: Hinweg hat nicht die getippte Pendelzeit 05:30–06:30 (${hin ? hin.schedule.departAfter + '–' + hin.schedule.departUntil : 'fehlt'})`);
+});
+
+// Pendelzeit (0.7.2): je Richtung zwei Schieber (Hinweg 04–12 Uhr, Rückweg 12–20 Uhr, in Viertelstunden), auch per Tastatur und mit getippten Uhrzeiten bedienbar.
+// Die Griffe überholen sich nicht (mindestens 10 Minuten Abstand); beim Ändern einer Strecke wird die Pendelzeit gespeichert und in der Liste gezeigt.
+await check('Pendelzeit', async () => {
+  const slider = (name) => page.getByRole('slider', { name });
+  const read = (n) => page.locator('input[type=time]').nth(n).inputValue();
+  const press = async (loc, key, n) => { await loc.focus(); for (let i = 0; i < n; i++) await page.keyboard.press(key); await page.waitForTimeout(150); };
+  const dims = async () => (await page.locator('input[type=range]').evaluateAll((els) => els.map((e) => [e.min, e.max, e.step, e.value].join('/')))).join(' ');
+  const expect = async (label, got, want) => { const g = await got; if (g !== want) problems.push(`Pendelzeit: ${label}: „${g}“ statt „${want}“`); };
+  await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await page.waitForTimeout(400);
+  await expect('Schieber im neuen Formular (min/max/Schritt/Wert)', dims(), '240/720/15/420 240/720/15/480 720/1200/15/990 720/1200/15/1050');
+  await expect('Uhrzeiten im neuen Formular', Promise.all([0, 1, 2, 3].map(read)).then((a) => a.join(' ')), '07:00 08:00 16:30 17:30');
+  // Tastatur: zwei Viertelstunden früher; weiter als bis kurz vor das Ende geht es nicht
+  await press(slider('Hinweg: Früheste Abfahrt'), 'ArrowLeft', 2);
+  await expect('früheste Abfahrt nach zweimal ←', read(0), '06:30');
+  await press(slider('Hinweg: Früheste Abfahrt'), 'ArrowRight', 30);
+  await expect('früheste Abfahrt am Anschlag', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '07:45 08:00');
+  await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowLeft', 30);
+  await expect('späteste Abfahrt bleibt vor dem Beginn', read(1), '08:00');
+  await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowRight', 4);
+  await expect('späteste Abfahrt nach viermal →', read(1), '09:00');
+  // Uhrzeit tippen: liegt der Beginn hinter dem Ende, rückt das Ende mit (die Länge bleibt); ein Ende nach 12 Uhr weitet den Schieber
+  await page.locator('input[type=time]').nth(0).fill('10:00');
+  await expect('Beginn hinter dem Ende schiebt das Ende mit', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '10:00 11:15');
+  await page.locator('input[type=time]').nth(1).fill('13:00');
+  await expect('Schieber nach getipptem Ende 13:00', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/780/15/600 240/780/15/780');
+  await page.locator('input[type=time]').nth(1).fill('09:00');
+  await expect('Ende vor dem Beginn zieht den Beginn mit', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '06:00 09:00');
+  await expect('Schieber geht nach dem Kürzen zurück auf 04–12 Uhr', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/720/15/360 240/720/15/540');
+  // Rückweg: eigener Bereich ab 12 Uhr, eine Viertelstunde früher
+  await press(slider('Rückweg: Früheste Abfahrt'), 'ArrowLeft', 1);
+  await expect('Rückweg früheste Abfahrt', read(2), '16:15');
+  if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Pendelzeit: Formular scrollt seitlich');
+  await page.getByRole('button', { name: 'Abbrechen' }).click(); await page.waitForTimeout(400);
+  // Strecke ändern (eigene Strecke mit eigener Zeit, damit die Reihenfolge der Liste keine Rolle spielt): eine Karte; Ende eine Viertelstunde später, speichern, Server und Liste haben es
+  const ing = (await j('/api/stations?q=Ingolstadt')).stations[0];
+  const mine = (await j('/api/tours', 'POST', { from: mu, to: ing, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '05:00', departUntil: '06:00' } })).tours[0];
+  try {
+    await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
+    await page.getByRole('button', { name: `${mine.name} ändern`, exact: true }).click(); await page.waitForTimeout(500);
+    if ((await page.locator('input[type=range]').count()) !== 2) problems.push('Pendelzeit: Strecke ändern zeigt nicht genau zwei Schieber');
+    await expect('Uhrzeiten beim Ändern', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '05:00 06:00');
+    await press(slider('Späteste Abfahrt'), 'ArrowRight', 1);
+    await expect('späteste Abfahrt beim Ändern', read(1), '06:15');
+    await page.getByRole('button', { name: 'Speichern' }).click(); await page.waitForTimeout(900);
+    const sch = (await j('/api/profile')).tours.find((t) => t.id === mine.id).schedule;
+    if (sch.departAfter !== '05:00' || sch.departUntil !== '06:15') problems.push(`Pendelzeit: gespeichert ${sch.departAfter}–${sch.departUntil} statt 05:00–06:15`);
+    const list = await page.evaluate(() => document.querySelector('#screen').innerText);
+    if (!list.includes('Mo–Fr · 05:00–06:15')) problems.push('Pendelzeit: Streckenliste zeigt „Mo–Fr · 05:00–06:15“ nicht');
+  } finally { await fetch(base + '/api/tours/' + mine.id, { method: 'DELETE', headers: H }); }
 });
 
 // Rückgängig: Koordinaten bleiben erhalten
@@ -139,6 +196,14 @@ await check('kleines Handy', async () => {
   await sp.goto(base + '/Onboarding1'); await sp.waitForTimeout(1200);
   const oy = await sp.evaluate(() => getComputedStyle(document.querySelector('#screen > div')).overflowY);
   if (oy !== 'auto') problems.push(`Onboarding (320 × 568): Seite kann nicht scrollen (overflow-y: ${oy})`);
+  // Pendelzeit (Schieber und Uhrzeiten): nichts ragt über den Rand, die Seite scrollt nicht seitlich – im Onboarding und im Formular „Neue Strecke“
+  const outside = () => sp.evaluate(() => [...document.querySelectorAll('input[type=time], input[type=range], .rg-knob')].filter((e) => { const r = e.getBoundingClientRect(); return r.width && (r.left < -1 || r.right > innerWidth + 1); }).length);
+  const wide = () => sp.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+  if (!(await sp.locator('input[type=range]').count())) problems.push('Onboarding (320 × 568): keine Schieber für die Pendelzeit');
+  if (await outside() || await wide()) problems.push('Onboarding (320 × 568): Schieber oder Uhrzeiten ragen über den Rand');
+  await sp.goto(base + '/Strecken'); await sp.waitForTimeout(1000);
+  await sp.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await sp.waitForTimeout(500);
+  if (await outside() || await wide()) problems.push('Neue Strecke (320 × 568): Schieber oder Uhrzeiten ragen über den Rand');
   await small.close();
 });
 
@@ -166,6 +231,21 @@ await check('Dunkelmodus', async () => {
   // das Sheet hebt sich vom abgedunkelten Untergrund ab (nicht dieselbe Fläche wie die Seite dahinter)
   const same = await dp.evaluate(() => { const d = document.querySelector('[role=dialog]'), r = document.querySelector('#screen > div'); return !d || getComputedStyle(d).backgroundColor === getComputedStyle(r).backgroundColor; });
   if (same) problems.push('Dunkelmodus: Einstellungen-Sheet hat dieselbe Fläche wie die Seite dahinter');
+  // Pendelzeit im Formular „Neue Strecke“: Uhrzeiten lesbar, Griffe und Balken heben sich von der Karte ab (beide Karten: dunkel und orange)
+  await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1200);
+  await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await dp.waitForTimeout(500);
+  const pz = await dp.evaluate(() => {
+    const lum = (c) => { const m = c.match(/\d+(\.\d+)?/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+    const bgOf = (el) => { let b = el; while (b && /rgba\(0, 0, 0, 0\)|transparent/.test(getComputedStyle(b).backgroundColor)) b = b.parentElement; return b ? getComputedStyle(b).backgroundColor : 'rgb(255, 255, 255)'; };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const rows = [];
+    for (const el of document.querySelectorAll('input[type=time]')) rows.push([`Uhrzeit ${el.value}`, ratio(getComputedStyle(el).color, bgOf(el)), 4.5]);
+    for (const el of document.querySelectorAll('.rg-knob')) rows.push(['Griff', ratio(getComputedStyle(el).backgroundColor, bgOf(el.parentElement)), 3]);
+    for (const el of document.querySelectorAll('.rg-fill')) rows.push(['Balken', ratio(getComputedStyle(el).backgroundColor, bgOf(el.parentElement)), 3]);
+    return rows;
+  });
+  if (pz.length < 10) problems.push(`Dunkelmodus: Pendelzeit-Formular unvollständig (${pz.length} Teile gefunden)`);
+  for (const [label, r, need] of pz) if (r < need) problems.push(`Dunkelmodus: Pendelzeit „${label}“ schlecht zu erkennen (Kontrast ${r.toFixed(1)}:1)`);
   await dark.close();
 });
 
@@ -315,6 +395,37 @@ await check('Testmeldung und Versionszeile', async () => {
   } finally { await c.close(); }
 });
 
+// Pendelzeit auf dem Hauptbildschirm: Die Strecke, deren Fenster gerade läuft, steht oben (auch wenn sie später angelegt wurde); eine Strecke, die heute nicht
+// gependelt wird, zeigt trotzdem ihre nächsten Züge. Liegt das Fenster noch weit weg, steht dort „planmäßig“ statt „pünktlich“.
+await check('Pendelzeit auf dem Hauptbildschirm', async () => {
+  const now = Date.now(), nowMin = toMin(berlin(now).time), today = weekday(now), ALL = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const screen = async (dev) => {
+    const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [dev]);
+    const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+    try { await pg.goto(base + '/'); await pg.waitForTimeout(1800); return await pg.evaluate(() => document.querySelector('#screen').innerText); } finally { await c.close(); }
+  };
+  const modes = async (dev) => ((await (await fetch(base + '/api/state', { headers: { 'x-device': dev } })).json()).tours || []).map((t) => `${t.name}=${t.window && t.window.mode}`);
+  if (nowMin <= 23 * 60 + 55) {
+    const dev = 'smokependeln0123456789abcd';
+    await store.update(dev, (p) => {
+      addTours(p, { from: st, to: mu, schedule: { days: ALL.filter((d) => d !== today), departAfter: '07:00', departUntil: '08:00' } });          // heute kein Pendeltag, zuerst angelegt
+      addTours(p, { from: mu, to: st, schedule: { days: ALL, departAfter: hm(Math.max(0, nowMin - 5)), departUntil: hm(Math.min(24 * 60 - 1, nowMin + 55)) } });   // Fenster läuft
+    });
+    const m = (await modes(dev)).join(' | ');
+    if (m !== `${mu.name} → ${st.name}=now | ${st.name} → ${mu.name}=off`) problems.push(`Pendelzeit: Reihenfolge und Zustand im Stand der App: ${m}`);
+    const text = await screen(dev), iNow = text.indexOf(`${mu.name} → ${st.name}`), iOff = text.indexOf(`${st.name} → ${mu.name}`);
+    if (iNow < 0 || iOff < 0 || iNow > iOff) problems.push('Pendelzeit: Hauptbildschirm zeigt die Strecke mit laufendem Fenster nicht oben');
+    else if (!/(S1|RE \d)/.test(text.slice(iOff))) problems.push('Pendelzeit: Strecke ohne Pendeltag heute zeigt keine nächsten Züge');
+  }
+  if (nowMin + 150 <= 23 * 60 + 59) {
+    const dev = 'smokeweitweg0123456789abcd';
+    await store.update(dev, (p) => { addTours(p, { from: st, to: mu, schedule: { days: ALL, departAfter: hm(nowMin + 90), departUntil: hm(nowMin + 150) } }); });
+    const text = await screen(dev);
+    if (!/planmäßig/.test(text) || /pünktlich/i.test(text)) problems.push(`Pendelzeit: Fahrt in über 45 Minuten heißt nicht „planmäßig“ (${text.replace(/\s+/g, ' ').slice(0, 120)})`);
+  }
+});
+
 // Einstellungen als Sheet von unten: Push, „Neues Handy?“, Rückmeldung und Version liegen nicht mehr in der Streckenliste. Der Satz am Ende der Liste
 // öffnet sie; ✕, Abdunklung, Escape und die Zurück-Taste schließen zuerst das Sheet, ohne die Seite neu aufzubauen.
 await check('Einstellungen-Sheet', async () => {
@@ -339,20 +450,21 @@ await check('Einstellungen-Sheet', async () => {
     if (Math.abs(box.y + box.height - H) > 1) problems.push(`Einstellungen: Sheet sitzt nicht ganz unten (Unterkante ${Math.round(box.y + box.height)} statt ${H})`);
     if (box.height > H * 0.9 + 1 || box.height < H * 0.4) problems.push(`Einstellungen: Sheet hat eine unpassende Höhe (${Math.round(box.height)} von ${H} px)`);
     if (!/#einstellungen$/.test(p.url())) problems.push('Einstellungen: geöffnetes Sheet hat keinen eigenen Verlaufseintrag (Zurück würde die Seite verlassen)');
-    for (const [role, name] of [['switch', 'Push-Meldungen'], ['switch', 'Nur rund um die Abfahrtszeit benachrichtigen'], ['button', '3 Min.'], ['button', '5 Min.'], ['button', '10 Min.'], ['button', 'Senden'], ['button', /Neues Handy/], ['button', 'Schließen']]) {
+    for (const [role, name] of [['switch', 'Push-Meldungen'], ['button', '3 Min.'], ['button', '5 Min.'], ['button', '10 Min.'], ['button', 'Senden'], ['button', /Neues Handy/], ['button', 'Schließen']]) {
       if (!(await dlg.getByRole(role, { name }).count())) problems.push(`Einstellungen: „${name}“ fehlt im Sheet`);
     }
+    if (await dlg.getByRole('switch', { name: /Nur rund um die Abfahrt/ }).count()) problems.push('Einstellungen: Der Schalter „Nur rund um die Abfahrt“ steht noch im Sheet (Push folgt jetzt der Pendelzeit der Strecke)');
     if (!(await dlg.locator('a[href^="https://github.com/K0RBI02/ReGo/issues/new"]').count())) problems.push('Einstellungen: Link „Rückmeldung senden“ fehlt im Sheet');
     if (!(await dlg.evaluate((el) => el.contains(document.activeElement)))) problems.push('Einstellungen: Fokus liegt nach dem Öffnen nicht im Sheet');
     if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Einstellungen: Seite scrollt seitlich');
     // Bedienen im Sheet: Hinweis erscheint oben (nicht über den Einstellungen), das Sheet wird dabei nicht neu aufgebaut
     await dlg.evaluate((el) => { el.__keep = 1; });
-    await dlg.getByRole('switch', { name: 'Nur rund um die Abfahrtszeit benachrichtigen' }).click(); await p.waitForTimeout(700);
+    await dlg.getByRole('button', { name: '10 Min.' }).click(); await p.waitForTimeout(700);
     const toast = p.locator('.rg-toast');
     if (!(await toast.count())) problems.push('Einstellungen: keine Rückmeldung nach dem Umschalten');
     else { const tb = await toast.boundingBox(), db = await dlg.boundingBox(); if (tb.y + tb.height > db.y + 1) problems.push('Einstellungen: Hinweis verdeckt die Einstellungen (soll über dem Sheet stehen)'); }
     if (!(await dlg.evaluate((el) => el.__keep === 1))) problems.push('Einstellungen: Sheet wird beim Umschalten neu aufgebaut (Scroll und Fokus gehen verloren)');
-    await dlg.getByRole('switch', { name: 'Nur rund um die Abfahrtszeit benachrichtigen' }).click();   // wieder zurück
+    await dlg.getByRole('button', { name: '5 Min.' }).click(); await p.waitForTimeout(400);   // wieder zurück auf die Standardschwelle
     // „Neues Handy?“ klappt auf, Sheet wächst höchstens bis 90 % und scrollt; Rückmeldung und Version bleiben erreichbar
     await dlg.getByRole('button', { name: /Neues Handy/ }).click(); await p.waitForTimeout(300);
     if ((await dlg.getByRole('button', { name: /Neues Handy/ }).getAttribute('aria-expanded')) !== 'true') problems.push('Einstellungen: „Neues Handy?“ meldet nicht „aufgeklappt“');
@@ -793,4 +905,4 @@ await check('Schneller mit 1 Umstieg in der Oberfläche', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Bildschirmtest FEHLGESCHLAGEN:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach, Anlegen mit Umstieg, Umstiegsfahrt pünktlich / wackelt / verpasst, Schneller mit 1 Umstieg bei Ersatzverkehr).');
+console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Pendelzeit (Schieber, Hauptbildschirm), Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach, Anlegen mit Umstieg, Umstiegsfahrt pünktlich / wackelt / verpasst, Schneller mit 1 Umstieg bei Ersatzverkehr).');

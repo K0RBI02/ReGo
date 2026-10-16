@@ -13,7 +13,8 @@ import { lineLabel, lineColor } from '../lib/lines.mjs';
 import { cleanStopName } from '../providers/hafas.mjs';
 import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
 import { sampleStops, shortName, findStation, buildMap } from './map.mjs';
-import { buildTour, tidyName, localIso, validityLabel, ticketHintFor, appLinkFor, andList, times, sub, PLATFORM_HORIZON, CANCEL_HORIZON } from './state.mjs';
+import { buildTour, tidyName, localIso, validityLabel, ticketHintFor, appLinkFor, andList, times, sub, okWord, PLATFORM_HORIZON, CANCEL_HORIZON } from './state.mjs';
+import { windowView, isFar } from './window.mjs';
 
 export const MAX_WAIT_MIN = 30;        // geplante Wartezeit am Umstieg, darüber zeigen wir die Fahrt nicht (außer es gäbe sonst nichts)
 export const TIGHT_MIN = 3;            // weniger Puffer als das: der Anschluss wackelt
@@ -221,10 +222,15 @@ export async function buildTransferTour(tour, journeys, ctx) {
   const hint = ticketHintFor(tour);
 
   const all = entriesOf(journeys, bLists).filter((e) => !(t(e.a.dep) < now - 120000)).sort((x, y) => byDep(x.a, y.a));
-  const cancelledAs = all.filter((e) => e.kind === 'cancelledA' && t(e.a.plannedDep) >= now && t(e.a.plannedDep) <= now + CANCEL_HORIZON);
-  let list = all.filter((e) => e.kind !== 'cancelledA');
-  const reasonable = list.filter((e) => e.kind !== 'transfer' || e.filterWait <= MAX_WAIT_MIN);
-  if (reasonable.length) list = reasonable;                 // lange Wartezeiten nur, wenn es sonst nichts gibt
+  // Vor und im Pendelfenster zählen nur die Fahrten bis zu seinem Ende (nur wenn darin etwas fährt). Das „Danach“ darf trotzdem hinter das Fenster schauen.
+  const win = ctx.window;
+  const scoped = win && (win.mode === 'now' || win.anchor) && win.endMs ? all.filter((e) => t(e.a.plannedDep || e.a.dep) <= win.endMs) : null;
+  const inScope = scoped && scoped.some((e) => e.kind !== 'cancelledA') ? scoped : all;
+  const cancelledAs = inScope.filter((e) => e.kind === 'cancelledA' && t(e.a.plannedDep) >= now && t(e.a.plannedDep) <= now + CANCEL_HORIZON);
+  const usable = (src) => { const l = src.filter((e) => e.kind !== 'cancelledA'); const ok = l.filter((e) => e.kind !== 'transfer' || e.filterWait <= MAX_WAIT_MIN); return ok.length ? ok : l; };   // lange Wartezeiten nur, wenn es sonst nichts gibt
+  const listAll = usable(all);
+  const list = inScope === all ? listAll : usable(inScope);
+  const after = (e) => listAll[listAll.indexOf(e) + 1];
   const shown = list.slice(0, SHOWN);
 
   const first = shown.find((e) => e.kind === 'transfer');
@@ -237,7 +243,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     transfers: 1, ...(via ? { via } : {}), ...(first ? { lineIds: [registerLine(first.a.line), registerLine((first.shownB || first.plan).line)] } : {}),
     period: tour.period || 'am', ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}),
     distanceKm: ctx.distanceKm ?? null,
-    schedule: tour.schedule || { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' },
+    ...windowView(tour.schedule || { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' }, now),
     departures: [],
   };
   const incidents = [];
@@ -246,10 +252,10 @@ export async function buildTransferTour(tour, journeys, ctx) {
   const jump = (e) => { const i = shown.indexOf(e); return i >= 0 ? { departure: i } : {}; };
   const chipsOf = (e) => (e.kind === 'transfer' ? `${e.a.line.name} › ${(e.shownB || e.plan).line.name}` : e.a.line.name);
   const delayOf = (e) => Math.max(e.a.depDelay || 0, e.kind === 'transfer' ? Math.round((e.aArr - t(e.a.plannedArr)) / MIN) : (e.a.arrDelay || 0));
-  const badgeOf = (e) => (e.state === 'tight' ? 'wackelt' : e.state === 'missed' ? 'verpasst' : e.a.depDelay >= minDelay ? `+${e.a.depDelay} Min.` : 'pünktlich');
+  const badgeOf = (e) => (e.state === 'tight' ? 'wackelt' : e.state === 'missed' ? 'verpasst' : e.a.depDelay >= minDelay ? `+${e.a.depDelay} Min.` : okWord(e.a, now));
   const arrOf = (e) => (e.kind === 'transfer' ? e.finalArr : t(e.a.arr));
   const thenCard = (e, title = 'Danach') => (e ? { title, line1: `${chipsOf(e)} ab ${hhmm(e.a.dep)}`, line2: arrOf(e) ? `An ${dest} ${hhmm(arrOf(e))}` : 'Kein Anschluss gefunden', badge: badgeOf(e), ...jump(e) } : null);
-  const afterCard = (alt) => (alt ? { title: 'Nächster Anschluss', line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : 'pünktlich' } : null);
+  const afterCard = (alt) => (alt ? { title: 'Nächster Anschluss', line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : okWord(alt, now) } : null);
   // „Bus an 07:41“ nur, wenn der Ersatzverkehr bis zum Umstiegsbahnhof reicht (Strecke aus dem Hinweis endet dort)
   const busAtHub = (e) => {
     const st = stopsOf(e.a), hub = st.length - 1;
@@ -344,11 +350,11 @@ export async function buildTransferTour(tour, journeys, ctx) {
 
   // ---------- Ansicht je Abfahrt ----------
   async function viewOf(e, k) {
-    const nxt = list[list.indexOf(e) + 1];
+    const nxt = after(e);
     if (e.kind === 'direct') {
       const l = e.a, isLate = l.depDelay >= minDelay;
       const rows = [row(`Abfahrt ${nm(l.origin)}`, sub(l), hhmm(l.dep), hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : ''), row(`Ankunft ${dest}`, l.line.name, hhmm(l.arr), l.arrDelay ? hhmm(l.plannedArr) : '')];
-      return { kind: isLate ? 'delay' : 'ok', head: `${isLate ? 'Verspätung' : 'Pünktlich'} · ${l.line.name} ab ${hhmm(l.dep)}`, big: isLate ? `+${l.depDelay} Min.` : 'pünktlich', sub: sub(l, false), rows, alternative: thenCard(nxt), ticketHint: hint, map: await buildMap(l, linesAt, { halo: isLate, registerLine }) };
+      return { kind: isLate ? 'delay' : 'ok', head: `${isLate ? 'Verspätung' : okWord(l, now) === 'planmäßig' ? 'Planmäßig' : 'Pünktlich'} · ${l.line.name} ab ${hhmm(l.dep)}`, big: isLate ? `+${l.depDelay} Min.` : okWord(l, now), sub: sub(l, false), rows, alternative: thenCard(nxt), ticketHint: hint, map: await buildMap(l, linesAt, { halo: isLate, registerLine }) };
     }
     const { a, plan, next, state } = e;
     const viaName = nm(a.destination), delay = delayOf(e), bShown = e.shownB || plan;
@@ -374,7 +380,8 @@ export async function buildTransferTour(tour, journeys, ctx) {
       return { kind: 'delay', head: `Verspätung · ${plan.line.name} ab ${hhmm(plan.dep)}`, big: `+${plan.depDelay} Min.`, sub: `Umstieg ${viaName} · Ankunft ${hhmm(plan.arr)}`,
         ...base, alternative: thenCard(nxt), map: transferMap(e, { halo: 'hub' }) };
     }
-    return { kind: 'ok', head: `Pünktlich · ${chipsOf(e)} ab ${hhmm(a.dep)}`, big: 'pünktlich', sub: `Ankunft ${dest} ${hhmm(bShown.arr)} · 1 Umstieg`,
+    const word = okWord(a, now);
+    return { kind: 'ok', head: `${word === 'planmäßig' ? 'Planmäßig' : 'Pünktlich'} · ${chipsOf(e)} ab ${hhmm(a.dep)}`, big: word, sub: `Ankunft ${dest} ${hhmm(bShown.arr)} · 1 Umstieg`,
       ...base, alternative: thenCard(nxt), map: transferMap(e) };
   }
 
@@ -385,6 +392,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
       plannedTime: hhmm(a.plannedDep), expectedTime: hhmm(a.dep), lineId: registerLine(a.line),
       plannedPlatform: a.plannedPlatform || '', expectedPlatform: a.platform || '', delayMin: a.depDelay,
       ...(berlin(t(a.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
+      ...(isFar(t(a.dep), now) ? { far: true } : {}),
       ...(e.kind === 'transfer' ? {
         lineIds: [registerLine(a.line), registerLine((e.shownB || e.plan).line)],
         arrTime: e.finalArr ? hhmm(e.finalArr) : '',
@@ -403,7 +411,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
   for (const e of cancelledAs) { const n = e.a.line.name; if (!byLine.has(n)) byLine.set(n, []); byLine.get(n).push(e.a); }
   for (const group of [...byLine.values()].slice(0, 2)) {
     const c = group[0], lastC = group[group.length - 1], many = group.length > 1;
-    const alt = list.find((e) => t(e.a.plannedDep) > t(c.plannedDep));
+    const alt = listAll.find((e) => t(e.a.plannedDep) > t(c.plannedDep));
     incidents.push({
       id: `i${hash(`${tour.id}|cancelled|${c.line.name}|${berlin(t(c.plannedDep)).date}`)}`, tourId: tour.id, kind: 'cancelled', severity: 3, delayMin: 0, lineName: c.line.name, count: group.length,
       validity: { label: validityLabel(now, t(lastC.plannedDep), now), activeNow: true, from: localIso(now), until: localIso(t(lastC.plannedDep)) },
@@ -458,7 +466,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
       const where = sx >= 0 && sy >= 0 && sx !== sy ? `${nm(st[Math.min(sx, sy)])} → ${nm(st[Math.max(sx, sy)])}` : `${nm(leg.origin)} → ${nm(leg.destination)}`;
       const suffix = onA ? { ok: ' · Anschluss bleibt erreichbar', tight: ' · Anschluss wackelt', missed: ' · Anschluss verpasst' }[e.state] : '';
       const sections = sectionsOf(e, onA ? `${e.a.line.name} · ${r.summary || 'Hinweis'}` : undefined);
-      const alt = list.find((x) => x !== e && x.kind === 'transfer' && ![x.a, x.plan, x.next].some((l) => l && (l.remarks || []).some((y) => classifyRemark(y) === kind)));
+      const alt = listAll.find((x) => x !== e && x.kind === 'transfer' && ![x.a, x.plan, x.next].some((l) => l && (l.remarks || []).some((y) => classifyRemark(y) === kind)));
       incidents.push({
         id: `i${hash(`${tour.id}|${key}`)}`, tourId: tour.id, kind, severity: kind === 'replacement' ? 3 : delay >= 10 ? 2 : 1, delayMin: delay, lineName: leg.line.name,
         validity: { label, activeNow: from <= now && now <= until, from: localIso(from), until: localIso(until) },

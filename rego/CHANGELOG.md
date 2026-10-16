@@ -1,5 +1,27 @@
 # Änderungen
 
+## 0.7.2 – Pendelzeit
+
+**Strecken**
+- **Pendelzeit:** Beim Einrichten und beim Ändern einer Strecke legst du fest, in welchem Fenster du losfährst – je Richtung von … bis … Dafür gibt es zwei Schieber (Hinweg 4–12 Uhr, Rückweg 12–20 Uhr, in Viertelstunden); die Uhrzeit lässt sich auch antippen und eintippen. Die Griffe überholen sich nicht (mindestens 10 Minuten Abstand), eine getippte Zeit außerhalb des Bereichs weitet den Schieber. Beim Einrichten mit „Hin und zurück“ hat jede Richtung ihr eigenes Fenster (Vorgabe 07:00–08:00 und 16:30–17:30). Daran richtet ReGo alles aus.
+- **Vorhandene Strecken** bekommen als Fenster ihre bisherige „ab“-Zeit plus eine Stunde. Unter „Strecke ändern“ lässt es sich anpassen. Die Liste zeigt jetzt „Mo–Fr · 07:00–08:00“.
+
+**Hauptbildschirm**
+- **Der Zug in deinem Fenster:** Oben steht die Strecke, deren Fenster gerade läuft, danach die, die heute noch kommt (die früheste zuerst), dann der Rest. Vor dem Fenster (bis drei Stunden davor) zeigt die Strecke schon die Züge darin; vor und im Fenster zählen nur Fahrten bis zu dessen Ende, gibt es darin keine, die nächsten. „Danach“ darf über das Fenster hinausschauen.
+- **Außerhalb des Fensters** und an Tagen, an denen du dort nicht pendelst, zeigt ReGo wie bisher die nächsten Züge, aber ohne Push.
+- **„planmäßig“ statt „pünktlich“:** Liegt die Abfahrt mehr als 45 Minuten entfernt, steht „planmäßig“. Für so weit entfernte Fahrten kennt die Quelle noch kaum Verspätungen. Eine bekannte Verspätung steht immer da.
+
+**Push**
+- Push kommt nur noch für Strecken in ihrer Pendelzeit: an den Tagen der Strecke ab einer Stunde vor dem Fenster bis 10 Minuten nach dessen Ende. Die Nachtruhe 23–4 Uhr bleibt.
+- Der Schalter „Nur rund um die Abfahrtszeit benachrichtigen“ in den Einstellungen entfällt, die Pendelzeit ersetzt ihn. Ein Ende des Fensters nimmt keine bestehende Störung als „behoben“ weg.
+
+**Schnittstelle**
+- `POST /api/tours` nimmt `schedule.departUntil` sowie `returnAfter` und `returnUntil` an, `PATCH /api/tours/:id` `schedule.departUntil`. Kommt nur `departAfter` (ältere App), behält das Fenster seine Länge.
+- Strecken tragen `schedule.departUntil` und `window: {from, until, mode}`, Abfahrten `far: true`, wenn sie mehr als 45 Minuten entfernt sind (Datenvertrag). `PUT /api/settings`: `pushWindow` wird von älteren Apps noch gesendet, angenommen und ignoriert.
+
+**Neu bauen**
+- Aussehen und Server haben sich geändert: neue APK (`app-v0.7.2`) installieren und das Add-on aktualisieren.
+
 ## 0.7.1 – Schneller mit 1 Umstieg
 
 **Meldungen**

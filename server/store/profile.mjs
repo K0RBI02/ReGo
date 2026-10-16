@@ -2,11 +2,13 @@
 import { mkdir, readFile, writeFile, rename, unlink, stat, readdir } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
+import { untilMin, fmtMin } from '../domain/window.mjs';
+import { toMin } from '../lib/time.mjs';
 
 export const DEVICE_RE = /^[A-Za-z0-9_-]{16,64}$/;
 export class ValidationError extends Error { constructor(m, status = 400) { super(m); this.status = status; } }
 
-export const defaultProfile = () => ({ tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10, pushWindow: false }, push: null, updatedAt: 0, lastSeen: 0 });
+export const defaultProfile = () => ({ tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10 }, push: null, updatedAt: 0, lastSeen: 0 });
 const rid = () => randomBytes(4).toString('hex');
 const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const WEEKDAYS = DAYS.slice(0, 5);
@@ -21,6 +23,9 @@ const validCoord = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) &&
 const pt = (s) => ({ id: s.id, name: s.name.trim(), ...(validCoord(s.lat, s.lon) ? { lat: s.lat, lon: s.lon } : {}) });
 /** Haltestelle aus einer Anfrage in die gespeicherte Form (Kennung, Name, Koordinaten falls sinnvoll) */
 export const toStop = pt;
+
+// „Nur rund um die Abfahrt“ gibt es nicht mehr: Push folgt immer der Pendelzeit der Strecke
+const withoutLegacy = ({ pushWindow, ...rest }) => rest;
 
 export class ProfileStore {
   constructor(dir, now = () => Date.now(), { maxProfiles = 2000 } = {}) {
@@ -53,7 +58,7 @@ export class ProfileStore {
     return {
       ...def, ...data,
       tours: Array.isArray(data.tours) ? data.tours : [],
-      settings: { ...def.settings, ...(data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings) ? data.settings : {}) },
+      settings: withoutLegacy({ ...def.settings, ...(data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings) ? data.settings : {}) }),
       lastSeen: Number(data.lastSeen) || Number(data.updatedAt) || 0,
     };
   }
@@ -131,16 +136,20 @@ export class ProfileStore {
   }
 }
 
+/**
+ * Pendelzeit einer Strecke: Tage und das Fenster, in dem man losfährt (departAfter bis departUntil).
+ * Fehlt das Ende (ältere Strecken, ältere App), dauert das Fenster eine Stunde.
+ */
 function schedule(input = {}) {
   const set = new Set(Array.isArray(input.days) ? input.days.filter((d) => DAYS.includes(d)) : []);
   const days = DAYS.filter((d) => set.has(d));                                  // ohne Doppelte, in Wochenreihenfolge
   const departAfter = HM.test(input.departAfter || '') ? input.departAfter : '07:00';
-  return { days: days.length ? days : [...WEEKDAYS], departAfter };
+  return { days: days.length ? days : [...WEEKDAYS], departAfter, departUntil: fmtMin(untilMin(toMin(departAfter), input.departUntil)) };
 }
-const sameSchedule = (a = {}, b = {}) => a.departAfter === b.departAfter && (a.days || []).join() === (b.days || []).join();
+const sameSchedule = (a = {}, b = {}) => { const x = schedule(a), y = schedule(b); return x.departAfter === y.departAfter && x.departUntil === y.departUntil && x.days.join() === y.days.join(); };
 
 /**
- * Neue Strecke. body: { from:{id,name}, to:{id,name}, schedule?, roundTrip?: boolean, returnAfter?: 'HH:MM', transfers?: 1 }
+ * Neue Strecke. body: { from:{id,name}, to:{id,name}, schedule?: { days, departAfter, departUntil }, roundTrip?: boolean, returnAfter?: 'HH:MM', returnUntil?: 'HH:MM', transfers?: 1 }
  * transfers: 1 = Fahrten mit einem Umstieg (nur nach ausdrücklicher Wahl des Nutzers, wenn es keine Direktverbindung gibt); gilt für Hin- und Rückweg.
  * Gibt die angelegten Touren zurück (1 oder 2). Gibt es genau diese Strecke mit denselben Tagen und Zeiten schon
  * (z. B. doppelt getippt), wird nichts angelegt und die vorhandene zurückgegeben. Eine vorhandene Strecke ohne Umstieg
@@ -163,7 +172,7 @@ export function addTours(profile, body) {
   const t1 = { id: `t${rid()}`, name: `${from.name} → ${to.name}`.slice(0, 160), from, to, active: true, period: out.departAfter < '12:00' ? 'am' : 'pm', schedule: out, ...xfer };
   const list = [t1];
   if (body.roundTrip) {
-    const back = schedule({ days: out.days, departAfter: HM.test(body.returnAfter || '') ? body.returnAfter : '16:30' });
+    const back = schedule({ days: out.days, departAfter: HM.test(body.returnAfter || '') ? body.returnAfter : '16:30', departUntil: body.returnUntil });
     const t2 = { id: `t${rid()}`, name: `${to.name} → ${from.name}`.slice(0, 160), from: to, to: from, active: true, period: back.departAfter < '12:00' ? 'am' : 'pm', schedule: back, returnOf: t1.id, ...xfer };
     t1.returnId = t2.id; list.push(t2);
   }
@@ -176,7 +185,14 @@ export function patchTour(profile, id, body) {
   if (!t) throw new ValidationError('Strecke nicht gefunden', 404);
   if (typeof body.active === 'boolean') t.active = body.active;
   if (typeof body.name === 'string' && body.name.trim()) t.name = body.name.trim().slice(0, 160);
-  if (body.schedule && typeof body.schedule === 'object') { t.schedule = schedule({ ...t.schedule, ...body.schedule }); t.period = t.schedule.departAfter < '12:00' ? 'am' : 'pm'; }
+  if (body.schedule && typeof body.schedule === 'object') {
+    const prev = schedule(t.schedule), want = body.schedule;
+    // Nur der Beginn kommt (ältere App): das Fenster behält seine Länge, statt am alten Ende hängen zu bleiben
+    const keepLen = HM.test(want.departAfter || '') && !HM.test(want.departUntil || '')
+      ? { departUntil: fmtMin(Math.min(24 * 60 - 1, toMin(want.departAfter) + toMin(prev.departUntil) - toMin(prev.departAfter))) } : {};
+    t.schedule = schedule({ ...prev, ...want, ...keepLen });
+    t.period = t.schedule.departAfter < '12:00' ? 'am' : 'pm';
+  }
   return t;
 }
 
@@ -194,10 +210,8 @@ export function setSettings(profile, body) {
     if (![3, 5, 10].includes(body.pushThresholdMin)) throw new ValidationError('pushThresholdMin muss 3, 5 oder 10 sein');
     profile.settings.pushThresholdMin = body.pushThresholdMin;
   }
-  if (body.pushWindow !== undefined) {
-    if (typeof body.pushWindow !== 'boolean') throw new ValidationError('pushWindow muss true oder false sein');
-    profile.settings.pushWindow = body.pushWindow;
-  }
+  // pushWindow gab es früher als Schalter („Nur rund um die Abfahrt“). Ältere Apps senden ihn noch; er hat keine Wirkung mehr: Push folgt der Pendelzeit.
+  if (body.pushWindow !== undefined && typeof body.pushWindow !== 'boolean') throw new ValidationError('pushWindow muss true oder false sein');
   return profile.settings;
 }
 
