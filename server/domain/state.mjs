@@ -36,7 +36,7 @@ function noDeparturesView(tour, journeys, stale) {
   const cancelled = journeys.some((j) => j.legs[0] && j.legs[0].cancelled);
   const [big, sub] = stale ? ['Keine Daten', 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
-      : ['Keine', 'Keine Direktverbindung gefunden. ReGo zeigt nur Fahrten ohne Umstieg.'];
+      : ['Keine', 'Keine Direktverbindung gefunden. Lege die Strecke neu an, dann bietet ReGo dir „Mit 1 Umstieg suchen“ an.'];
   // Karte: Start und Ziel, verbunden mit einer gepunkteten Linie (wie bei einer Störung)
   const stations = [tour.from, tour.to].map((s) => ({ id: s.id, name: shortName(s.name) }));
   return { kind: 'none', head: 'Nächste Abfahrt', big, sub, rows: [], alternative: null, ticketHint: null, map: { stations, hubIndex: -1, haloIndex: -1, connections: [], disrupted: { from: 0, to: 1 }, alternative: null } };
@@ -74,7 +74,8 @@ const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direc
 /**
  * @param tour     Profil-Tour { id,name,from,to,active,period,returnId?,returnOf?,schedule }
  * @param journeys normalisierte Journeys (Direktverbindungen)
- * @param ctx      { now, minDelay, linesAt, lines (Registry), graceMin, stale (Daten stammen aus dem Zwischenspeicher oder fehlen wegen Störung) }
+ * @param ctx      { now, minDelay, linesAt, lines (Registry), graceMin, stale (Daten stammen aus dem Zwischenspeicher oder fehlen wegen Störung),
+ *                   shortcutFor? ({depart, arrive}) -> Karte „Schneller mit 1 Umstieg“ | null, für Meldungen zu Ersatzverkehr }
  * @returns { tour, incidents }
  */
 export async function buildTour(tour, journeys, ctx) {
@@ -170,6 +171,10 @@ export async function buildTour(tour, journeys, ctx) {
     const label = validityLabel(from, until, now);
     const arrPlanned = hhmm(leg.plannedArr);
     const arrExpected = hhmm(new Date(Date.parse(leg.plannedArr) + delay * 60000).toISOString());
+    // Ersatzverkehr: kommt man mit 1 Umstieg früher an? ctx.shortcutFor kennt die Verbindungen mit Umstieg (nur wenn der Service sie geladen hat)
+    const shortcut = kind === 'replacement' && ctx.shortcutFor
+      ? ctx.shortcutFor({ depart: Date.parse(leg.dep), arrive: Math.max(Date.parse(leg.arr), Date.parse(leg.plannedArr) + delay * 60000) })
+      : null;
     const map = await buildMap(leg, linesAt, { segment: seg, alternative: alt ? { label: `Alternative · ${alt.line.name} ${hhmm(alt.dep)}` } : null, registerLine });
     incidents.push({
       id: `i${hash(`${tour.id}|${key}`)}`, tourId: tour.id, kind, severity: severityOf(kind, delay), delayMin: delay, lineName: leg.line.name,
@@ -184,6 +189,7 @@ export async function buildTour(tour, journeys, ctx) {
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },
         ],
         alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : 'pünktlich', ...jump(alt) } : null,
+        ...(shortcut ? { shortcut } : {}),
         ticketHint: hint, map,
       },
     });

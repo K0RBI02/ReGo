@@ -3,7 +3,8 @@ import { TtlCache } from './store/cache.mjs';
 import { berlin, hhmm } from './lib/time.mjs';
 import { distanceKm, regionOf } from './lib/geo.mjs';
 import { buildTour, stillVisible, THEME, SCHEMA_VERSION } from './domain/state.mjs';
-import { buildTransferTour, transferVias, previewRoute } from './domain/transfer.mjs';
+import { buildTransferTour, transferVias, previewRoute, shortcutFor } from './domain/transfer.mjs';
+import { classifyRemark } from './domain/classify.mjs';
 import { createProviders } from './providers/index.mjs';
 
 /** Wartet höchstens ms auf p. Danach gilt fallback() (falls es etwas liefert), sonst ein Fehler. Der Abruf selbst läuft weiter und füllt den Cache. */
@@ -80,6 +81,21 @@ export function createService({ config, store, now = () => Date.now(), providers
     return out;
   }
 
+  /**
+   * „Schneller mit 1 Umstieg“: Hat eine Strecke ohne Umstieg Ersatzverkehr, fragen wir zusätzlich nach Verbindungen mit höchstens einem Umstieg
+   * (dieselbe Abfrage und derselbe Zwischenspeicher wie „Mit 1 Umstieg suchen“). Ohne Ersatzverkehr kostet das nichts. Gibt eine Funktion für
+   * buildTour zurück, oder undefined, wenn es nichts zu prüfen gibt oder die Quelle nicht rechtzeitig antwortet (dann gibt es einfach keinen Hinweis).
+   */
+  async function loadShortcut(tour, journeys, t) {
+    if (!journeys.some((j) => (j.legs?.[0]?.remarks || []).some((r) => classifyRemark(r) === 'replacement'))) return undefined;
+    const q = transferJourneys(tour.from, tour.to, t);
+    try {
+      const r = await withDeadline(q.load(), B_DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
+      const list = r.value || [];
+      return (o) => shortcutFor(list, { now: t, ...o });
+    } catch (err) { log('Vorschlag mit Umstieg nicht verfügbar', tour.id, err.message); return undefined; }
+  }
+
   const linesAt = async (id) => {
     const client = providers.forStop ? providers.forStop({ id }) : (regionOf({ id }) === 'AT' ? providers.oebb : providers.db);
     const { value } = await cache.get(`stop:${id}`, config.ttl.stop, () => client.stop(id));
@@ -113,7 +129,8 @@ export function createService({ config, store, now = () => Date.now(), providers
       const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
       const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t) : undefined;
-      const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, bLists });
+      const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t);
+      const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, bLists, shortcutFor: shortcut });
       if (tourStale) built.tour.stale = true;                  // diese Strecke zeigt alte Daten (oder gar keine)
       tours[i] = { out: built.tour, inc: built.incidents };
     }));

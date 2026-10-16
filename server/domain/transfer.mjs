@@ -90,6 +90,45 @@ export function previewRoute(journeys) {
 /** Schlüssel, unter dem die Anschlussfahrten eines Umstiegsbahnhofs in ctx.bLists stehen */
 export const viaKeyOf = viaKey;
 
+// ---------- „Schneller mit 1 Umstieg“ bei Ersatzverkehr ----------
+export const SHORTCUT_MIN_SAVING = 5;                 // so viele Minuten früher am Ziel, sonst ist der Hinweis keinen Platz wert
+const SHORTCUT_LATER = 30 * MIN;                      // der Umweg darf bis zu so viel später abfahren als die Fahrt mit Ersatzverkehr
+const hasReplacement = (leg, now) => (leg.remarks || []).some((r) => classifyRemark(r) === 'replacement' && !(r.validUntil && t(r.validUntil) < now));
+
+/**
+ * Hat eine Fahrt Ersatzverkehr und kommt dadurch später an, gibt es manchmal eine Verbindung mit einem Umstieg, die früher am Ziel ist.
+ * Gewählt wird die mit der frühesten Ankunft unter den sicheren: Anschluss mit mindestens TIGHT_MIN Minuten Puffer, nichts ausgefallen,
+ * kein Ersatzverkehr auf den beiden Fahrten, noch erreichbar (nicht vor jetzt) und höchstens 30 Min. nach der Fahrt mit Ersatzverkehr.
+ * Der Gewinn muss mindestens SHORTCUT_MIN_SAVING Minuten betragen. Reine Direktfahrten in der Liste zählen nicht (die nennt die Meldung als „Nächste Verbindung“).
+ * @param journeys Verbindungen mit höchstens einem Umstieg
+ * @param o        { now, depart (ms: Abfahrt der Fahrt mit Ersatzverkehr), arrive (ms: ihre Ankunft mit Ersatzverkehr) }
+ * @returns Karte für die Meldung { title, line1, line2, line3, badge, saved, via } oder null
+ */
+export function shortcutFor(journeys, { now, depart, arrive }) {
+  if (!Number.isFinite(depart) || !Number.isFinite(arrive)) return null;
+  let best = null;
+  for (const { a, b } of pairsOf(journeys)) {
+    if (!b || a.cancelled || b.cancelled || hasReplacement(a, now) || hasReplacement(b, now)) continue;
+    const dep = t(a.dep), arr = t(b.arr);
+    if (!(dep >= now - MIN) || dep > depart + SHORTCUT_LATER) continue;
+    const buffer = diffMin(a.arr, b.dep);
+    if (!(buffer >= TIGHT_MIN)) continue;                                      // ein knapper Anschluss ist keine Empfehlung
+    const saved = Math.round((arrive - arr) / MIN);
+    if (!(saved >= SHORTCUT_MIN_SAVING)) continue;
+    if (!best || arr < best.arr || (arr === best.arr && dep < best.dep)) best = { a, b, dep, arr, saved, buffer };
+  }
+  if (!best) return null;
+  const via = nm(best.a.destination);
+  return {
+    title: 'Schneller mit 1 Umstieg',
+    line1: `${best.a.line.name} › ${best.b.line.name} ab ${hhmm(best.a.dep)}`,
+    line2: `Umstieg ${via} · ${best.buffer} Min.`,
+    line3: `An ${hhmm(best.b.arr)} statt ${hhmm(arrive)}`,
+    badge: `−${best.saved} Min.`,
+    saved: best.saved, via,
+  };
+}
+
 /**
  * Bewertet alle Zubringerfahrten. Ergebnis je Fahrt:
  *   { kind:'transfer', a, plan, next, after, state, buffer, plannedGap, cancelledB, aArr, aLate, bs, cands }

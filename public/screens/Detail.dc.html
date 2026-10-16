@@ -253,6 +253,17 @@ Zurück</a>
 <span style="flex: none; display: flex; align-items: center; gap: 2px"><span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{alt.badge}}</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span>
 </a>
 </sc-if>
+<sc-if value="{{hasShortcut}}" hint-placeholder-val="{{ false }}">
+<div style="background: #EAF6CF; border-radius: 24px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 14px; font-weight: 700">{{sc.title}}</span>
+<span style="font-size: 17px; font-weight: 700; line-height: 1.2">{{sc.line1}}</span>
+<span style="font-size: 15px; font-weight: 600">{{sc.line2}}</span>
+<span style="font-size: 15px; font-weight: 600">{{sc.line3}}</span>
+</div>
+<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{sc.badge}}</span>
+</div>
+</sc-if>
 
 <sc-for list="{{more}}" as="m" hint-placeholder-count="1">
 <div style="{{m.style}}">
@@ -323,7 +334,7 @@ class Component extends DCLogic {
       return {
         style: 'background: ' + k.bg + '; border-radius: 28px; padding: 14px 20px 16px; display: flex; flex-direction: column; gap: 4px',
         head: k.label + ' · ' + m.validity.label, sub: m.summary || m.view.sub,
-        lines: [dr ? 'ab ' + at(dr) : '', ar ? 'an ' + at(ar) : '', alt ? alt.title.split(' · ')[0] + ': ' + alt.line1 : ''].filter(Boolean).map((text) => ({ text })),
+        lines: [dr ? 'ab ' + at(dr) : '', ar ? 'an ' + at(ar) : '', alt ? alt.title.split(' · ')[0] + ': ' + alt.line1 : '', m.view.shortcut ? m.view.shortcut.title + ': ' + m.view.shortcut.line1 : ''].filter(Boolean).map((text) => ({ text })),
         big: m.kind === 'delay' || m.kind === 'tight' ? '+' + m.delayMin + ' Min.' : m.kind === 'platform' || m.kind === 'missed' ? (m.view && m.view.big) || '' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
       };
     });
@@ -477,6 +488,9 @@ class Component extends DCLogic {
     const altTo = av && tour && Number.isInteger(av.departure) && tour.departures[av.departure] ? 'Detail.dc.html#' + tour.id + '.' + av.departure + '-m' : '';
     out.altLink = !!altTo; out.altPlain = !!av && !altTo; out.altHref = altTo || '#';
     out.alt = av || { title: '', line1: '', line2: '', badge: '' };
+    // Ersatzverkehr: „Schneller mit 1 Umstieg“ (nur wenn der Server eine Verbindung gefunden hat, die früher am Ziel ist)
+    out.hasShortcut = !!view.shortcut;
+    out.sc = view.shortcut || { title: '', line1: '', line2: '', line3: '', badge: '' };
     out.hasAppLink = !!(tour && tour.appLink);
     out.appLink = (tour && tour.appLink) || { url: '#', label: '' };
     out.hasTicket = !!view.ticketHint;

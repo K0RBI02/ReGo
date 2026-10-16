@@ -8,7 +8,7 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 import { addTours } from '../server/store/profile.mjs';
 import { buildTour } from '../server/domain/state.mjs';
-import { buildTransferTour } from '../server/domain/transfer.mjs';
+import { buildTransferTour, shortcutFor } from '../server/domain/transfer.mjs';
 import { readFileSync } from 'node:fs';
 
 const pw = await import('playwright').catch(() => import('/opt/npm-tools/node_modules/playwright/index.mjs'));
@@ -733,6 +733,64 @@ await check('Umstiegsfahrt in der Oberfläche', async () => {
   }
 });
 
+// ---------- Neu in 0.7.1: „Schneller mit 1 Umstieg“ bei Ersatzverkehr ----------
+// Der Zustand kommt vom echten Aufbau (buildTour mit shortcutFor) und wird der Seite untergeschoben, mit Zeiten ab jetzt.
+await check('Schneller mit 1 Umstieg in der Oberfläche', async () => {
+  const XD3 = 'smokeshort1123456789abcdefg';
+  const made = await jx(XD3, '/api/tours', 'POST', { from: st, to: mu });
+  const tour = (made.tours || [])[0];
+  if (!tour) { problems.push(`Schneller mit 1 Umstieg: Strecke ließ sich nicht anlegen (${made.error || 'keine Antwort'})`); return; }
+  const MO = { id: '8000902', name: 'Moosach' };
+  const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
+  const SEV = { type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Neufahrn und Moosach Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: iso(-600), validUntil: iso(3 * 24 * 60) };
+  const D = (min) => ({ line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: tour.from, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 46), arr: iso(min + 46), arrDelay: 0, plannedPlatform: '3', platform: '3', stopovers: [tour.from, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MO, tour.to], remarks: [SEV], cancelled: false });
+  const A = (min) => ({ line: { name: 'RE 22', product: 'regionalExpress' }, direction: 'Moosach', origin: tour.from, destination: MO, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 25), arr: iso(min + 25), arrDelay: 0, plannedPlatform: '1', platform: '1', stopovers: [tour.from, MO], remarks: [], cancelled: false });
+  const B = (min) => ({ line: { name: 'U3', product: 'subway' }, direction: 'Fürstenried West', origin: MO, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 15), arr: iso(min + 15), arrDelay: 0, plannedPlatform: '1', platform: '1', stopovers: [MO, tour.to], remarks: [], cancelled: false });
+  const J = (...legs) => ({ legs });
+  // Szenarien: mit einem schnelleren Umweg (RE 22 › U3 ab jetzt+12 Min., 23 Min. früher am Ziel) und ohne (der Umweg wäre nur 4 Min. schneller)
+  const scen = [
+    { name: 'mit Umweg', umwege: () => [J(A(12), B(43)), J(A(32), B(63))], card: true },
+    { name: 'ohne Umweg', umwege: () => [J(A(12), B(62))], card: false },
+  ];
+  for (const sc of scen) for (const [w, h, dark] of (sc.card ? [[390, 844, false], [320, 568, false], [390, 844, true]] : [[390, 844, false]])) {
+    const tag = `Schneller mit 1 Umstieg ${sc.name} (${w} px${dark ? ', dunkel' : ''})`;
+    where = tag;
+    const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, colorScheme: dark ? 'dark' : 'light' });
+    await c.addInitScript(initFor(), [XD3]);
+    let built = null;
+    await c.route('**/api/state**', async (route) => {
+      const res = await route.fetch(); const body = await res.json(); const now = Date.now();
+      built = await buildTour(tour, [J(D(10)), J(D(30)), J(D(50))], { now, minDelay: 3, linesAt: async () => [], lines: body.lines, shortcutFor: (o) => shortcutFor(sc.umwege(), { now, ...o }) });
+      body.tours = body.tours.map((x) => (x.id === tour.id ? { ...x, ...built.tour } : x));
+      body.incidents = built.incidents;
+      await route.fulfill({ response: res, json: body });
+    });
+    const pg = await c.newPage(); pg.setDefaultTimeout(8000); watch(pg);
+    const text = () => pg.evaluate(() => document.querySelector('#screen').innerText);
+    try {
+      await pg.goto(base + '/'); await pg.waitForTimeout(1800);
+      const rep = built && built.incidents.find((i) => i.kind === 'replacement');
+      if (!rep) { problems.push(`${tag}: Zustand mit Ersatzverkehr wurde nicht untergeschoben`); continue; }
+      if (!!rep.view.shortcut !== sc.card) problems.push(`${tag}: Server-Ansicht ${rep.view.shortcut ? 'hat' : 'hat keine'} Karte, erwartet ${sc.card ? 'eine' : 'keine'}`);
+      // Seite der Meldung öffnen
+      await pg.goto(base + '/Detail#' + rep.id + '-m'); await pg.waitForTimeout(1600);
+      const dt = await text();
+      if (!/Ersatzverkehr/.test(dt)) problems.push(`${tag}: Seite zeigt den Ersatzverkehr nicht`);
+      if (sc.card) {
+        if (!/Schneller mit 1 Umstieg/.test(dt)) problems.push(`${tag}: Karte „Schneller mit 1 Umstieg“ fehlt`);
+        else {
+          const ct = dt.slice(dt.indexOf('Schneller mit 1 Umstieg')).replace(/\s+/g, ' ').slice(0, 160);
+          if (!/RE 22 › U3 ab \d\d:\d\d/.test(ct) || !/Umstieg Moosach · \d+ Min\./.test(ct) || !/An \d\d:\d\d statt \d\d:\d\d/.test(ct) || !/−\d+ Min\./.test(ct)) problems.push(`${tag}: Karte nennt Linien, Umstieg, Ankunft oder Ersparnis nicht (${ct.slice(0, 140)})`);
+        }
+      } else if (/Schneller mit 1 Umstieg/.test(dt)) problems.push(`${tag}: Karte erscheint, obwohl der Umweg nicht schneller ist`);
+      if (await sideways(pg)) problems.push(`${tag}: Seite scrollt seitlich`);
+      await pg.evaluate(() => { const s = [...document.querySelectorAll('[style*="overflow-y: auto"]')].pop(); if (s) s.scrollTop = 9999; }); await pg.waitForTimeout(300);
+      if (await sideways(pg)) problems.push(`${tag}: Seite scrollt unten seitlich`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: Seite schlecht lesbar: ${bad.slice(0, 4).join(', ')}`); }
+    } finally { await c.close(); }
+  }
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Bildschirmtest FEHLGESCHLAGEN:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach, Anlegen mit Umstieg, Umstiegsfahrt pünktlich / wackelt / verpasst).');
+console.log('Bildschirmtest bestanden (6 Screens, Strecke ändern, Ticket sichern, Doppeltipp, Rückgängig, Aktualisieren, Code übernehmen, kleines Handy, Dunkelmodus, mehrere Meldungen je Strecke, Strecke ohne Direktverbindung, Schrift, Anlegen ohne Direktverbindung, Onboarding ohne Direktverbindung, Testmeldung, Versionszeile, Einstellungs-Sheet, Einladungscode, Gleiswechsel, Ausfall, Hero und Danach, Anlegen mit Umstieg, Umstiegsfahrt pünktlich / wackelt / verpasst, Schneller mit 1 Umstieg bei Ersatzverkehr).');

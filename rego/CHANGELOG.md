@@ -1,5 +1,20 @@
 # Änderungen
 
+## 0.7.1 – Schneller mit 1 Umstieg
+
+**Meldungen**
+- **„Schneller mit 1 Umstieg“:** Hat eine Strecke ohne Umstieg Ersatzverkehr, schaut ReGo zusätzlich nach Verbindungen mit einem Umstieg. Kommt eine mindestens 5 Minuten früher am Ziel an als die Fahrt mit Ersatzverkehr, steht auf der Seite der Meldung eine grüne Karte mit den beiden Linien, dem Umstieg samt Wartezeit und der Ankunft („An 07:56 statt 08:13“, „−17 Min.“). Gezeigt wird nur, was sicher klappt: mindestens 3 Minuten zum Umsteigen, nichts fällt aus, kein Ersatzverkehr auf dem Umweg, und die erste Fahrt ist noch erreichbar. Gibt es nichts Schnelleres, erscheint nichts. Es gibt keinen Schalter, keinen zusätzlichen Push und keine neue Meldung.
+- Ist der Ersatzverkehr nicht die oberste Meldung der Strecke, steht der Hinweis als Zeile in seiner Karte.
+
+**Strecken**
+- **Alte Strecken mit „Keine“:** Statt „ReGo zeigt nur Fahrten ohne Umstieg.“ steht auf dem Hauptbildschirm jetzt, wie es weitergeht: „Lege die Strecke neu an, dann bietet ReGo dir „Mit 1 Umstieg suchen“ an.“
+
+**Schnittstelle**
+- Meldungen zu Ersatzverkehr tragen bei Strecken ohne Umstieg zusätzlich `view.shortcut`, wenn es einen schnelleren Umweg gibt (Datenvertrag).
+
+**Neu bauen**
+- Aussehen und Server haben sich geändert: neue APK (`app-v0.7.1`) installieren und das Add-on aktualisieren.
+
 ## 0.7.0 – Strecken mit 1 Umstieg
 
 **Strecken**
