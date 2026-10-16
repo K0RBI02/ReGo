@@ -1,11 +1,11 @@
-// Client für transport.rest (hafas-client als REST-API). Wird für DB (ganz Deutschland, auch grenzüberschreitend)
-// und ÖBB (Österreich) mit je eigener Basis-URL benutzt.
+// Client for transport.rest (hafas-client as a REST API). Used for DB (all of Germany, also cross-border)
+// and ÖBB (Austria), each with its own base URL.
 //
-// Normalisierte Typen – der Rest des Backends kennt nur diese:
+// Normalised types – the rest of the backend only knows these:
 //   Stop   { id, name, lat, lon, products? }
 //   Leg    { line:{name,product}, direction, origin:Stop, destination:Stop,
-//            plannedDep, dep, depDelay (Min.), plannedArr, arr, arrDelay (Min.),
-//            plannedPlatform, platform (Abfahrtsgleis), plannedArrPlatform, arrPlatform (Ankunftsgleis),
+//            plannedDep, dep, depDelay (min.), plannedArr, arr, arrDelay (min.),
+//            plannedPlatform, platform (departure platform), plannedArrPlatform, arrPlatform (arrival platform),
 //            cancelled, tripId, stopovers:[Stop], remarks:[Remark] }
 //   Remark { type, code, text, summary, validFrom, validUntil, priority }
 //   Journey{ legs:Leg[] }
@@ -56,7 +56,7 @@ export class HafasClient {
     return stop;
   }
 
-  /** Verbindungen inkl. Zwischenhalte und Hinweise. transfers = höchstens so viele Umstiege (0 = nur Direktverbindungen). */
+  /** Connections incl. stopovers and remarks. transfers = at most this many transfers (0 = direct connections only). */
   async journeys({ fromId, toId, when, results = 5, transfers = 0 }) {
     const data = await this.get('/journeys', {
       from: fromId, to: toId, departure: when, results, transfers,
@@ -68,7 +68,7 @@ export class HafasClient {
 
 /** "München Hbf Gl.27-36" -> "München Hbf", "Wien Hbf (Bahnsteige 3-12)" -> "Wien Hbf" */
 export function cleanStopName(n = '') {
-  // "München, München Hbf" -> "München Hbf" (Ort doppelt)
+  // "München, München Hbf" -> "München Hbf" (place name doubled)
   n = String(n).replace(/^([^,→]+),\s*(\1\b.*)$/i, '$2');
   return String(n).replace(/\s+Gl\.[\w\-–, ]+$/i, '').replace(/\s*\((?:Bahnsteige?|Bstg\.?|Gleis)[^)]*\)\s*$/i, '').trim();
 }

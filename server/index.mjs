@@ -9,13 +9,13 @@ import { createNotifier } from './notifier.mjs';
 import { createGuard } from './guard.mjs';
 import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, toStop, DEVICE_RE } from './store/profile.mjs';
 
-// Sicherheits-Header für alle Antworten. 'unsafe-eval'/'unsafe-inline' braucht der Screen-Lader (dc-lite), sonst nichts Fremdes.
+// Security headers for all responses. 'unsafe-eval'/'unsafe-inline' are needed by the screen loader (dc-lite), nothing else third-party.
 const SEC = {
   'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY',
   'permissions-policy': 'camera=(self), geolocation=(self), microphone=(), payment=()',
 };
-// Die Android-App lädt ihre Oberfläche von dieser virtuellen Adresse und fragt die API von dort ab.
+// The Android app loads its UI from this virtual address and queries the API from there.
 const APP_ORIGINS = ['https://appassets.androidplatform.net'];
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 
@@ -41,7 +41,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
       if (n > 64 * 1024) return;
       let b = {};
       try { if (chunks.length) b = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return reject(new ValidationError('Kein gültiges JSON')); }
-      if (!b || typeof b !== 'object' || Array.isArray(b)) return reject(new ValidationError('Erwartet wird ein JSON-Objekt'));      // z. B. „null“ oder eine Zahl
+      if (!b || typeof b !== 'object' || Array.isArray(b)) return reject(new ValidationError('Erwartet wird ein JSON-Objekt'));      // e.g. "null" or a number
       resolve(b);
     });
     req.on('error', reject);
@@ -53,23 +53,23 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   };
 
   let versionP;
-  const version = () => (versionP ||= (async () => { for (const f of [join(cfg.root, 'rego/config.yaml'), join(cfg.root, 'config.yaml')]) { try { const m = (await readFile(f, 'utf8')).match(/^version:\s*"?([^"\n]+)"?/m); if (m) return m[1].trim(); } catch { /* nächste Stelle */ } } return 'unbekannt'; })());
-  // Umzug auf ein neues Handy: Einmal-Code (10 Min.), der Strecken und Einstellungen aufs neue Gerät kopiert
+  const version = () => (versionP ||= (async () => { for (const f of [join(cfg.root, 'rego/config.yaml'), join(cfg.root, 'config.yaml')]) { try { const m = (await readFile(f, 'utf8')).match(/^version:\s*"?([^"\n]+)"?/m); if (m) return m[1].trim(); } catch { /* next location */ } } return 'unbekannt'; })());
+  // Moving to a new phone: one-time code (10 min) that copies routes and settings to the new device
   const transfers = new Map(); let claimFails = [];
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
   const startedAt = now();
-  let statusCache = null;                                        // Statusseite ist öffentlich: höchstens alle 30 s die Profile durchzählen
+  let statusCache = null;                                        // the status page is public: count the profiles at most every 30 s
   const status = async () => {
     if (statusCache && now() - statusCache.at < 30e3) return { ...statusCache.value, uptimeMin: Math.round((now() - startedAt) / 60000), time: new Date(now()).toISOString() };
     const value = await statusNow(); statusCache = { at: now(), value }; return value;
   };
   async function statusNow() {
     let devices = 0, pushes = 0, withToken = 0;
-    try { for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) { devices++; try { const sub = (await store.load(f.slice(0, -5))).push; if (sub) { pushes++; if (sub.fcm) withToken++; } } catch { /* beschädigte Datei überspringen */ } } } catch { /* noch keine Profile */ }
+    try { for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) { devices++; try { const sub = (await store.load(f.slice(0, -5))).push; if (sub) { pushes++; if (sub.fcm) withToken++; } } catch { /* skip damaged file */ } } } catch { /* no profiles yet */ }
     const p = service.providers;
     const sources = [...(p?.efas || []), p?.db, p?.oebb].filter(Boolean).map((c) => ({ name: c.name || c.key || '?', ok: c.healthy ? c.healthy() !== false : null }));
-    // instantPush: kennt der Server einen gültigen Firebase-Schlüssel? pushWithToken: wie viele Push-Abos haben eine Firebase-Kennung vom Handy? Nur Zahlen, nichts Persönliches.
+    // instantPush: does the server know a valid Firebase key? pushWithToken: how many push subscriptions have a Firebase token from the phone? Numbers only, nothing personal.
     return { version: await version(), provider: cfg.provider, uptimeMin: Math.round((now() - startedAt) / 60000), devices, pushSubscriptions: pushes, pushWithToken: withToken, instantPush: !!(await fcmP).enabled, sources, time: new Date(now()).toISOString() };
   }
 
@@ -79,8 +79,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/health' && m === 'GET') return send(res, 200, { ok: true, provider: cfg.provider, time: new Date(now()).toISOString() });
     if (path === '/api/status' && m === 'GET') return send(res, 200, await status());
     const dev = device(req, url);
-    await guard.device(req, url, dev);                              // Begrenzung je Gerät, Einladungscode für neue Geräte
-    store.seen(dev).catch(() => {});                                // „zuletzt gesehen“ für Aufräumen und Leerlauf-Erkennung
+    await guard.device(req, url, dev);                              // limit per device, invitation code for new devices
+    store.seen(dev).catch(() => {});                                // "last seen" for clean-up and idle detection
     if (path === '/api/stations' && m === 'GET') {
       try { return send(res, 200, { stations: await service.searchStations(url.searchParams.get('q')) }); }
       catch (e) { return send(res, 502, { error: 'Haltestellensuche gerade nicht erreichbar', detail: e.message }); }
@@ -88,19 +88,19 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (path === '/api/state' && m === 'GET') return send(res, 200, await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') }));
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
-    if (path === '/api/connections/search' && m === 'POST') {            // Vorschau „Mit 1 Umstieg suchen“: gibt es etwas, und wie sieht es aus?
+    if (path === '/api/connections/search' && m === 'POST') {            // preview for "Mit 1 Umstieg suchen": is there anything, and what does it look like?
       const b = await readBody(req);
-      addTours({ tours: [], settings: {} }, b);                           // prüft Start und Ziel (400), speichert nichts
+      addTours({ tours: [], settings: {} }, b);                           // checks start and destination (400), stores nothing
       const r = await service.searchTransfer(toStop(b.from), toStop(b.to));
       return send(res, 200, { found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
     }
     if (path === '/api/tours' && m === 'POST') {
       const b = await readBody(req);
-      addTours({ tours: [], settings: {} }, b);                       // prüft die Eingabe (400), speichert nichts
+      addTours({ tours: [], settings: {} }, b);                       // checks the input (400), stores nothing
       const mine = await store.load(dev);
-      // Strecken ohne Direktverbindung nicht von selbst anlegen: der Nutzer entscheidet („Mit 1 Umstieg suchen“, transfers: 1). Weiß die Quelle es nicht, wird im Zweifel angelegt.
-      // Das gilt auch für eine Strecke, die es schon gibt (aus einer älteren Version, ohne Direktverbindung): So bekommt der Nutzer den Hinweis und kann sie auf Umstieg umstellen.
-      // Nur wer für dieses Paar schon eine Strecke mit Umstieg hat und wieder „mit Umstieg“ anlegt, wird nicht noch einmal geprüft.
+      // Do not create routes without a direct connection on our own: the user decides ("Mit 1 Umstieg suchen", transfers: 1). If the source does not know, the route is created when in doubt.
+      // This also applies to a route that already exists (from an older version, without a direct connection): that way the user gets the hint and can switch it to a transfer.
+      // Only someone who already has a route with a transfer for this pair and creates it "with transfer" again is not checked once more.
       const haveX = mine.tours.some((x) => x.from?.id === b.from.id && x.to?.id === b.to.id && x.transfers === 1);
       if (!(b.transfers === 1 && haveX)) {
         for (const [a, c] of b.roundTrip ? [[b.from, b.to], [b.to, b.from]] : [[b.from, b.to]]) {
@@ -155,10 +155,10 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     if (rel.split(/[/\\]/).includes('..')) return send(res, 403, { error: 'verboten' });
     let file = join(cfg.publicDir, rel || 'index.html');
     try { if ((await stat(file)).isDirectory()) file = join(file, 'index.html'); }
-    catch { if (extname(rel)) return send(res, 404, { error: 'Nicht gefunden' }); file = join(cfg.publicDir, 'index.html'); }   // Pfade ohne Endung gehören der App (Router)
+    catch { if (extname(rel)) return send(res, 404, { error: 'Nicht gefunden' }); file = join(cfg.publicDir, 'index.html'); }   // paths without an extension belong to the app (router)
     try {
       const body = await readFile(file);
-      // Schriften ändern sich nie: eine Woche zwischenspeichern spart bei jedem Start 140 KB Mobilfunk; alles andere wird immer neu geprüft
+      // Fonts never change: caching them for a week saves 140 KB of mobile data at every start; everything else is always rechecked
       res.writeHead(200, { ...SEC, 'content-type': MIME[extname(file)] || 'application/octet-stream', 'cache-control': /^\.(ttf|woff2)$/.test(extname(file)) ? 'public, max-age=604800' : 'no-cache' });
       res.end(body);
     } catch { send(res, 404, { error: 'Nicht gefunden' }); }
@@ -167,7 +167,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   let lastLimitLog = 0;
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    if (cfg.verbose) { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0; if (res.statusCode === 429) { if (t0 - lastLimitLog < 60e3) return; lastLimitLog = t0; }   // Begrenzung: höchstens eine Zeile pro Minute, sonst füllt ein Angreifer das Protokoll
+    if (cfg.verbose) { const t0 = Date.now(); res.on('finish', () => { const ms = Date.now() - t0; if (res.statusCode === 429) { if (t0 - lastLimitLog < 60e3) return; lastLimitLog = t0; }   // limit: at most one line per minute, otherwise an attacker fills the log
       if (ms >= 400 || (url.pathname.startsWith('/api/') && res.statusCode >= 400)) console.log(`${res.statusCode >= 400 ? 'Fehlerantwort' : 'langsam'}: ${req.method} ${url.pathname} ${res.statusCode} ${ms} ms`); }); }
     try {
       guard.rate(req, url);
@@ -185,12 +185,12 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  // Ein vergessener Fehler in einem Hintergrundvorgang soll das Backend nicht beenden
+  // A forgotten error in a background task must not terminate the backend
   process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));
   process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
   const { server, notifier, store, fcm } = createApp();
   server.listen(config.port, config.host, () => console.log(`ReGo-Backend läuft auf http://${config.host}:${config.port} (Quelle: ${config.provider})`));
-  // Sofort-Push hängt am Firebase-Schlüssel (Add-on-Option fcm_key). Ein fehlender oder unlesbarer Schlüssel fällt sonst nirgends auf: die Meldungen kommen dann nur alle ~15 Minuten.
+  // Instant push depends on the Firebase key (add-on option fcm_key). A missing or unreadable key would otherwise go unnoticed: notifications then only arrive about every 15 minutes.
   fcm.then((f) => console.log(f.enabled ? 'Push: Firebase-Schlüssel geladen, Sofort-Push ist an' : 'Push: kein gültiger Firebase-Schlüssel (Add-on-Option fcm_key), die App holt Meldungen nur alle ~15 Minuten ab'));
   const purge = () => store.purge(config.profileMaxAgeDays).then((n) => n && console.log(`Aufräumen: ${n} Profil(e) ohne Nutzung seit ${config.profileMaxAgeDays} Tagen gelöscht`)).catch((e) => console.error('Aufräumen:', e.message));
   purge(); setInterval(purge, 24 * 3600e3).unref();

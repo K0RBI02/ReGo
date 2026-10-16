@@ -1,14 +1,14 @@
-// Schutz für einen Server, der im Internet erreichbar ist (Tailscale Funnel):
-//  - Begrenzung der Anfragen je Adresse und je Gerät (sonst können wenige Skripte die Fahrplanquellen ausreizen oder sperren lassen)
-//  - Obergrenze für neue Geräte je Adresse (sonst füllt jemand mit erfundenen Geräte-IDs die Profil-Liste)
-//  - optionaler Einladungscode: neue Geräte brauchen ihn, schon bekannte Geräte laufen ohne weiteres Zutun weiter
-// Alles im Arbeitsspeicher; nach einem Neustart fangen die Zähler von vorn an.
+// Protection for a server that is reachable from the internet (Tailscale Funnel):
+//  - limit on requests per address and per device (otherwise a few scripts could exhaust the timetable sources or get them blocked)
+//  - cap on new devices per address (otherwise someone fills the profile list with made-up device IDs)
+//  - optional invitation code: new devices need it, devices that are already known keep working without any action
+// Everything is kept in memory; after a restart the counters start from scratch.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { ValidationError } from './store/profile.mjs';
 
 const PRIVATE_V4 = [/^127\./, /^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./, /^169\.254\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./];
 
-/** Lokale, private und Tailscale-Adressen (100.64.0.0/10): Dahinter steht ein Proxy, dem wir X-Forwarded-For glauben. */
+/** Local, private and Tailscale addresses (100.64.0.0/10): a connection from one of them comes from a proxy whose X-Forwarded-For we believe. */
 export function isPrivateIp(ip = '') {
   const a = String(ip).trim().toLowerCase().replace(/^::ffff:/, '');
   if (a === '::1') return true;
@@ -16,7 +16,7 @@ export function isPrivateIp(ip = '') {
   return PRIVATE_V4.some((r) => r.test(a));
 }
 
-/** Adresse des Anrufers. Kommt die Verbindung von lokal/privat (Tailscale, Proxy), zählt die letzte nicht-private Adresse aus X-Forwarded-For. */
+/** Address of the caller. If the connection comes from a local/private address (Tailscale, proxy), the last non-private address from X-Forwarded-For counts. */
 export function clientIp(req) {
   const peer = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
   const xff = String(req.headers?.['x-forwarded-for'] || '').split(',').map((x) => x.trim().slice(0, 64)).filter(Boolean).slice(-8);
@@ -25,7 +25,7 @@ export function clientIp(req) {
   return xff[0];
 }
 
-/** Eimer mit Marken: `burst` auf einmal, danach `perSec` pro Sekunde. Höchstens `max` Schlüssel, die am längsten unbenutzten fliegen zuerst raus. */
+/** Token buckets: `burst` at once, then `perSec` per second. At most `max` keys; the longest unused ones are dropped first. */
 export class Buckets {
   constructor({ burst, perSec, max = 5000 }, now = () => Date.now()) { this.burst = burst; this.perSec = perSec; this.max = max; this.now = now; this.map = new Map(); }
 
@@ -35,7 +35,7 @@ export class Buckets {
     return Math.min(this.burst, b.tokens + ((this.now() - b.at) / 1000) * this.perSec);
   }
 
-  /** 0 = durchgelassen, sonst Wartezeit in Sekunden */
+  /** 0 = let through, otherwise the wait time in seconds */
   take(key, cost = 1) {
     const t = this.now();
     const tokens = this.level(key);
@@ -50,7 +50,7 @@ export class Buckets {
 const same = (a, b) => timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
 const norm = (s) => String(s ?? '').normalize('NFC').trim().toLowerCase();
 const tooMany = (wait, msg = 'Zu viele Anfragen. Bitte kurz warten.') => Object.assign(new ValidationError(msg, 429), { retryAfter: wait });
-// Der Code reist als Header (nur ASCII): die App schickt ihn URL-codiert
+// The code travels as a header (ASCII only): the app sends it URL-encoded
 const readCode = (h) => { try { return norm(decodeURIComponent(String(h ?? ''))); } catch { return norm(h); } };
 
 export function createGuard({ cfg, store, now = () => Date.now() }) {
@@ -58,8 +58,8 @@ export function createGuard({ cfg, store, now = () => Date.now() }) {
   const byIp = new Buckets({ burst: lim.ipBurst, perSec: lim.ipPerSec }, now);
   const byDevice = new Buckets({ burst: lim.deviceBurst, perSec: lim.devicePerSec }, now);
   const bySearch = new Buckets({ burst: lim.searchBurst, perSec: lim.searchPerSec }, now);
-  const wrongCodes = new Buckets({ burst: lim.inviteTries, perSec: 1 / 60 }, now);        // zehn Fehlversuche, danach einer pro Minute
-  const fresh = new Map();                                                                  // Adresse -> { Geräte-ID -> Zeit }
+  const wrongCodes = new Buckets({ burst: lim.inviteTries, perSec: 1 / 60 }, now);        // ten failed attempts, then one per minute
+  const fresh = new Map();                                                                  // address -> { device ID -> time }
   const code = norm(cfg.inviteCode);
 
   function newDevice(ip, dev) {
@@ -68,25 +68,25 @@ export function createGuard({ cfg, store, now = () => Date.now() }) {
     fresh.delete(ip); fresh.set(ip, m);
     if (fresh.size > 5000) fresh.delete(fresh.keys().next().value);
     for (const [d, ts] of m) if (t - ts > 3600e3) m.delete(d);
-    if (m.has(dev)) return;                                                                 // dasselbe Gerät zählt nur einmal
+    if (m.has(dev)) return;                                                                 // the same device counts only once
     if (m.size >= lim.newDevicesPerHour) throw tooMany(Math.ceil((Math.min(...m.values()) + 3600e3 - t) / 1000), 'Zu viele neue Geräte von dieser Adresse. Bitte später noch einmal versuchen.');
     m.set(dev, t);
   }
 
   return {
-    /** Erste Schranke für jede Anfrage: Begrenzung je Adresse. Die Watchdog-Prüfung des Add-ons und Vorabfragen (CORS) bleiben frei. */
+    /** First barrier for every request: limit per address. The add-on's watchdog check and preflight requests (CORS) stay free. */
     rate(req, url) {
       if (req.method === 'OPTIONS' || url.pathname === '/api/health') return;
       const wait = byIp.take(clientIp(req));
       if (wait) throw tooMany(wait);
     },
 
-    /** Zweite Schranke für Anfragen mit Geräte-ID: Begrenzung je Gerät; unbekannte Geräte brauchen (falls eingestellt) den Einladungscode und sind je Adresse begrenzt. */
+    /** Second barrier for requests with a device ID: limit per device; unknown devices need the invitation code (if set) and are limited per address. */
     async device(req, url, dev) {
       let wait = byDevice.take(dev);
       if (!wait && (url.pathname === '/api/stations' || url.pathname === '/api/connections/search')) wait = bySearch.take(dev);
       if (wait) throw tooMany(wait);
-      if (await store.has(dev)) return;                                                     // bekanntes Gerät: kein Code nötig, auch nach dem Einschalten der Einladung
+      if (await store.has(dev)) return;                                                     // known device: no code needed, not even after the invitation was switched on
       const ip = clientIp(req);
       if (code) {
         const given = readCode(req.headers['x-invite']);

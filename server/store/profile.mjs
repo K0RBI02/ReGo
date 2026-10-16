@@ -1,4 +1,4 @@
-// Profil je Gerät als JSON-Datei. Keine Konten, keine Tickets, nur Strecken und Einstellungen.
+// Profile per device as a JSON file. No accounts, no tickets, only routes and settings.
 import { mkdir, readFile, writeFile, rename, unlink, stat, readdir } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
@@ -15,16 +15,16 @@ const WEEKDAYS = DAYS.slice(0, 5);
 const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const LINK_ID = /^[\w-]{1,32}$/;
 const MAX_TOURS = 20;
-const SEEN_EVERY = 2 * 3600e3;          // „zuletzt gesehen“ höchstens alle 2 Stunden festhalten
+const SEEN_EVERY = 2 * 3600e3;          // store "last seen" at most every 2 hours
 
-// Haltestelle aus der Haltestellensuche: Kennung (höchstens 64 Zeichen, keine Steuerzeichen) und Name
+// Stop from the stop search: ID (at most 64 characters, no control characters) and name
 const isStop = (s) => !!s && typeof s.id === 'string' && /^[^\u0000-\u001f]{1,64}$/.test(s.id) && typeof s.name === 'string' && s.name.trim().length > 0 && s.name.length <= 120;
 const validCoord = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 const pt = (s) => ({ id: s.id, name: s.name.trim(), ...(validCoord(s.lat, s.lon) ? { lat: s.lat, lon: s.lon } : {}) });
-/** Haltestelle aus einer Anfrage in die gespeicherte Form (Kennung, Name, Koordinaten falls sinnvoll) */
+/** Stop from a request in the stored form (ID, name, coordinates if sensible) */
 export const toStop = pt;
 
-// „Nur rund um die Abfahrt“ gibt es nicht mehr: Push folgt immer der Pendelzeit der Strecke
+// "Nur rund um die Abfahrt" (only around the departure) no longer exists: push always follows the commute time of the route
 const withoutLegacy = ({ pushWindow, ...rest }) => rest;
 
 export class ProfileStore {
@@ -48,9 +48,9 @@ export class ProfileStore {
       data = JSON.parse(raw);
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('kein JSON-Objekt');
     } catch (e) {
-      // Beschädigte Datei: zur Seite legen, damit das Gerät nicht dauerhaft mit Fehler 500 hängt und sich nichts überschreibt
+      // Damaged file: set it aside so that the device does not hang permanently with error 500 and nothing gets overwritten
       const bad = `${f}.corrupt-${this.now()}`;
-      try { await rename(f, bad); } catch { /* schon weg */ }
+      try { await rename(f, bad); } catch { /* already gone */ }
       console.error(`Profil ${device.slice(0, 6)}… war beschädigt und liegt jetzt als ${bad.split(/[\\/]/).pop()} daneben: ${e.message}`);
       return { ...defaultProfile(), lastSeen: this.now() };
     }
@@ -71,10 +71,10 @@ export class ProfileStore {
     return this.known;
   }
 
-  /** Gibt es schon ein Profil für dieses Gerät? (Neue Geräte brauchen ggf. den Einladungscode.) */
+  /** Is there already a profile for this device? (New devices may need the invitation code.) */
   async has(device) { return (await this.loadKnown()).has(device); }
 
-  /** Obergrenze für die Zahl der Profile (Schutz davor, dass jemand mit erfundenen Geräte-IDs den Speicher füllt). */
+  /** Upper limit for the number of profiles (protection against someone filling the storage with made-up device IDs). */
   async admit(device) {
     await this.loadKnown();
     if (this.known.has(device)) return;
@@ -92,7 +92,7 @@ export class ProfileStore {
     return profile;
   }
 
-  /** Änderungen je Gerät nacheinander ausführen (kein Verlust bei gleichzeitigen Anfragen). */
+  /** Run changes per device one after another (no loss with concurrent requests). */
   async update(device, fn) {
     const prev = this.locks.get(device) || Promise.resolve();
     const run = prev.catch(() => {}).then(async () => { const p = await this.load(device); const r = await fn(p); await this.save(device, p); return r ?? p; });
@@ -100,7 +100,7 @@ export class ProfileStore {
     try { return await run; } finally { if (this.locks.get(device) === run) this.locks.delete(device); }
   }
 
-  /** „Zuletzt gesehen“ vermerken, wenn sich das Gerät meldet (App geöffnet, Abruf der Meldungen). Legt kein Profil an. */
+  /** Note "last seen" when the device reports in (app opened, notifications fetched). Does not create a profile. */
   async seen(device) {
     const t = this.now();
     if (t - (this.seenAt.get(device) || 0) < SEEN_EVERY) return;
@@ -110,7 +110,7 @@ export class ProfileStore {
     await this.update(device, (p) => { p.lastSeen = t; return p; });
   }
 
-  /** Profile löschen, die seit `days` Tagen nicht gesehen wurden (und Reste: halbe Schreibvorgänge, aussortierte Dateien). Gibt die Anzahl gelöschter Profile zurück. */
+  /** Delete profiles that have not been seen for `days` days (and leftovers: half-written files, files set aside). Returns the number of deleted profiles. */
   async purge(days) {
     if (!(days > 0)) return 0;
     let n = 0, files = [];
@@ -122,10 +122,10 @@ export class ProfileStore {
         if (f.endsWith('.tmp')) { if (t - (await stat(full)).mtimeMs > 3600e3) await unlink(full); continue; }
         if (/\.corrupt-\d+$/.test(f)) { if (t - (await stat(full)).mtimeMs > 30 * 864e5) await unlink(full); continue; }
         if (!f.endsWith('.json')) continue;
-        let seen = (await stat(full)).mtimeMs;                                  // ältere Profile ohne Vermerk: nach Dateizeit
-        try { const p = JSON.parse(await readFile(full, 'utf8')); if (Number(p?.lastSeen) > 0) seen = Number(p.lastSeen); } catch { /* beschädigt: Dateizeit */ }
+        let seen = (await stat(full)).mtimeMs;                                  // older profiles without a note: by file time
+        try { const p = JSON.parse(await readFile(full, 'utf8')); if (Number(p?.lastSeen) > 0) seen = Number(p.lastSeen); } catch { /* damaged: use the file time */ }
         if (t - seen > days * 864e5) { await unlink(full); this.known?.delete(f.slice(0, -5)); n++; }
-      } catch { /* schon weg */ }
+      } catch { /* already gone */ }
     }
     return n;
   }
@@ -137,23 +137,23 @@ export class ProfileStore {
 }
 
 /**
- * Pendelzeit einer Strecke: Tage und das Fenster, in dem man losfährt (departAfter bis departUntil).
- * Fehlt das Ende (ältere Strecken, ältere App), dauert das Fenster eine Stunde.
+ * Commute time of a route: days and the window in which one departs (departAfter to departUntil).
+ * If the end is missing (older routes, older app), the window lasts one hour.
  */
 function schedule(input = {}) {
   const set = new Set(Array.isArray(input.days) ? input.days.filter((d) => DAYS.includes(d)) : []);
-  const days = DAYS.filter((d) => set.has(d));                                  // ohne Doppelte, in Wochenreihenfolge
+  const days = DAYS.filter((d) => set.has(d));                                  // without duplicates, in weekday order
   const departAfter = HM.test(input.departAfter || '') ? input.departAfter : '07:00';
   return { days: days.length ? days : [...WEEKDAYS], departAfter, departUntil: fmtMin(untilMin(toMin(departAfter), input.departUntil)) };
 }
 const sameSchedule = (a = {}, b = {}) => { const x = schedule(a), y = schedule(b); return x.departAfter === y.departAfter && x.departUntil === y.departUntil && x.days.join() === y.days.join(); };
 
 /**
- * Neue Strecke. body: { from:{id,name}, to:{id,name}, schedule?: { days, departAfter, departUntil }, roundTrip?: boolean, returnAfter?: 'HH:MM', returnUntil?: 'HH:MM', transfers?: 1 }
- * transfers: 1 = Fahrten mit einem Umstieg (nur nach ausdrücklicher Wahl des Nutzers, wenn es keine Direktverbindung gibt); gilt für Hin- und Rückweg.
- * Gibt die angelegten Touren zurück (1 oder 2). Gibt es genau diese Strecke mit denselben Tagen und Zeiten schon
- * (z. B. doppelt getippt), wird nichts angelegt und die vorhandene zurückgegeben. Eine vorhandene Strecke ohne Umstieg
- * (aus einer älteren Version, ohne Direktverbindung) wird dabei auf Umstieg umgestellt, wenn der Nutzer sie jetzt mit Umstieg anlegt.
+ * New route. body: { from:{id,name}, to:{id,name}, schedule?: { days, departAfter, departUntil }, roundTrip?: boolean, returnAfter?: 'HH:MM', returnUntil?: 'HH:MM', transfers?: 1 }
+ * transfers: 1 = trips with one transfer (only after the user's explicit choice, when there is no direct connection); applies to outward and return trip.
+ * Returns the created tours (1 or 2). If this exact route with the same days and times already exists
+ * (e.g. tapped twice), nothing is created and the existing one is returned. An existing route without a transfer
+ * (from an older version, without a direct connection) is switched to transfer when the user now creates it with a transfer.
  */
 export function addTours(profile, body) {
   if (!isStop(body?.from) || !isStop(body?.to)) throw new ValidationError('Start und Ziel müssen Haltestellen sein');
@@ -187,7 +187,7 @@ export function patchTour(profile, id, body) {
   if (typeof body.name === 'string' && body.name.trim()) t.name = body.name.trim().slice(0, 160);
   if (body.schedule && typeof body.schedule === 'object') {
     const prev = schedule(t.schedule), want = body.schedule;
-    // Nur der Beginn kommt (ältere App): das Fenster behält seine Länge, statt am alten Ende hängen zu bleiben
+    // Only the start comes (older app): the window keeps its length instead of getting stuck at the old end
     const keepLen = HM.test(want.departAfter || '') && !HM.test(want.departUntil || '')
       ? { departUntil: fmtMin(Math.min(24 * 60 - 1, toMin(want.departAfter) + toMin(prev.departUntil) - toMin(prev.departAfter))) } : {};
     t.schedule = schedule({ ...prev, ...want, ...keepLen });
@@ -210,14 +210,14 @@ export function setSettings(profile, body) {
     if (![3, 5, 10].includes(body.pushThresholdMin)) throw new ValidationError('pushThresholdMin muss 3, 5 oder 10 sein');
     profile.settings.pushThresholdMin = body.pushThresholdMin;
   }
-  // pushWindow gab es früher als Schalter („Nur rund um die Abfahrt“). Ältere Apps senden ihn noch; er hat keine Wirkung mehr: Push folgt der Pendelzeit.
+  // pushWindow used to exist as a switch ("Nur rund um die Abfahrt"). Older apps still send it; it has no effect any more: push follows the commute time.
   if (body.pushWindow !== undefined && typeof body.pushWindow !== 'boolean') throw new ValidationError('pushWindow muss true oder false sein');
   return profile.settings;
 }
 
 /**
- * Alle Strecken ersetzen (für „Rückgängig“ im Frontend). Nur bekannte Felder werden übernommen, Koordinaten bleiben erhalten.
- * Einstellungen und Push-Abo bleiben unberührt: Rückgängig darf nichts überschreiben, was inzwischen geändert wurde.
+ * Replace all routes (for "Rückgängig" (undo) in the frontend). Only known fields are taken over, coordinates are kept.
+ * Settings and push subscription stay untouched: undo must not overwrite anything that was changed in the meantime.
  */
 export function replaceProfile(profile, body) {
   if (!Array.isArray(body?.tours)) throw new ValidationError('tours fehlt');

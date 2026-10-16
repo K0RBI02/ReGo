@@ -1,5 +1,5 @@
-// Firebase Cloud Messaging (HTTP v1) ohne Fremdbibliothek. Gesendet wird nur ein leerer Anstoß ("data"),
-// den Text holt die App danach selbst von diesem Server (/api/notifications). Es verlässt also kein Meldungstext den Server Richtung Google.
+// Firebase Cloud Messaging (HTTP v1) without a third-party library. Only an empty nudge ("data") is sent,
+// the app then fetches the text from this server itself (/api/notifications). So no message text leaves the server towards Google.
 import { createPrivateKey, sign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -30,7 +30,7 @@ export function createFcm(key, { fetchFn = fetch, now = () => Date.now(), log = 
   }
   return {
     enabled: true,
-    // 'ok' | 'gone' (Token ungültig) | 'error'
+    // 'ok' | 'gone' (token invalid) | 'error'
     async send(token) {
       try {
         const r = await fetchFn(`https://fcm.googleapis.com/v1/projects/${key.project_id}/messages:send`, {

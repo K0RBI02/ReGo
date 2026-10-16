@@ -1,14 +1,14 @@
-// Pendelzeit („Fenster“): Beim Einrichten legt man fest, an welchen Tagen und von wann bis wann man losfährt.
-// Daran richtet ReGo alles aus: welche Strecke oben steht, welche Züge bewertet werden und wann Push kommt.
+// Commute time (the "window"): when setting up a route you choose the days and the time from–until you leave.
+// Everything is aligned with it: which route is shown on top, which trains are evaluated and when push comes.
 import { berlin, fromBerlin, weekday, toMin } from '../lib/time.mjs';
 
 const MIN = 60000;
-export const WINDOW_DEFAULT_LEN = 60;    // ältere Strecken kennen nur „ab“: ihr Fenster dauert dann eine Stunde
-export const WINDOW_MIN_LEN = 10;        // kürzer darf ein Fenster nicht sein
-export const ANCHOR_LEAD_MIN = 180;      // so früh vor dem Fenster zeigt die Strecke schon die Züge darin
-export const PUSH_LEAD_MIN = 60;         // Push ab einer Stunde vor dem Fenster …
-export const PUSH_TAIL_MIN = 10;         // … bis kurz nach seinem Ende
-export const FAR_MIN = 45;               // Fahrten, die weiter weg sind, heißen „planmäßig“: für sie kennt die Quelle noch kaum Verspätungen
+export const WINDOW_DEFAULT_LEN = 60;    // older routes only know "from": their window then lasts one hour
+export const WINDOW_MIN_LEN = 10;        // a window must not be shorter than this
+export const ANCHOR_LEAD_MIN = 180;      // this early before the window the route already shows the trains in it
+export const PUSH_LEAD_MIN = 60;         // push from one hour before the window …
+export const PUSH_TAIL_MIN = 10;         // … until shortly after its end
+export const FAR_MIN = 45;               // departures further away are called "planmäßig" (on schedule): the source hardly knows any delays for them yet
 
 const DAY_END = 24 * 60 - 1;
 const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -17,28 +17,28 @@ export const fmtMin = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${S
 const known = (schedule) => !!schedule && HM.test(schedule.departAfter || '') && Array.isArray(schedule.days);
 
 /**
- * Ende des Fensters (Minuten seit Mitternacht) zu einem Beginn. `until` fehlt oder taugt nicht: eine Stunde nach dem Beginn.
- * Mindestens WINDOW_MIN_LEN, höchstens bis 23:59 (über Mitternacht gibt es kein Fenster).
+ * End of the window (minutes since midnight) for a start. `until` is missing or unusable: one hour after the start.
+ * At least WINDOW_MIN_LEN, at most until 23:59 (there is no window across midnight).
  */
 export function untilMin(fromMin, until) {
   const raw = HM.test(until || '') ? toMin(until) : fromMin + WINDOW_DEFAULT_LEN;
   return Math.min(DAY_END, Math.max(raw, fromMin + WINDOW_MIN_LEN));
 }
 
-/** Fenster einer Strecke: { from: 'HH:MM', until: 'HH:MM' } – auch für ältere Strecken ohne Ende. */
+/** Window of a route: { from: 'HH:MM', until: 'HH:MM' } – also for older routes without an end. */
 export function windowOf(schedule) {
   const from = toMin(HM.test(schedule?.departAfter || '') ? schedule.departAfter : '07:00');
   return { from: fmtMin(from), until: fmtMin(untilMin(from, schedule?.departUntil)) };
 }
 
 /**
- * Wo steht die Strecke jetzt zu ihrer Pendelzeit?
- *   now   – das Fenster läuft
- *   soon  – das Fenster beginnt heute noch
- *   done  – das Fenster war heute schon
- *   off   – heute wird auf dieser Strecke nicht gependelt (anderer Wochentag), oder es sind keine Zeiten bekannt
- * anchor: ab diesem Zeitpunkt (ms) fragen wir die Züge ab – vor dem Fenster, aber höchstens ANCHOR_LEAD_MIN davor; sonst null.
- * endMs: Ende des Fensters heute (ms), bei now und soon.
+ * Where is the route now relative to its commute time?
+ *   now   – the window is running
+ *   soon  – the window begins later today
+ *   done  – the window was earlier today
+ *   off   – no commuting on this route today (another weekday), or no times are known
+ * anchor: from this point in time (ms) the trains are requested – before the window, but at most ANCHOR_LEAD_MIN before it; otherwise null.
+ * endMs: end of the window today (ms), for now and soon.
  */
 export function windowState(schedule, nowMs) {
   if (!known(schedule)) return { mode: 'off', anchor: null, endMs: null };
@@ -52,18 +52,18 @@ export function windowState(schedule, nowMs) {
   return { ...base, mode: 'done' };
 }
 
-/** Zeiten, wenn eine Strecke keine hat (so alt kann nur Testdaten betreffen) */
+/** Times for a route that has none (so old that it can only concern test data) */
 export const DEFAULT_SCHEDULE = { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' };
 
-/** Was die Strecke nach außen von ihrer Pendelzeit zeigt: die Zeiten vollständig (auch bei älteren Strecken) und das Fenster mit seinem Zustand. */
+/** What the route shows to the outside about its commute time: the complete times (also for older routes) and the window with its state. */
 export function windowView(schedule, nowMs) {
   const sch = schedule || DEFAULT_SCHEDULE, w = windowOf(sch);
   return { schedule: { ...sch, departUntil: w.until }, window: { from: w.from, until: w.until, mode: windowState(sch, nowMs).mode } };
 }
 
 /**
- * Darf für diese Strecke jetzt Push kommen? An den Tagen der Strecke ab PUSH_LEAD_MIN vor dem Fenster bis PUSH_TAIL_MIN nach seinem Ende.
- * Eine Strecke ohne Zeiten (ältere Daten) darf immer.
+ * May push be sent for this route now? On the route's days from PUSH_LEAD_MIN before the window until PUSH_TAIL_MIN after its end.
+ * A route without times (older data) always may.
  */
 export function pushActive(tour, nowMs) {
   const s = tour?.schedule;
@@ -79,8 +79,8 @@ export function pushActive(tour, nowMs) {
  */
 export const pushAtNight = (tour, nowMs) => known(tour?.schedule) && pushActive(tour, nowMs);
 
-/** Liegt die Abfahrt weiter weg als FAR_MIN? Dann sagt ReGo „planmäßig“ statt „pünktlich“. */
+/** Is the departure further away than FAR_MIN? Then ReGo says "planmäßig" instead of "pünktlich". */
 export const isFar = (depMs, nowMs) => depMs - nowMs > FAR_MIN * MIN;
 
-/** Reihenfolge der Strecken auf dem Hauptbildschirm: Fenster läuft, dann das nächste Fenster heute, danach der Rest. */
+/** Order of the routes on the main screen: window running, then the next window today, then the rest. */
 export const windowRank = (mode) => (mode === 'now' ? 0 : mode === 'soon' ? 1 : 2);

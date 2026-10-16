@@ -1,4 +1,4 @@
-// Schematische Karte: höchstens 7 Stationen, Umstiegsknoten mit Anschlusslinien.
+// Schematic map: at most 7 stations, transfer nodes with connecting lines.
 import { lineLabel } from '../lib/lines.mjs';
 import { cleanStopName } from '../providers/hafas.mjs';
 
@@ -14,7 +14,7 @@ export function findStation(stations, query) {
   return stations.findIndex((s) => { const n = norm(s.name); return n === q || n.startsWith(q) || q.startsWith(n); });
 }
 
-/** Wählt bis zu `max` Stopps; Anfang, Ende und Pflichtindizes bleiben. */
+/** Picks up to `max` stops; start, end and mandatory indices stay. */
 export function sampleStops(stops, must = [], max = 7) {
   if (stops.length <= max) return stops.map((_, i) => i);
   const keep = new Set([0, stops.length - 1, ...must]);
@@ -28,7 +28,7 @@ export function sampleStops(stops, must = [], max = 7) {
  * leg: normalisierter Leg; linesAt(stopId) -> [{name,product}]; opts: { segment:[a,b]|null, alternative:{label,from,to}|null, halo:boolean }
  */
 export async function buildMap(leg, linesAt, { segment = null, alternative = null, halo = false, registerLine = () => {} } = {}) {
-  // Zwischenhalte enthalten Start und Ziel bereits (mit abweichenden IDs je Gleisgruppe) -> direkt nutzen
+  // the stopovers already contain start and destination (with different IDs per platform group) -> use them directly
   const so = leg.stopovers.filter((s) => s.name);
   const all = so.length >= 2 ? so : [leg.origin, leg.destination];
   const own = lineLabel(leg.line.name);

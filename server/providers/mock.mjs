@@ -1,11 +1,11 @@
-// Beispieldaten ohne Netz, im Rohformat von hafas-client (so wie transport.rest es liefert).
-// ACHTUNG: Format nach Dokumentation nachgebaut, nicht gegen die echte API geprüft (siehe scripts/probe.mjs).
-// IDs sind für das Beispiel gewählt; nur die Haltestellen mit Kommentar "echt?" stammen aus dem Gedächtnis.
+// Sample data without network, in the raw format of hafas-client (as transport.rest returns it).
+// NOTE: format rebuilt from the documentation, not checked against the real API (see scripts/probe.mjs).
+// IDs are chosen for the example; only the stops with the comment "real?" come from memory.
 const S = (id, name, lat, lon) => ({ type: 'stop', id, name, location: { type: 'location', latitude: lat, longitude: lon }, products: { nationalExpress: true, regional: true, suburban: true } });
 
 export const MOCK_STOPS = [
-  S('8000261', 'München Hbf', 48.1402, 11.5586),          // echt?
-  S('8002078', 'Freising', 48.4009, 11.7415),             // echt?
+  S('8000261', 'München Hbf', 48.1402, 11.5586),          // real?
+  S('8002078', 'Freising', 48.4009, 11.7415),             // real?
   S('8000320', 'Rosenheim', 47.8517, 12.1186),
   S('8000183', 'Ingolstadt Hbf', 48.7448, 11.4372),
   S('8000298', 'Passau Hbf', 48.5740, 13.4511),
@@ -25,7 +25,7 @@ const byId = Object.fromEntries(MOCK_STOPS.map((s) => [s.id, s]));
 const ids = (...n) => n.map((x) => byId[MOCK_STOPS.find((s) => s.name.startsWith(x))?.id]);
 const ref = (s) => ({ type: 'stop', id: s.id, name: s.name, location: s.location });
 
-// Strecken: Haltefolge, Linie, Produkt, Takt (Min.), Fahrzeit (Min.)
+// Routes: stop sequence, line, product, headway (min), travel time (min)
 const ROUTES = [
   { name: 'S1', product: 'suburban', every: 20, mins: 46, stops: ids('Freising', 'Neufahrn', 'Feldmoching', 'Moosach', 'München Hbf'), headsign: ['Freising', 'München Hbf'] },
   { name: 'RE 2', product: 'regionalExpress', every: 60, mins: 24, stops: ids('Freising', 'München Hbf'), headsign: ['Freising', 'München Hbf'] },
@@ -42,19 +42,19 @@ function route(fromId, toId) {
   return null;
 }
 
-const MCT = 4;                                   // Mindestzeit zum Umsteigen in den Beispieldaten (Min.)
+const MCT = 4;                                   // minimum transfer time in the sample data (min)
 const iso = (ms) => new Date(ms).toISOString();
 
-/** Haltefolge und Fahrzeit einer Strecke zwischen zwei Halten (in Fahrtrichtung) */
+/** Stop sequence and travel time of a route between two stops (in direction of travel) */
 function sliceOf({ r, a, b }) {
   const slice = (b > a ? r.stops.slice(a, b + 1) : r.stops.slice(b, a + 1).reverse());
   return { r, slice, total: Math.max(r.mins * (slice.length - 1) / Math.max(r.stops.length - 1, 1), 8) };
 }
 
-// Eine Fahrt zur geplanten Abfahrt `plan`. i = laufende Nummer ab "jetzt": nach ihr richten sich die Beispielstörungen,
-// damit dieselbe Fahrt in jeder Abfrage (direkt oder als Teil einer Verbindung mit Umstieg) dieselbe Störung hat.
+// A trip at the planned departure `plan`. i = running number from "now": the sample disruptions follow it,
+// so that the same trip has the same disruption in every query (direct or as part of a connection with a transfer).
 function tripOf({ r, slice, total }, plan, i, now) {
-  const late = r.name === 'S1' && i === 0 ? 8 : r.name === 'S1' && i === 1 ? 4 : r.name === 'RE 5' && i === 0 ? 12 : 0;   // RE 5: Ersatzverkehr UND Verspätung (zwei Meldungen, eine Streckenseite)
+  const late = r.name === 'S1' && i === 0 ? 8 : r.name === 'S1' && i === 1 ? 4 : r.name === 'RE 5' && i === 0 ? 12 : 0;   // RE 5: replacement transport AND delay (two incidents, one route page)
   const planArr = plan + total * 60000;
   const remarks = [];
   if (late) remarks.push({ type: 'status', code: 'delay', summary: r.name === 'S1' ? 'Stellwerksstörung' : 'Fahrzeugstörung', text: r.name === 'S1' ? 'Wegen einer Stellwerksstörung kommt es zu Verspätungen und Teilausfällen.' : 'Wegen einer Fahrzeugstörung verspätet sich der Zug.', validFrom: iso(now - 3600000), validUntil: iso(now + 5400000), priority: 80 });
@@ -73,15 +73,15 @@ function tripOf({ r, slice, total }, plan, i, now) {
   };
 }
 
-/** Fahrten einer Strecke ab t0: [{ plan, i }] */
+/** Trips of a route from t0: [{ plan, i }] */
 function gridFrom(r, t0, now, count) {
   const step = r.every * 60000, first = Math.ceil(t0 / step) * step, base = Math.ceil(now / step) * step;
   return Array.from({ length: count }, (_, k) => { const plan = first + k * step; return { plan, i: Math.round((plan - base) / step) }; });
 }
 
-// Zeitpunkt wählt das Szenario: kurz nach "jetzt" gibt es Verspätung auf der S1 sowie Ersatzverkehr und Verspätung auf der RE 5.
-// transfers >= 1: gibt es keine Direktfahrt, werden zwei Strecken über einen gemeinsamen Halt (meist München Hbf) verbunden – wie ein echter Fahrplan nur mit dem
-// Anschluss, der nach der tatsächlichen Ankunft noch erreichbar ist.
+// The scenario chooses the time: shortly after "now" there is a delay on the S1 as well as replacement transport and a delay on the RE 5.
+// transfers >= 1: if there is no direct trip, two routes are joined via a common stop (usually München Hbf) – like a real timetable, only with the
+// connection that is still reachable after the actual arrival.
 function journeysFor({ from, to, departure, results = 5, now, transfers = 0 }) {
   const t0 = Math.max(Date.parse(departure) || now, now - 5 * 60000);
   const hit = route(from, to);
@@ -104,14 +104,14 @@ function journeysFor({ from, to, departure, results = 5, now, transfers = 0 }) {
   return out;
 }
 
-// Linien je Haltestelle (für Umstiegsanschlüsse an Knoten)
+// Lines per stop (for transfer connections at hubs)
 function linesAt(id) {
   const lines = [];
   for (const r of ROUTES) if (r.stops.some((s) => s.id === id)) lines.push({ type: 'line', name: r.name, product: r.product });
   return lines;
 }
 
-/** Nachgebaute fetch-Funktion: gleiche Pfade wie transport.rest. */
+/** Rebuilt fetch function: same paths as transport.rest. */
 export function mockFetch({ now = () => Date.now() } = {}) {
   return async (url) => {
     const u = new URL(url);

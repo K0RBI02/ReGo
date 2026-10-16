@@ -1,4 +1,4 @@
-// Baut aus Profil + Verbindungsdaten genau die Struktur, die das Frontend (window.REGO) erwartet.
+// Builds from the profile + connection data exactly the structure the frontend (window.REGO) expects.
 import { createHash } from 'node:crypto';
 import { berlin, hhmm, shortDate, fromBerlin } from '../lib/time.mjs';
 import { lineLabel, lineColor, productName } from '../lib/lines.mjs';
@@ -8,13 +8,13 @@ import { buildMap, shortName } from './map.mjs';
 import { windowView, isFar } from './window.mjs';
 
 export const SCHEMA_VERSION = 1;
-// Namen wie "München, München Hbf" (Ort doppelt) kürzen, auch bei schon gespeicherten Strecken
+// Shorten names like "München, München Hbf" (place doubled), also for routes that are already stored
 export const tidyName = (n = '') => String(n).replace(/(^|→\s*)([^,→]+?),\s*\2\b/gi, '$1$2');
 const localIso = (ms) => { const b = berlin(ms); return `${b.date}T${b.time}`; };
 const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 8);
 const severityOf = (kind, delay) => (kind === 'replacement' || kind === 'cancelled' ? 3 : kind === 'construction' ? (delay >= 10 ? 2 : 1) : kind === 'platform' ? 1 : delay >= 10 ? 3 : delay >= 5 ? 2 : 1);
-const CANCEL_HORIZON = 3 * 3600e3;          // Ausfälle melden wir für die nächsten 3 Stunden (die Quelle liefert nur die nächsten Fahrten)
-const PLATFORM_HORIZON = 45 * 60e3;         // ein Gleiswechsel ist erst kurz vor der Abfahrt wichtig
+const CANCEL_HORIZON = 3 * 3600e3;          // we report cancellations for the next 3 hours (the source only returns the next trips)
+const PLATFORM_HORIZON = 45 * 60e3;         // a platform change only matters shortly before departure
 const times = (list) => (list.length <= 3 ? list : [...list.slice(0, 3), `${list.length - 3} weitere`]);
 const andList = (list) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} und ${list[list.length - 1]}` : list[0] || '');
 
@@ -32,13 +32,13 @@ export const THEME = {
   },
 };
 
-/** Ansicht für eine Strecke ohne Abfahrt: ehrlich sagen, warum (keine Daten, Fahrten fallen aus, keine Direktverbindung), nie „pünktlich“. */
+/** View for a route without a departure: say honestly why (no data, trips cancelled, no direct connection), never "pünktlich" (on time). */
 function noDeparturesView(tour, journeys, stale) {
   const cancelled = journeys.some((j) => j.legs[0] && j.legs[0].cancelled);
   const [big, sub] = stale ? ['Keine Daten', 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
       : ['Keine', 'Keine Direktverbindung gefunden. Lege die Strecke neu an, dann bietet ReGo dir „Mit 1 Umstieg suchen“ an.'];
-  // Karte: Start und Ziel, verbunden mit einer gepunkteten Linie (wie bei einer Störung)
+  // Map: start and destination, joined by a dotted line (as for a disruption)
   const stations = [tour.from, tour.to].map((s) => ({ id: s.id, name: shortName(s.name) }));
   return { kind: 'none', head: 'Nächste Abfahrt', big, sub, rows: [], alternative: null, ticketHint: null, map: { stations, hubIndex: -1, haloIndex: -1, connections: [], disrupted: { from: 0, to: 1 }, alternative: null } };
 }
@@ -62,7 +62,7 @@ function ticketHintFor(tour) {
   };
 }
 
-// Weiterführender Link passend zur Strecke: nur Deutschland -> DB, nur Österreich -> ÖBB, grenzüberschreitend -> Hinweis mit Ticketprüfung (ticketHint)
+// Follow-up link matching the route: Germany only -> DB, Austria only -> ÖBB, cross-border -> hint with ticket check (ticketHint)
 function appLinkFor(tour) {
   const a = country(regionOf(tour.from)), b = country(regionOf(tour.to));
   if (a === 'DE' && b === 'DE') return { label: 'Im DB Navigator ansehen', url: 'https://www.bahn.de/' };
@@ -70,17 +70,17 @@ function appLinkFor(tour) {
   return null;
 }
 
-/** „pünktlich“ sagen wir nur, wo die Quelle Verspätungen schon kennen kann; bei weit entfernten Fahrten heißt es „planmäßig“ */
+/** We only say "pünktlich" (on time) where the source can already know delays; for departures far away it says "planmäßig" (on schedule) */
 export const okWord = (leg, now) => (isFar(Date.parse(leg.dep), now) ? 'planmäßig' : 'pünktlich');
 const cap = (w) => w[0].toUpperCase() + w.slice(1);
 const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direction}${withPlatform && leg.platform ? ` · Gleis ${leg.platform}` : ''}`;
 
 /**
- * @param tour     Profil-Tour { id,name,from,to,active,period,returnId?,returnOf?,schedule }
- * @param journeys normalisierte Journeys (Direktverbindungen)
- * @param ctx      { now, minDelay, linesAt, lines (Registry), graceMin, stale (Daten stammen aus dem Zwischenspeicher oder fehlen wegen Störung),
- *                   shortcutFor? ({depart, arrive}) -> Karte „Schneller mit 1 Umstieg“ | null, für Meldungen zu Ersatzverkehr,
- *                   window? Pendelzeit der Strecke (windowState): vor und im Fenster werden nur Fahrten bis zu seinem Ende bewertet }
+ * @param tour     profile route { id,name,from,to,active,period,returnId?,returnOf?,schedule }
+ * @param journeys normalized journeys (direct connections)
+ * @param ctx      { now, minDelay, linesAt, lines (registry), graceMin, stale (data comes from the cache or is missing because of a disruption),
+ *                   shortcutFor? ({depart, arrive}) -> "Schneller mit 1 Umstieg" card | null, for replacement-transport incidents,
+ *                   window? commute time of the route (windowState): before and during the window only trips up to its end are rated }
  * @returns { tour, incidents }
  */
 export async function buildTour(tour, journeys, ctx) {
@@ -90,10 +90,10 @@ export async function buildTour(tour, journeys, ctx) {
     if (!lines[id]) lines[id] = { id, label: id, color: lineColor(l.name, l.product) };
     return id;
   };
-  // Nur Fahrten, die noch nicht abgefahren sind (2 Min. Nachlauf), nach tatsächlicher Abfahrt sortiert; ausfallende Fahrten getrennt
+  // Only trips that have not departed yet (2 min grace), sorted by actual departure; cancelled trips kept apart
   const upcoming = journeys.map((j) => j.legs[0]).filter(Boolean)
     .filter((l) => !(Date.parse(l.dep) < now - 120000)).sort((a, b) => Date.parse(a.dep) - Date.parse(b.dep));
-  // Vor und im Pendelfenster zählen nur die Fahrten bis zu seinem Ende (nur wenn darin etwas fährt). Das „Danach“ darf trotzdem hinter das Fenster schauen.
+  // Before and during the commute window only the trips up to its end count (only if something runs in it). The "Danach" (then) card may still look past the window.
   const win = ctx.window;
   const scoped = win && (win.mode === 'now' || win.anchor) && win.endMs ? upcoming.filter((l) => Date.parse(l.plannedDep || l.dep) <= win.endMs) : null;
   const inScope = scoped && scoped.some((l) => !l.cancelled) ? scoped : upcoming;
@@ -110,17 +110,17 @@ export async function buildTour(tour, journeys, ctx) {
       plannedTime: hhmm(l.plannedDep), expectedTime: hhmm(l.dep), lineId: registerLine(l.line),
       plannedPlatform: l.plannedPlatform || '', expectedPlatform: l.platform || '', delayMin: l.depDelay,
       ...(berlin(Date.parse(l.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
-      ...(isFar(Date.parse(l.dep), now) ? { far: true } : {}),      // weit weg: die App sagt „planmäßig“ statt „pünktlich“
+      ...(isFar(Date.parse(l.dep), now) ? { far: true } : {}),      // far away: the app says "planmäßig" instead of "pünktlich"
     })),
   };
   const incidents = [];
   const hint = ticketHintFor(tour);
   const dest = tour.to.name;
-  // Die Karte „Danach“ / „Nächster Zug“ führt zur Seite dieser Abfahrt, wenn sie zu den ersten drei der Liste gehört (nur für die gibt es eine Detailseite)
+  // The "Danach" / "Nächster Zug" (next train) card leads to the page of that departure if it is among the first three of the list (only they have a detail page)
   const jump = (leg) => { const i = legs.indexOf(leg); return i >= 0 && i < out.departures.length ? { departure: i } : {}; };
   const thenCard = (nxt) => nxt ? { title: 'Danach', line1: `${nxt.line.name} ab ${hhmm(nxt.dep)}${nxt.platform ? ` · Gleis ${nxt.platform}` : ''}`, line2: `An ${dest} ${hhmm(nxt.arr)}`, badge: nxt.depDelay >= minDelay ? `+${nxt.depDelay} Min.` : okWord(nxt, now), ...jump(nxt) } : null;
 
-  // 0) Ausfälle: eine Meldung je Linie mit allen ausfallenden Fahrten der nächsten Stunden – auch wenn gar keine Fahrt mehr übrig ist
+  // 0) Cancellations: one incident per line with all cancelled trips of the next hours – even if no trip is left at all
   const byLine = new Map();
   for (const l of canceled) { if (!byLine.has(l.line.name)) byLine.set(l.line.name, []); byLine.get(l.line.name).push(l); }
   for (const group of [...byLine.values()].slice(0, 2)) {
@@ -150,7 +150,7 @@ export async function buildTour(tour, journeys, ctx) {
 
   const first = legs[0];
 
-  // Detailansicht je Abfahrt (die ersten drei): „zwei Bahnen später“ lässt sich einzeln öffnen
+  // Detail view per departure (the first three): "two trains later" can be opened on its own
   for (let k = 0; k < out.departures.length; k++) {
     const l = legs[k], nxt = after(l), isLate = l.depDelay >= minDelay;
     const platformChg = l.plannedPlatform && l.platform && l.plannedPlatform !== l.platform;
@@ -167,7 +167,7 @@ export async function buildTour(tour, journeys, ctx) {
     };
   }
 
-  // 1) Ereignisse aus Hinweisen (Ersatzverkehr, Baustelle) – einmal je Text
+  // 1) Incidents from remarks (replacement transport, construction) – once per text
   const seen = new Set();
   for (const leg of legs) for (const r of leg.remarks) {
     const kind = classifyRemark(r);
@@ -183,7 +183,7 @@ export async function buildTour(tour, journeys, ctx) {
     const label = validityLabel(from, until, now);
     const arrPlanned = hhmm(leg.plannedArr);
     const arrExpected = hhmm(new Date(Date.parse(leg.plannedArr) + delay * 60000).toISOString());
-    // Ersatzverkehr: kommt man mit 1 Umstieg früher an? ctx.shortcutFor kennt die Verbindungen mit Umstieg (nur wenn der Service sie geladen hat)
+    // Replacement transport: does one arrive earlier with 1 transfer? ctx.shortcutFor knows the connections with a transfer (only if the service loaded them)
     const shortcut = kind === 'replacement' && ctx.shortcutFor
       ? ctx.shortcutFor({ depart: Date.parse(leg.dep), arrive: Math.max(Date.parse(leg.arr), Date.parse(leg.plannedArr) + delay * 60000) })
       : null;
@@ -207,7 +207,7 @@ export async function buildTour(tour, journeys, ctx) {
     });
   }
 
-  // 2) Verspätung der nächsten Abfahrt
+  // 2) Delay of the next departure
   const late = legs.find((l) => l.depDelay >= minDelay);
   if (late) {
     const next = legsAll.find((l) => l !== late && l.depDelay < minDelay && Date.parse(l.plannedDep) > Date.parse(late.plannedDep));
@@ -231,7 +231,7 @@ export async function buildTour(tour, journeys, ctx) {
     });
   }
 
-  // 2b) Gleiswechsel: eigene, leise Meldung. Nur kurz vor der Abfahrt, und nicht doppelt zur Verspätungsmeldung derselben Fahrt (die nennt ihn schon)
+  // 2b) Platform change: its own quiet incident. Only shortly before departure, and not twice with the delay incident of the same trip (that one already mentions it)
   let platforms = 0;
   for (const l of legs) {
     if (platforms >= 2) break;
@@ -251,7 +251,7 @@ export async function buildTour(tour, journeys, ctx) {
     });
   }
 
-  // 3) Keine Meldung -> Ansicht "pünktlich" an der Tour selbst
+  // 3) No incident -> "pünktlich" view on the route itself
   if (!incidents.length) {
     const map = await buildMap(first, linesAt, { registerLine });
     out.view = {
@@ -266,7 +266,7 @@ export async function buildTour(tour, journeys, ctx) {
   return { tour: out, incidents };
 }
 
-/** Sichtbarkeit wie im Frontend: Ereignisse bis until, Verspätungen bis until + Nachlauf. */
+/** Visibility as in the frontend: incidents until `until`, delays until `until` + grace period. */
 export function stillVisible(inc, now, graceMin) {
   const until = fromBerlin(inc.validity.until.slice(0, 10), inc.validity.until.slice(11, 16));
   return now <= until + (inc.kind === 'delay' ? graceMin * 60000 : 0);

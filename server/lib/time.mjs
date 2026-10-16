@@ -1,4 +1,4 @@
-// Zeitwerkzeuge. Alles Fachliche läuft in Europe/Berlin.
+// Time helpers. Everything domain-related runs in Europe/Berlin.
 export const TZ = 'Europe/Berlin';
 
 const parts = new Intl.DateTimeFormat('en-CA', {
@@ -18,19 +18,19 @@ export function berlin(ms) {
   return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
 }
 
-/** ISO oder ms -> "07:21" */
+/** ISO or ms -> "07:21" */
 export function hhmm(v) {
   if (v == null) return '';
   const ms = typeof v === 'number' ? v : Date.parse(v);
   return Number.isNaN(ms) ? '' : berlin(ms).time;
 }
 
-/** Berlin-Ortszeit ('2026-10-10', '07:15') -> ms (UTC) */
+/** Berlin local time ('2026-10-10', '07:15') -> ms (UTC) */
 export function fromBerlin(date, time) {
   const [y, mo, d] = date.split('-').map(Number);
   const [h, mi] = time.split(':').map(Number);
   let guess = Date.UTC(y, mo - 1, d, h, mi);
-  for (let i = 0; i < 2; i++) {            // Zeitzonenversatz nachziehen (Sommer-/Winterzeit)
+  for (let i = 0; i < 2; i++) {            // adjust for the time-zone offset (summer/winter time)
     const p = split(guess);
     const shown = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
     guess += Date.UTC(y, mo - 1, d, h, mi) - shown;

@@ -1,12 +1,12 @@
-// Strecken mit einem Umstieg („Mit 1 Umstieg suchen“).
+// Routes with one transfer ("Mit 1 Umstieg suchen" – search with 1 transfer).
 //
-// Der Anbieter liefert nur Verbindungen, die in Echtzeit noch klappen – ein verpasster Anschluss käme darin gar nicht vor.
-// ReGo bewertet den Anschluss deshalb selbst: Zubringerfahrten (A) kommen aus der kombinierten Suche, die Anschlussfahrten (B)
-// ab dem Umstiegsbahnhof aus einer zweiten Abfrage. Geplant wird nach Fahrplan, bewertet nach Echtzeit:
-//   ok      – der geplante Anschluss klappt (Puffer ≥ 3 Min. oder Zubringer pünktlich)
-//   tight   – „Anschluss wackelt“: Zubringer verspätet, Puffer unter 3 Min. (oder der Anbieter zählt den Anschluss schon nicht mehr)
-//   missed  – „Anschluss verpasst“: Puffer ≤ 0 oder die Anschlussfahrt fällt aus; angezeigt wird der nächste Anschluss
-// Den Umstieg wählt ReGo für jede Abfahrt neu.
+// The source only returns connections that still work in real time – a missed connection would not appear in it at all.
+// ReGo therefore rates the connection itself: feeder trips (A) come from the combined search, the connecting trips (B)
+// from the transfer station from a second query. Planning follows the timetable, rating follows real time:
+//   ok      – the planned connection works (buffer ≥ 3 min or feeder on time)
+//   tight   – "Anschluss wackelt" (connection at risk): feeder delayed, buffer under 3 min (or the source no longer counts the connection)
+//   missed  – "Anschluss verpasst" (connection missed): buffer ≤ 0 or the connecting trip is cancelled; the next connection is shown
+// ReGo picks the transfer anew for every departure.
 import { createHash } from 'node:crypto';
 import { berlin, hhmm } from '../lib/time.mjs';
 import { lineLabel, lineColor } from '../lib/lines.mjs';
@@ -16,12 +16,12 @@ import { sampleStops, shortName, findStation, buildMap } from './map.mjs';
 import { buildTour, tidyName, localIso, validityLabel, ticketHintFor, appLinkFor, andList, times, sub, okWord, PLATFORM_HORIZON, CANCEL_HORIZON } from './state.mjs';
 import { windowView, isFar } from './window.mjs';
 
-export const MAX_WAIT_MIN = 30;        // geplante Wartezeit am Umstieg, darüber zeigen wir die Fahrt nicht (außer es gäbe sonst nichts)
-export const TIGHT_MIN = 3;            // weniger Puffer als das: der Anschluss wackelt
-const MCT_MIN = 2, MCT_MAX = 6, MCT_DEFAULT = 4;    // Spanne für die geschätzte Mindestumsteigezeit
-const SHOWN = 3;                       // so viele Abfahrten zeigt die Strecke (mit eigener Detailseite)
+export const MAX_WAIT_MIN = 30;        // planned wait at the transfer; above it we do not show the trip (unless there would be nothing else)
+export const TIGHT_MIN = 3;            // less buffer than this: the connection is at risk
+const MCT_MIN = 2, MCT_MAX = 6, MCT_DEFAULT = 4;    // range for the estimated minimum transfer time
+const SHOWN = 3;                       // this many departures the route shows (each with its own detail page)
 const MIN = 60000;
-const CONN_INCIDENTS = 2;              // höchstens so viele Anschlussmeldungen (wackelt/verpasst) je Strecke
+const CONN_INCIDENTS = 2;              // at most this many connection incidents (at risk/missed) per route
 
 const t = (iso) => Date.parse(iso);
 const diffMin = (from, to) => Math.round((t(to) - t(from)) / MIN);
@@ -35,7 +35,7 @@ const dur = (m) => { m = Math.max(0, Math.round(m)); const h = Math.floor(m / 60
 const uniq = (list) => { const seen = new Set(); return list.filter((x) => { const k = keyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }); };
 const platformChanged = (l) => !!(l && l.plannedPlatform && l.platform && String(l.plannedPlatform) !== String(l.platform));
 
-/** Ankunft der Zubringerfahrt im Umstiegsbahnhof (ms): Echtzeit, bei Ersatzverkehr mindestens geplante Ankunft + die genannte Mehrzeit. */
+/** Arrival of the feeder trip at the transfer station (ms): real time; with replacement transport at least planned arrival + the stated extra time. */
 function arrivalOf(a) {
   let at = t(a.arr || a.plannedArr);
   for (const r of a.remarks || []) {
@@ -51,14 +51,14 @@ function pairsOf(journeys) {
   for (const j of journeys || []) {
     const legs = (j.legs || []).filter((l) => l && l.line);
     if (legs.length === 1) out.push({ a: legs[0], b: null });
-    else if (legs.length === 2) out.push({ a: legs[0], b: legs[1] });     // mehr als ein Umstieg ist nicht unser Fall
+    else if (legs.length === 2) out.push({ a: legs[0], b: legs[1] });     // more than one transfer is not our case
   }
   return out;
 }
 
 /**
- * Umstiegsbahnhöfe der Verbindungen, häufigster zuerst. stop = Haltestelle, an der die Anschlussfahrt abfährt (für die zweite Abfrage),
- * firstArr = früheste geplante Ankunft der Zubringerfahrt dort (ms).
+ * Transfer stations of the connections, most frequent first. stop = stop where the connecting trip departs (for the second query),
+ * firstArr = earliest planned arrival of the feeder trip there (ms).
  */
 export function transferVias(journeys) {
   const by = new Map();
@@ -72,8 +72,8 @@ export function transferVias(journeys) {
 }
 
 /**
- * Beispielverbindung für die Vorschau beim Anlegen: die erste mit Umstieg und vertretbarer Wartezeit (sonst die erste überhaupt).
- * null = nichts gefunden.
+ * Sample connection for the preview when creating a route: the first one with a transfer and a reasonable wait (otherwise simply the first).
+ * null = nothing found.
  */
 export function previewRoute(journeys) {
   const pairs = pairsOf(journeys).filter((p) => !p.a.cancelled && !(p.b && p.b.cancelled));
@@ -88,22 +88,22 @@ export function previewRoute(journeys) {
   };
 }
 
-/** Schlüssel, unter dem die Anschlussfahrten eines Umstiegsbahnhofs in ctx.bLists stehen */
+/** Key under which the connecting trips of a transfer station are stored in ctx.bLists */
 export const viaKeyOf = viaKey;
 
-// ---------- „Schneller mit 1 Umstieg“ bei Ersatzverkehr ----------
-export const SHORTCUT_MIN_SAVING = 5;                 // so viele Minuten früher am Ziel, sonst ist der Hinweis keinen Platz wert
-const SHORTCUT_LATER = 30 * MIN;                      // der Umweg darf bis zu so viel später abfahren als die Fahrt mit Ersatzverkehr
+// ---------- "Schneller mit 1 Umstieg" (faster with 1 transfer) for replacement transport ----------
+export const SHORTCUT_MIN_SAVING = 5;                 // this many minutes earlier at the destination, otherwise the hint is not worth the space
+const SHORTCUT_LATER = 30 * MIN;                      // the detour may depart up to this much later than the trip with replacement transport
 const hasReplacement = (leg, now) => (leg.remarks || []).some((r) => classifyRemark(r) === 'replacement' && !(r.validUntil && t(r.validUntil) < now));
 
 /**
- * Hat eine Fahrt Ersatzverkehr und kommt dadurch später an, gibt es manchmal eine Verbindung mit einem Umstieg, die früher am Ziel ist.
- * Gewählt wird die mit der frühesten Ankunft unter den sicheren: Anschluss mit mindestens TIGHT_MIN Minuten Puffer, nichts ausgefallen,
- * kein Ersatzverkehr auf den beiden Fahrten, noch erreichbar (nicht vor jetzt) und höchstens 30 Min. nach der Fahrt mit Ersatzverkehr.
- * Der Gewinn muss mindestens SHORTCUT_MIN_SAVING Minuten betragen. Reine Direktfahrten in der Liste zählen nicht (die nennt die Meldung als „Nächste Verbindung“).
- * @param journeys Verbindungen mit höchstens einem Umstieg
- * @param o        { now, depart (ms: Abfahrt der Fahrt mit Ersatzverkehr), arrive (ms: ihre Ankunft mit Ersatzverkehr) }
- * @returns Karte für die Meldung { title, line1, line2, line3, badge, saved, via } oder null
+ * If a trip has replacement transport and therefore arrives later, there is sometimes a connection with one transfer that is earlier at the destination.
+ * The one with the earliest arrival among the safe ones is chosen: connection with at least TIGHT_MIN minutes of buffer, nothing cancelled,
+ * no replacement transport on the two trips, still reachable (not before now) and at most 30 min after the trip with replacement transport.
+ * The gain must be at least SHORTCUT_MIN_SAVING minutes. Plain direct trips in the list do not count (the incident names those as "Nächste Verbindung", next connection).
+ * @param journeys connections with at most one transfer
+ * @param o        { now, depart (ms: departure of the trip with replacement transport), arrive (ms: its arrival with replacement transport) }
+ * @returns card for the incident { title, line1, line2, line3, badge, saved, via } or null
  */
 export function shortcutFor(journeys, { now, depart, arrive }) {
   if (!Number.isFinite(depart) || !Number.isFinite(arrive)) return null;
@@ -113,7 +113,7 @@ export function shortcutFor(journeys, { now, depart, arrive }) {
     const dep = t(a.dep), arr = t(b.arr);
     if (!(dep >= now - MIN) || dep > depart + SHORTCUT_LATER) continue;
     const buffer = diffMin(a.arr, b.dep);
-    if (!(buffer >= TIGHT_MIN)) continue;                                      // ein knapper Anschluss ist keine Empfehlung
+    if (!(buffer >= TIGHT_MIN)) continue;                                      // a tight connection is no recommendation
     const saved = Math.round((arrive - arr) / MIN);
     if (!(saved >= SHORTCUT_MIN_SAVING)) continue;
     if (!best || arr < best.arr || (arr === best.arr && dep < best.dep)) best = { a, b, dep, arr, saved, buffer };
@@ -131,9 +131,9 @@ export function shortcutFor(journeys, { now, depart, arrive }) {
 }
 
 /**
- * Bewertet alle Zubringerfahrten. Ergebnis je Fahrt:
+ * Rates all feeder trips. Result per trip:
  *   { kind:'transfer', a, plan, next, after, state, buffer, plannedGap, cancelledB, aArr, aLate, bs, cands }
- *   { kind:'direct', a } (Direktfahrt, falls der Anbieter eine liefert)   { kind:'cancelledA', a }
+ *   { kind:'direct', a } (direct trip, if the source returns one)   { kind:'cancelledA', a }
  */
 function entriesOf(journeys, bLists) {
   const pairs = pairsOf(journeys);
@@ -143,9 +143,9 @@ function entriesOf(journeys, bLists) {
     if (!byA.has(k)) byA.set(k, { a: p.a, bs: [] });
     if (p.b) byA.get(k).bs.push(p.b);
   }
-  // Mindestumsteigezeit schätzen: der kleinste geplante Abstand bei Paaren, die der Anbieter ohne jede Verspätung vorschlägt.
-  // Nach unten ist das nur eine Obergrenze (die gefundenen Paare sind oft viel weiter auseinander), deshalb höchstens 6 Min.:
-  // lieber einen Anschluss zu knapp einschätzen als einen verpassten gar nicht zu melden.
+  // Estimate the minimum transfer time: the smallest planned gap among pairs the source suggests without any delay.
+  // Downwards this is only an upper bound (the pairs found are often much further apart), hence at most 6 min:
+  // better to rate a connection as too tight than not to report a missed one at all.
   const gaps = pairs.filter((p) => p.b && !p.b.cancelled && t(p.a.arr) <= t(p.a.plannedArr) && t(p.b.dep) <= t(p.b.plannedDep)).map((p) => diffMin(p.a.plannedArr, p.b.plannedDep)).filter((g) => Number.isFinite(g));
   const mct = gaps.length ? Math.min(MCT_MAX, Math.max(MCT_MIN, Math.min(...gaps))) : MCT_DEFAULT;
 
@@ -157,20 +157,20 @@ function entriesOf(journeys, bLists) {
     const aArr = arrivalOf(a);
     const aLate = aArr - t(a.plannedArr) >= MIN;
     const cands = uniq([...bs, ...(bList || [])]);
-    const real = [...bs].filter((b) => !b.cancelled).sort(byArr)[0] || [...bs].sort(byArr)[0];   // Anschluss, den der Anbieter jetzt vorschlägt
-    // Der geplante Anschluss ist der, den der Fahrplan vorsah: früheste planmäßige Ankunft unter den Fahrten mit genug geplantem Abstand.
+    const real = [...bs].filter((b) => !b.cancelled).sort(byArr)[0] || [...bs].sort(byArr)[0];   // the connection the source suggests now
+    // The planned connection is the one the timetable foresaw: earliest scheduled arrival among the trips with enough planned gap.
     const planned = bList && bList.length
       ? cands.filter((b) => diffMin(a.plannedArr, b.plannedDep) >= mct).sort((x, y) => t(x.plannedArr) - t(y.plannedArr) || t(x.plannedDep) - t(y.plannedDep))[0] || null
       : null;
     let plan = real;
     if (planned && keyOf(planned) !== keyOf(real) && t(real.arr) > t(planned.plannedArr)) {
-      // Zubringer verspätet: der Anbieter hat schon auf einen späteren Anschluss umgestellt. Pünktlicher Zubringer: nur ausgefallene Anschlüsse
-      // zählen, sonst gilt der Vorschlag des Anbieters (er kennt die echte Umsteigezeit des Bahnhofs).
+      // Feeder delayed: the source has already switched to a later connection. Feeder on time: only cancelled connections
+      // count, otherwise the source's suggestion applies (it knows the station's real transfer time).
       if (aLate || planned.cancelled) plan = planned;
     }
     const buffer = Math.round((t(plan.dep) - aArr) / MIN);
     const plannedGap = diffMin(a.plannedArr, plan.plannedDep);
-    // Wartezeit für die Auswahl (höchstens MAX_WAIT_MIN): verspäteter Zubringer ohne Fahrplan-Vergleich -> die tatsächliche Wartezeit zählt mit
+    // Wait for the selection (MAX_WAIT_MIN at most): delayed feeder without timetable comparison -> the actual wait counts as well
     const filterWait = aLate ? (planned ? diffMin(a.plannedArr, planned.plannedDep) : Math.min(plannedGap, buffer)) : plannedGap;
     const cancelledB = !!plan.cancelled;
     const dropped = !bs.some((b) => keyOf(b) === keyOf(plan));
@@ -187,13 +187,13 @@ function entriesOf(journeys, bLists) {
       after = (real && usable(real) ? real : null)
         || cands.filter((b) => usable(b) && t(b.dep) > t(plan.dep) && t(b.dep) - aArr >= Math.max(mct, TIGHT_MIN) * MIN).sort(byDep)[0] || null;
     }
-    const shownB = state === 'missed' ? next : plan;        // die Anschlussfahrt, mit der man tatsächlich ankommt
+    const shownB = state === 'missed' ? next : plan;        // the connecting trip with which one actually arrives
     out.push({ kind: 'transfer', a, plan, next, after, state, buffer, plannedGap, filterWait, cancelledB, aArr, aLate, bs, cands, shownB, finalArr: shownB ? t(shownB.arr) : null, hasBList: !!(bList && bList.length), mct });
   }
   return out;
 }
 
-/** Strecke ohne Abfahrt: ehrlich sagen, warum – nie „pünktlich“. */
+/** Route without a departure: say honestly why – never "pünktlich" (on time). */
 function noEntriesView(tour, stale, cancelled) {
   const [big, sub2] = stale ? ['Keine Daten', 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
@@ -203,13 +203,13 @@ function noEntriesView(tour, stale, cancelled) {
 }
 
 /**
- * @param tour     Profil-Tour mit transfers: 1
- * @param journeys normalisierte Verbindungen der kombinierten Suche (Zubringer + Anschluss, oder Direktfahrt)
- * @param ctx      wie bei buildTour; zusätzlich bLists: Map(Umstiegsbahnhof → Anschlussfahrten ab dort), kann fehlen
+ * @param tour     profile route with transfers: 1
+ * @param journeys normalized connections of the combined search (feeder + connecting trip, or direct trip)
+ * @param ctx      as for buildTour; additionally bLists: Map(transfer station → connecting trips from there), may be missing
  * @returns { tour, incidents }
  */
 export async function buildTransferTour(tour, journeys, ctx) {
-  // Gibt es inzwischen nur Direktfahrten (der Anbieter schlägt keinen Umstieg mehr vor), gelten die gewohnten Regeln samt allen Meldungen
+  // If there are only direct trips by now (the source no longer suggests a transfer), the usual rules apply, including all incidents
   if ((journeys || []).length && journeys.every((j) => (j.legs || []).filter((l) => l && l.line).length === 1)) return buildTour(tour, journeys, ctx);
   const { now, minDelay, linesAt, lines } = ctx;
   const bLists = ctx.bLists || new Map();
@@ -222,12 +222,12 @@ export async function buildTransferTour(tour, journeys, ctx) {
   const hint = ticketHintFor(tour);
 
   const all = entriesOf(journeys, bLists).filter((e) => !(t(e.a.dep) < now - 120000)).sort((x, y) => byDep(x.a, y.a));
-  // Vor und im Pendelfenster zählen nur die Fahrten bis zu seinem Ende (nur wenn darin etwas fährt). Das „Danach“ darf trotzdem hinter das Fenster schauen.
+  // Before and during the commute window only the trips up to its end count (only if something runs in it). The "Danach" (then) card may still look past the window.
   const win = ctx.window;
   const scoped = win && (win.mode === 'now' || win.anchor) && win.endMs ? all.filter((e) => t(e.a.plannedDep || e.a.dep) <= win.endMs) : null;
   const inScope = scoped && scoped.some((e) => e.kind !== 'cancelledA') ? scoped : all;
   const cancelledAs = inScope.filter((e) => e.kind === 'cancelledA' && t(e.a.plannedDep) >= now && t(e.a.plannedDep) <= now + CANCEL_HORIZON);
-  const usable = (src) => { const l = src.filter((e) => e.kind !== 'cancelledA'); const ok = l.filter((e) => e.kind !== 'transfer' || e.filterWait <= MAX_WAIT_MIN); return ok.length ? ok : l; };   // lange Wartezeiten nur, wenn es sonst nichts gibt
+  const usable = (src) => { const l = src.filter((e) => e.kind !== 'cancelledA'); const ok = l.filter((e) => e.kind !== 'transfer' || e.filterWait <= MAX_WAIT_MIN); return ok.length ? ok : l; };   // long waits only if there is nothing else
   const listAll = usable(all);
   const list = inScope === all ? listAll : usable(inScope);
   const after = (e) => listAll[listAll.indexOf(e) + 1];
@@ -248,7 +248,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
   };
   const incidents = [];
 
-  // ---------- Hilfen für die Texte ----------
+  // ---------- Helpers for the texts ----------
   const jump = (e) => { const i = shown.indexOf(e); return i >= 0 ? { departure: i } : {}; };
   const chipsOf = (e) => (e.kind === 'transfer' ? `${e.a.line.name} › ${(e.shownB || e.plan).line.name}` : e.a.line.name);
   const delayOf = (e) => Math.max(e.a.depDelay || 0, e.kind === 'transfer' ? Math.round((e.aArr - t(e.a.plannedArr)) / MIN) : (e.a.arrDelay || 0));
@@ -256,13 +256,13 @@ export async function buildTransferTour(tour, journeys, ctx) {
   const arrOf = (e) => (e.kind === 'transfer' ? e.finalArr : t(e.a.arr));
   const thenCard = (e, title = 'Danach') => (e ? { title, line1: `${chipsOf(e)} ab ${hhmm(e.a.dep)}`, line2: arrOf(e) ? `An ${dest} ${hhmm(arrOf(e))}` : 'Kein Anschluss gefunden', badge: badgeOf(e), ...jump(e) } : null);
   const afterCard = (alt) => (alt ? { title: 'Nächster Anschluss', line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : okWord(alt, now) } : null);
-  // „Bus an 07:41“ nur, wenn der Ersatzverkehr bis zum Umstiegsbahnhof reicht (Strecke aus dem Hinweis endet dort)
+  // "Bus an 07:41" (bus arriving 07:41) only if the replacement transport reaches the transfer station (the segment from the remark ends there)
   const busAtHub = (e) => {
     const st = stopsOf(e.a), hub = st.length - 1;
     return (e.a.remarks || []).some((r) => { if (classifyRemark(r) !== 'replacement') return false; const seg = extractSegment(r.text); return !!seg && [findStation(st, seg[0]), findStation(st, seg[1])].includes(hub); });
   };
 
-  // ---------- Zeilen und Abschnitte der Detailseite ----------
+  // ---------- Rows and sections of the detail page ----------
   const row = (label, sub2, value, planned = '', extra = {}) => ({ label, sub: sub2, value, planned, ...extra });
   const rowsA = (e, arrSub) => {
     const a = e.a, viaName = nm(a.destination);
@@ -340,7 +340,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
       disrupted: disrupted && disrupted.from >= 0 && disrupted.to >= 0 ? disrupted : null, alternative: null,
       legs: [{ lineId: registerLine(a.line), from: 0, to: hubIndex }, { lineId: registerLine(b.line), from: hubIndex, to: last }],
       skips, transfer: { stationIndex: hubIndex, label, state: e.state },
-      // depLate/arrLate: Die Zeitpille färbt sich, wenn die Abfahrt verspätet ist bzw. die Ankunft am Ziel später als geplant
+      // depLate/arrLate: the time pill turns colored when the departure is delayed or the arrival at the destination is later than planned
       times: {
         dep: `ab ${hhmm(a.dep)}`, arr: e.finalArr ? `an ${hhmm(e.finalArr)}` : '',
         depLate: a.depDelay >= minDelay, arrLate: !!e.finalArr && e.finalArr - t(e.plan.plannedArr) >= minDelay * MIN,
@@ -348,7 +348,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     };
   }
 
-  // ---------- Ansicht je Abfahrt ----------
+  // ---------- View per departure ----------
   async function viewOf(e, k) {
     const nxt = after(e);
     if (e.kind === 'direct') {
@@ -405,8 +405,8 @@ export async function buildTransferTour(tour, journeys, ctx) {
     });
   }
 
-  // ---------- Meldungen ----------
-  // 0) Ausfälle der Zubringerfahrt
+  // ---------- Incidents ----------
+  // 0) Cancellations of the feeder trip
   const byLine = new Map();
   for (const e of cancelledAs) { const n = e.a.line.name; if (!byLine.has(n)) byLine.set(n, []); byLine.get(n).push(e.a); }
   for (const group of [...byLine.values()].slice(0, 2)) {
@@ -427,7 +427,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     });
   }
 
-  // 1) Anschluss wackelt / verpasst
+  // 1) Connection at risk / missed
   let conn = 0;
   for (const e of shown) {
     if (e.kind !== 'transfer' || (e.state !== 'tight' && e.state !== 'missed') || conn >= CONN_INCIDENTS) continue;
@@ -447,7 +447,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     });
   }
 
-  // 2) Ersatzverkehr, Baustelle – einmal je Text, auf beiden Fahrten
+  // 2) Replacement transport, construction – once per text, on both trips
   const seen = new Set();
   for (const e of shown) {
     if (e.kind !== 'transfer') continue;
@@ -482,7 +482,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     }
   }
 
-  // 3) Verspätung (Zubringer oder Anschlussfahrt), sofern der Anschluss nicht ohnehin eine eigene Meldung hat
+  // 3) Delay (feeder or connecting trip), unless the connection already has an incident of its own
   const late = shown.find((e) => e.kind === 'transfer' && e.lateKind);
   if (late) {
     const leg = late.lateKind === 'a' ? late.a : late.plan, n = leg.depDelay;
@@ -494,7 +494,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     });
   }
 
-  // 4) Gleiswechsel (Zubringer, und am Umstieg die Anschlussfahrt): eigene, leise Meldung, nur kurz vor der Abfahrt
+  // 4) Platform change (feeder, and at the transfer the connecting trip): its own quiet incident, only shortly before departure
   let platforms = 0;
   for (const e of shown) {
     if (e.kind !== 'transfer' || t(e.a.dep) > now + PLATFORM_HORIZON) continue;
@@ -512,7 +512,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
     }
   }
 
-  // Keine Meldung: Ansicht „pünktlich“ an der Strecke selbst; ohne Abfahrt eine ehrliche Erklärung
+  // No incident: "pünktlich" view on the route itself; without a departure an honest explanation
   if (!shown.length) out.view = noEntriesView(tour, ctx.stale, all.some((e) => e.kind === 'cancelledA'));
   else if (!incidents.length) out.view = shown[0].view;
   return { tour: out, incidents };

@@ -1,6 +1,6 @@
-// Fahrplanabfrage direkt im Backend über die Bibliotheken hafas-client (ÖBB) und db-vendo-client (DB).
-// Kein geteilter Zwischenserver, nur Anfragen von Lab02 selbst. Gleiches Rohformat wie transport.rest,
-// deshalb nutzen wir dieselben Umwandler wie in hafas.mjs.
+// Timetable queries directly in the backend through the libraries hafas-client (ÖBB) and db-vendo-client (DB).
+// No shared intermediate server, only requests from this server itself. Same raw format as transport.rest,
+// so the same converters as in hafas.mjs are used.
 import { normStop, normJourney, ProviderError } from './hafas.mjs';
 
 async function load(spec, hint) {
@@ -11,7 +11,7 @@ async function load(spec, hint) {
 const withTimeout = (p, ms, name) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new ProviderError(`${name}: Zeitüberschreitung`, { kind: 'network' })), ms))]);
 
 export class LibClient {
-  /** createClient: async () => hafas-client-kompatibler Client (wird erst bei Bedarf geladen) */
+  /** createClient: async () => hafas-client compatible client (loaded only when needed) */
   constructor(createClient, { name = 'lib', timeoutMs = 10000 } = {}) { this.make = createClient; this.name = name; this.timeoutMs = timeoutMs; this.client = null; }
 
   async c() { return (this.client ||= await this.make()); }
@@ -26,7 +26,7 @@ export class LibClient {
     return (r || []).filter((x) => x.type === 'stop' || x.type === 'station').map(normStop);
   }
 
-  /** Linien einer Haltestelle – nicht jede Quelle kann das (db-vendo-client nicht). Dann: leere Liste, Karte ohne Anschlüsse. */
+  /** Lines of a stop – not every source can do this (db-vendo-client cannot). Then: empty list, map without connections. */
   async stop(id) {
     const c = await this.c();
     if (typeof c.stop !== 'function') return { id, name: '', lines: [] };

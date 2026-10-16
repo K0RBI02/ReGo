@@ -1,6 +1,6 @@
-// Client für EFA-Schnittstellen der Verkehrsverbünde (z. B. MVV). Format "rapidJSON".
-// Haltestellen-IDs bekommen den Präfix des Verbunds ("mvv|de:09162:2"), damit ReGo weiß, wohin eine Anfrage gehört.
-// Normalisierte Typen wie in hafas.mjs: Stop { id, name, lat, lon, products? }
+// Client for the EFA interfaces of the transport associations (e.g. MVV). Format "rapidJSON".
+// Stop IDs get the prefix of the association ("mvv|de:09162:2") so that ReGo knows where a request belongs.
+// Normalized types as in hafas.mjs: Stop { id, name, lat, lon, products? }
 import { ProviderError } from './hafas.mjs';
 import { berlin } from '../lib/time.mjs';
 
@@ -37,7 +37,7 @@ export class EfaClient {
   async searchStops(query) {
     const ask = (q) => this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: q, anyObjFilter_sf: 2, anyMaxSizeHitList: 20 });
     const first = String(query).trim().split(/\s+/)[0];
-    // Mehrere Wörter ("Lindau Hb"): der Verbund findet bei unvollständigem 2. Wort oft nur Nebensächliches -> zusätzlich nur nach dem ersten Wort fragen
+    // Several words ("Lindau Hb"): with an incomplete 2nd word the association often finds only side issues -> additionally ask for the first word alone
     const [main, wide] = await Promise.allSettled([ask(query), first && first !== String(query).trim() && first.length >= 3 ? ask(first) : Promise.resolve(null)]);
     if (main.status === 'rejected' && !wide.value) throw main.reason;
     const locations = [...(main.value?.locations || []), ...(wide.value?.locations || [])];
@@ -45,7 +45,7 @@ export class EfaClient {
     return parseStops({ locations: locations.filter((x) => x && !seen.has(x.id) && seen.add(x.id)) }, this.key, query);
   }
 
-  /** Verbindungen ab "when" inkl. Zwischenhalte und Hinweise. transfers = höchstens so viele Umstiege (0 = nur Direktverbindungen). */
+  /** Connections from "when", including intermediate stops and remarks. transfers = at most this many transfers (0 = direct connections only). */
   async journeys({ fromId, toId, when, results = 5, transfers = 0 }) {
     const b = berlin(new Date(when).getTime());
     const data = await this.get('XML_TRIP_REQUEST2', {
@@ -58,18 +58,18 @@ export class EfaClient {
     return parseJourneys(data, this.key);
   }
 
-  /** Koordinaten einer Haltestelle; Linien liefert EFA hier nicht (leere Liste, Karte ohne Anschlüsse). */
+  /** Coordinates of a stop; EFA does not return lines here (empty list, map without connections). */
   async stop(id) {
     const gid = this.raw(id);
     let s = {};
-    try { s = parseStops(await this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: gid, anyObjFilter_sf: 2 }), this.key).find((x) => x.id === id) || {}; } catch { /* ohne Koordinaten weiter */ }
+    try { s = parseStops(await this.get('XML_STOPFINDER_REQUEST', { type_sf: 'any', name_sf: gid, anyObjFilter_sf: 2 }), this.key).find((x) => x.id === id) || {}; } catch { /* carry on without coordinates */ }
     return { id, name: s.name || '', lat: s.lat, lon: s.lon, lines: [] };
   }
 }
 
-/** Antwort der Haltestellensuche -> Stop[]; beste Treffer zuerst, höchstens 8. */
+/** Answer of the stop search -> Stop[]; best hits first, at most 8. */
 const STATION = /\b(hbf|hauptbahnhof|bahnhof|bf)\b/i;
-/** Je kleiner, desto besser: genauer Name, dann Bahnhof mit dem Suchbegriff am Anfang, dann Anfang, dann irgendwo enthalten. */
+/** The smaller the better: exact name, then station with the search term at the start, then start, then contained anywhere. */
 export function rankOf(name, q) {
   const n = String(name || '').toLowerCase().trim(), s = String(q || '').toLowerCase().trim();
   if (!s) return 0;
@@ -118,9 +118,9 @@ const stopOf = (key, p = {}) => {
 };
 const delayMin = (planned, est) => (planned && est ? Math.round((Date.parse(est) - Date.parse(planned)) / 60000) : 0);
 
-/** Betrifft eine Linieninfo die gefahrene Strecke? Mit "zwischen A und B": Die Strecke muss sich mit der Fahrt überlappen,
- *  sonst: Eine Haltestelle der Fahrt kommt im Text vor oder die Meldung hat hohe Priorität. */
-/** Der Untertitel der Verbünde ist oft mitten im Wort abgeschnitten ("… bis Frei"): dann den ersten ganzen Satz aus dem Volltext nehmen. */
+/** Does a line info concern the route travelled? With "zwischen A und B" (between A and B): the section must overlap with the trip,
+ *  otherwise: a stop of the trip appears in the text or the message has high priority. */
+/** The subtitle of the associations is often cut off in the middle of a word ("… bis Frei"): then take the first whole sentence from the full text. */
 export function summaryOf(subtitle, text) {
   const sub = plain(subtitle || ''), t = plain(text || '');
   if (!t) return sub;
@@ -145,14 +145,14 @@ export function infoRelevant(info, names) {
 
 export function parseLeg(l, key) {
   const t = l.transportation;
-  if (!t || (t.product?.class ?? 0) >= 99) return null;     // Fußweg, Umstieg
+  if (!t || (t.product?.class ?? 0) >= 99) return null;     // walking leg, transfer
   const seq = (l.stopSequence || []).map((x) => stopOf(key, x));
   const names = seq.map((x) => x.name);
   const o = l.origin || {}, d = l.destination || {};
   const rt = [].concat(l.realtimeStatus || []);
   const remarks = [];
   for (const h of l.hints || []) {
-    if (!h?.content || h.type === 'Timetable') continue;     // Fahrradhinweise & Co. sind kein Betriebsereignis
+    if (!h?.content || h.type === 'Timetable') continue;     // bicycle notes & co. are no operational event
     remarks.push({ type: 'status', code: h.providerCode || '', priority: null, summary: plain(h.content), text: plain(h.content), validFrom: null, validUntil: null });
   }
   for (const i of l.infos || []) {
@@ -176,7 +176,7 @@ export function parseLeg(l, key) {
   };
 }
 
-/** Antwort von XML_TRIP_REQUEST2 -> Journey[] (nur Fahrten mit Linie) */
+/** Answer of XML_TRIP_REQUEST2 -> Journey[] (only trips with a line) */
 export function parseJourneys(data, key = 'efa') {
   return (data?.journeys || []).map((j) => ({ legs: (j.legs || []).map((l) => parseLeg(l, key)).filter(Boolean) })).filter((j) => j.legs.length);
 }

@@ -1,4 +1,4 @@
-// Linien: "S 1" -> "S1", Farbe nach Produktart. Alle Farben haben mit weißer Schrift mind. 4,5:1 Kontrast.
+// Lines: "S 1" -> "S1", colour by product type. All colours have at least 4.5:1 contrast with white text.
 const BY_PRODUCT = {
   subway: '#1B4FBF', suburban: '#0B6B3F', tram: '#B3261E', bus: '#7A3FA0',
   regional: '#5B5B58', regionalExpress: '#5B5B58', national: '#8F1D2C', nationalExpress: '#8F1D2C', ferry: '#0B5C8F',
@@ -7,7 +7,7 @@ const MUNICH_U = { U1: '#2F7A32', U2: '#C3002F', U3: '#C2410C', U4: '#0B7A6F', U
 
 export function lineLabel(name = '?') {
   const c = String(name).replace(/\s*\(.*$/, '').replace(/\s+/g, '').replace(/^(Bus|Tram|STR)/i, '');
-  const m = c.match(/^([A-Za-zÄÖÜ]+)(\d{3,})$/);   // RJX19915 -> RJX (Zugnummer, keine Linie)
+  const m = c.match(/^([A-Za-zÄÖÜ]+)(\d{3,})$/);   // RJX19915 -> RJX (a train number, not a line)
   return (m ? m[1] : c) || String(name);
 }
 export function lineColor(name, product) {

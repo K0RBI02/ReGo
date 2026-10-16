@@ -12,7 +12,7 @@ import { ProfileStore, addTours, deleteTour, setSettings } from '../server/store
 import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 
-test('Hinweise werden eingeordnet', () => {
+test('Remarks are classified', () => {
   assert.equal(classifyRemark({ summary: 'Schienenersatzverkehr' }), 'replacement');
   assert.equal(classifyRemark({ text: 'Wegen Bauarbeiten Langsamfahrstelle' }), 'construction');
   assert.equal(classifyRemark({ summary: 'Stellwerksstörung' }), 'other');
@@ -20,13 +20,13 @@ test('Hinweise werden eingeordnet', () => {
   assert.deepEqual(extractSegment('zwischen Rosenheim und Prien Ersatzverkehr'), ['Rosenheim', 'Prien']);
 });
 
-test('Region nach Haltestellen-ID', () => {
+test('Region by stop ID', () => {
   assert.equal(regionOf({ id: '8100002', lat: 47.8, lon: 13.0 }), 'AT');
   assert.equal(regionOf({ id: '8000261', lat: 48.14, lon: 11.56 }), 'BY');
   assert.equal(regionOf({ id: '8000105', lat: 53.5, lon: 10 }), 'DE');
 });
 
-test('Zeit: Berlin hin und zurück (Sommer- und Winterzeit)', () => {
+test('Time: Berlin there and back (summer and winter time)', () => {
   for (const [d, t] of [['2026-07-01', '07:15'], ['2026-12-01', '07:15'], ['2026-10-25', '03:30']]) {
     const b = berlin(fromBerlin(d, t));
     assert.equal(b.date, d);
@@ -34,13 +34,13 @@ test('Zeit: Berlin hin und zurück (Sommer- und Winterzeit)', () => {
   }
 });
 
-test('Karte: höchstens 7 Stationen, Pflichtstopps bleiben', () => {
+test('Map: at most 7 stations, mandatory stops stay', () => {
   const idx = sampleStops(Array.from({ length: 20 }, (_, i) => i), [5, 12]);
   assert.ok(idx.length <= 7);
   for (const k of [0, 19, 5, 12]) assert.ok(idx.includes(k));
 });
 
-test('Cache: bei Fehler letzter Wert', async () => {
+test('Cache: last value on error', async () => {
   let t = 0; const c = new TtlCache(() => t);
   assert.equal((await c.get('k', 10, async () => 1)).value, 1);
   t = 20000;
@@ -48,7 +48,7 @@ test('Cache: bei Fehler letzter Wert', async () => {
   assert.equal(r.value, 1); assert.equal(r.stale, true);
 });
 
-test('Profil: Hin- und Rückweg, Löschen verknüpft sauber', () => {
+test('Profile: outward and return trip, deleting unlinks cleanly', () => {
   const p = { tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10 } };
   const [a, b] = addTours(p, { from: { id: '1', name: 'A' }, to: { id: '2', name: 'B' }, roundTrip: true });
   assert.equal(a.returnId, b.id); assert.equal(b.returnOf, a.id);
@@ -58,7 +58,7 @@ test('Profil: Hin- und Rückweg, Löschen verknüpft sauber', () => {
   assert.throws(() => addTours(p, { from: { id: '1', name: 'A' }, to: { id: '1', name: 'A' } }));
 });
 
-test('API (Beispieldaten): Strecke anlegen -> Zustand im Vertragsformat', async () => {
+test('API (sample data): create route -> state in the expected shape', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'rego-'));
   const cfg = { ...config, provider: 'mock', dataDir: dir };
   const { server } = createApp({ cfg });
@@ -81,7 +81,7 @@ test('API (Beispieldaten): Strecke anlegen -> Zustand im Vertragsformat', async 
   } finally { server.close(); }
 });
 
-test('Bibliotheks-Anbindung: Rohformat -> normalisiert, fehlende stop() ist kein Fehler', async () => {
+test('Library adapter: raw format -> normalized, missing stop() is no error', async () => {
   const { LibClient } = await import('../server/providers/lib.mjs');
   const fake = {
     locations: async () => [{ type: 'stop', id: '8002078', name: 'Freising', location: { latitude: 48.4, longitude: 11.74 } }, { type: 'location', id: 'x', name: 'Straße' }],
@@ -94,7 +94,7 @@ test('Bibliotheks-Anbindung: Rohformat -> normalisiert, fehlende stop() ist kein
   assert.deepEqual((await c.stop('1')).lines, []);
 });
 
-test('Echte Antworten (Mitschnitt 10.10.2026): Umwandlung und Meldungen', async () => {
+test('Real responses (recorded 10.10.2026): conversion and incidents', async () => {
   const { readFile } = await import('node:fs/promises');
   const { normJourney, cleanStopName } = await import('../server/providers/hafas.mjs');
   const { buildTour } = await import('../server/domain/state.mjs');
@@ -103,7 +103,7 @@ test('Echte Antworten (Mitschnitt 10.10.2026): Umwandlung und Meldungen', async 
   assert.equal(cleanStopName('Wien Hbf (Bahnsteige 3-12)'), 'Wien Hbf');
   assert.equal(lineLabel('RJX19915'), 'RJX'); assert.equal(lineLabel('IC 745'), 'IC'); assert.equal(lineLabel('RE25'), 'RE25'); assert.equal(lineLabel('S 1'), 'S1');
   const load = async (n) => JSON.parse(await readFile(new URL(`./fixtures/${n}`, import.meta.url), 'utf8'));
-  // db-journeys.json ist schon normalisiert (Ausgabe von probe.mjs)
+  // db-journeys.json is already normalized (output of probe.mjs)
   const dbJ = await load('db-journeys.json'), oebbJ = await load('oebb-journeys.json');
   const ctx = (now) => ({ now, minDelay: 3, linesAt: async () => [], lines: {}, graceMin: 10 });
   const t1 = Date.parse('2026-10-10T16:45:00+02:00');
@@ -122,28 +122,28 @@ test('Echte Antworten (Mitschnitt 10.10.2026): Umwandlung und Meldungen', async 
   assert.equal(b.incidents[0].view.big, '+32 Min.');
 });
 
-test('API: Umzug aufs neue Handy per Einmal-Code', async () => {
+test('API: moving to the new phone with a one-time code', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'rego-'));
   const { server } = createApp({ cfg: { ...config, provider: 'mock', dataDir: dir } });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const alt = { 'x-device': 'altesgeraet123456', 'content-type': 'application/json' };
-  const neu = { 'x-device': 'neuesgeraet123456', 'content-type': 'application/json' };
+  const oldPhone = { 'x-device': 'oldphone123456789', 'content-type': 'application/json' };
+  const newPhone = { 'x-device': 'newphone123456789', 'content-type': 'application/json' };
   try {
-    await fetch(`${base}/api/tours`, { method: 'POST', headers: alt, body: JSON.stringify({ from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }) });
-    const { code } = await (await fetch(`${base}/api/transfer`, { method: 'POST', headers: alt, body: '{}' })).json();
+    await fetch(`${base}/api/tours`, { method: 'POST', headers: oldPhone, body: JSON.stringify({ from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }) });
+    const { code } = await (await fetch(`${base}/api/transfer`, { method: 'POST', headers: oldPhone, body: '{}' })).json();
     assert.match(code, /^[A-Z2-9]{6}$/);
-    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: alt, body: JSON.stringify({ code }) })).status, 400);   // nicht auf demselben Gerät
-    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code: 'XXXXXX' }) })).status, 404);
-    const r = await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code: code.toLowerCase() }) });
+    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: oldPhone, body: JSON.stringify({ code }) })).status, 400);   // not on the same device
+    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: newPhone, body: JSON.stringify({ code: 'XXXXXX' }) })).status, 404);
+    const r = await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: newPhone, body: JSON.stringify({ code: code.toLowerCase() }) });
     assert.equal(r.status, 200);
     assert.equal((await r.json()).tours, 1);
-    assert.equal((await (await fetch(`${base}/api/state`, { headers: neu })).json()).tours.length, 1);
-    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: neu, body: JSON.stringify({ code }) })).status, 404);   // nur einmal nutzbar
+    assert.equal((await (await fetch(`${base}/api/state`, { headers: newPhone })).json()).tours.length, 1);
+    assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: newPhone, body: JSON.stringify({ code }) })).status, 404);   // usable only once
   } finally { server.close(); }
 });
 
-test('Abfahrten: Vergangenes fliegt raus, sortiert, „morgen“ markiert, passender App-Link', async () => {
+test('Departures: past ones drop out, sorted, next day marked, matching app link', async () => {
   const { buildTour, tidyName } = await import('../server/domain/state.mjs');
   const now = Date.parse('2026-10-13T21:20:00Z');            // 23:20 Berlin
   const leg = (dep) => ({ line: { name: 'RE 5', product: 'regional' }, direction: 'Salzburg', origin: { id: '8000261', name: 'München Hbf' }, destination: { id: '8100002', name: 'Salzburg Hbf' },
@@ -154,6 +154,6 @@ test('Abfahrten: Vergangenes fliegt raus, sortiert, „morgen“ markiert, passe
   assert.deepEqual(out.departures.map((d) => d.expectedTime), ['05:46', '06:04']);
   assert.ok(out.departures.every((d) => d.nextDay));
   assert.equal(out.name, 'München Hbf → Salzburg Hbf');
-  assert.equal(out.appLink, null);                          // grenzüberschreitend: nur der Ticket-Hinweis
+  assert.equal(out.appLink, null);                          // cross-border: only the ticket hint
   assert.equal(tidyName('Freising → München, München Hbf'), 'Freising → München Hbf');
 });

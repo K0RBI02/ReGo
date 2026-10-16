@@ -1,4 +1,4 @@
-// Fachlogik: Haltestellensuche und kompletter Zustand je Gerät im Format des Datenvertrags.
+// Core logic: station search and the complete state of a device, in the shape the UI expects.
 import { TtlCache } from './store/cache.mjs';
 import { berlin, hhmm } from './lib/time.mjs';
 import { distanceKm, regionOf } from './lib/geo.mjs';
@@ -8,7 +8,7 @@ import { classifyRemark } from './domain/classify.mjs';
 import { windowState, windowView, windowRank, DEFAULT_SCHEDULE } from './domain/window.mjs';
 import { createProviders } from './providers/index.mjs';
 
-/** Wartet höchstens ms auf p. Danach gilt fallback() (falls es etwas liefert), sonst ein Fehler. Der Abruf selbst läuft weiter und füllt den Cache. */
+/** Waits at most ms for p. After that fallback() applies (if it returns something), otherwise an error. The request itself keeps running and fills the cache. */
 function withDeadline(p, ms, fallback) {
   let timer;
   const timeout = new Promise((resolve, reject) => {
@@ -17,28 +17,28 @@ function withDeadline(p, ms, fallback) {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
-// Aktive zuerst; dann die Strecke, deren Pendelzeit läuft, vor der, die heute noch kommt, vor dem Rest; sonst nach Entfernung
+// Active first; then the route whose commute time is running, before the one that comes later today, before the rest; otherwise by distance
 const sortTours = (a, b) => (a.active !== b.active ? (a.active ? -1 : 1)
   : (windowRank(a.window?.mode) - windowRank(b.window?.mode)) || (a.window?.mode === 'soon' && b.window?.mode === 'soon' ? (a.window.from < b.window.from ? -1 : a.window.from > b.window.from ? 1 : 0) : 0)
     || (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9));
 
 export function createService({ config, store, now = () => Date.now(), providers = createProviders(config, now), cache = new TtlCache(now) }) {
   const log = (...a) => config.verbose && console.log(...a);
-  const DEADLINE_MS = config.tourDeadlineMs || 12000;          // so lange darf eine Strecke höchstens auf ihre Daten warten
-  const MAP_BUDGET_MS = config.mapBudgetMs || 5000;            // und so lange das Nachschlagen weiterer Linien für die Karte
-  const STALE_MAX_SEC = config.staleMaxSec?.journeys ?? 30 * 60;   // ältere Fahrten zeigen wir bei Störung nicht mehr
-  const B_DEADLINE_MS = config.transferDeadlineMs || 4000;     // Anschlussfahrten ab dem Umstiegsbahnhof: so lange warten wir höchstens (sonst gilt der Vorschlag des Anbieters)
-  const XFER_RESULTS = 8;                                      // Verbindungen mit Umstieg: etwas mehr abfragen, damit nach dem Zusammenfassen je Zubringer genug übrig bleiben
+  const DEADLINE_MS = config.tourDeadlineMs || 12000;          // a route may wait this long at most for its data
+  const MAP_BUDGET_MS = config.mapBudgetMs || 5000;            // and this long for looking up further lines for the map
+  const STALE_MAX_SEC = config.staleMaxSec?.journeys ?? 30 * 60;   // we no longer show older trips during a disruption
+  const B_DEADLINE_MS = config.transferDeadlineMs || 4000;     // connecting trips from the transfer station: we wait this long at most (otherwise the source's own suggestion counts)
+  const XFER_RESULTS = 8;                                      // connections with a transfer: request a few more so that enough remain per feeder after merging
 
   async function searchStations(q) {
     const query = String(q || '').trim();
     if (query.length < 2) return [];
     const { value } = await cache.get(`search:${query.toLowerCase()}`, config.ttl.search, () => providers.searchStops(query));
-    if (value.partial) cache.map.delete(`search:${query.toLowerCase()}`);      // unvollständig (eine Quelle war zu langsam): beim nächsten Mal neu fragen
+    if (value.partial) cache.map.delete(`search:${query.toLowerCase()}`);      // incomplete (one source was too slow): ask again next time
     return value.map((s) => ({ id: s.id, name: s.name, region: regionOf(s) || 'DE', lat: s.lat, lon: s.lon }));
   }
 
-  /** Gibt es zwischen den beiden Haltestellen Fahrten ohne Umstieg? true | false | null (Quelle antwortet nicht: unbekannt). Nutzt denselben Zwischenspeicher wie getState. */
+  /** Are there trips without a transfer between the two stops? true | false | null (source does not answer: unknown). Uses the same cache as getState. */
   async function hasDirect(from, to) {
     const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
     const key = `jl:${from.id}:${to.id}`;
@@ -50,14 +50,14 @@ export function createService({ config, store, now = () => Date.now(), providers
     } catch (err) { log('Prüfung beim Anlegen fehlgeschlagen', from.id, to.id, err.message); return null; }
   }
 
-  /** Verbindungen mit höchstens einem Umstieg. Nutzt dieselbe Abfrage und denselben Zwischenspeicher wie getState. */
+  /** Connections with at most one transfer. Uses the same query and the same cache as getState. */
   const transferJourneys = (from, to, t, stamp = '') => {
     const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
     const key = `jl:${from.id}:${to.id}:t1${stamp}`;
     return { key, load: () => cache.get(key, config.ttl.journeys, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 }), { maxStaleSec: STALE_MAX_SEC }) };
   };
 
-  /** Gibt es zwischen den beiden Haltestellen Fahrten mit höchstens einem Umstieg? true | false | null (unbekannt) – und eine Beispielverbindung. */
+  /** Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. */
   async function searchTransfer(from, to) {
     const t = now();
     const q = transferJourneys(from, to, t);
@@ -68,7 +68,7 @@ export function createService({ config, store, now = () => Date.now(), providers
     } catch (err) { log('Suche mit Umstieg fehlgeschlagen', from.id, to.id, err.message); return { found: null, route: null }; }
   }
 
-  /** Anschlussfahrten ab dem Umstiegsbahnhof zum Ziel (zweite Abfrage), je Bahnhof; fehlt eine, bleibt sie weg und der Vorschlag des Anbieters gilt. */
+  /** Connecting trips from the transfer station to the destination (second query), per station; if one is missing it is left out and the source's own suggestion counts. */
   async function loadBLists(tour, journeys, t, stamp = '') {
     const out = new Map();
     await Promise.all(transferVias(journeys).slice(0, 2).map(async (v) => {
@@ -86,9 +86,9 @@ export function createService({ config, store, now = () => Date.now(), providers
   }
 
   /**
-   * „Schneller mit 1 Umstieg“: Hat eine Strecke ohne Umstieg Ersatzverkehr, fragen wir zusätzlich nach Verbindungen mit höchstens einem Umstieg
-   * (dieselbe Abfrage und derselbe Zwischenspeicher wie „Mit 1 Umstieg suchen“). Ohne Ersatzverkehr kostet das nichts. Gibt eine Funktion für
-   * buildTour zurück, oder undefined, wenn es nichts zu prüfen gibt oder die Quelle nicht rechtzeitig antwortet (dann gibt es einfach keinen Hinweis).
+   * "Schneller mit 1 Umstieg" (faster with 1 transfer): if a route without transfer has replacement transport, we also ask for connections with at most one transfer
+   * (same query and same cache as the "Mit 1 Umstieg suchen" search). Without replacement transport this costs nothing. Returns a function for
+   * buildTour, or undefined if there is nothing to check or the source does not answer in time (then there is simply no hint).
    */
   async function loadShortcut(tour, journeys, t, at = t, stamp = '') {
     if (!journeys.some((j) => (j.legs?.[0]?.remarks || []).some((r) => classifyRemark(r) === 'replacement'))) return undefined;
@@ -119,7 +119,7 @@ export function createService({ config, store, now = () => Date.now(), providers
       const client = (providers.forTourSafe || providers.forTour).call(providers, tour.from, tour.to);
       let journeys = [], tourStale = false;
       const xfer = tour.transfers === 1;
-      // Pendelzeit: Vor dem Fenster (höchstens ein paar Stunden davor) fragen wir die Züge ab dessen Beginn ab, sonst ab jetzt
+      // Commute time: before the window (a few hours before at most) we request the trains from its start, otherwise from now
       const win = windowState(tour.schedule || DEFAULT_SCHEDULE, t);
       const at = win.anchor ?? t, stamp = win.anchor ? `@${hhmm(win.anchor)}` : '';
       const q = xfer ? transferJourneys(tour.from, tour.to, at, stamp) : null;
@@ -138,7 +138,7 @@ export function createService({ config, store, now = () => Date.now(), providers
       const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t, stamp) : undefined;
       const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t, at, stamp);
       const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, bLists, shortcutFor: shortcut, window: win });
-      if (tourStale) built.tour.stale = true;                  // diese Strecke zeigt alte Daten (oder gar keine)
+      if (tourStale) built.tour.stale = true;                  // this route shows old data (or none at all)
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
 

@@ -1,7 +1,7 @@
-// Kleiner Speicher-Cache mit Laufzeit. Gleichzeitige Anfragen auf denselben Schlüssel teilen sich eine Abfrage.
-// - Bei Fehler im Abruf: letzter Wert (stale), aber nur bis maxStaleSec alt.
-// - Nach einem Fehler wird die Quelle kurz in Ruhe gelassen (10, 20, 40, 60 s), damit eine Störung nicht jede App-Abfrage ausbremst.
-// - Höchstens `max` Einträge; die ältesten fliegen zuerst raus.
+// Small in-memory cache with a lifetime. Concurrent requests for the same key share one query.
+// - If a fetch fails: the last value (stale), but only up to maxStaleSec old.
+// - After a failure the source is left alone for a short time (10, 20, 40, 60 s), so that an outage does not slow down every app request.
+// - At most `max` entries; the oldest are dropped first.
 export class TtlCache {
   constructor(now = () => Date.now(), { max = 1500, backoffSec = 10, backoffMaxSec = 60 } = {}) {
     this.now = now; this.map = new Map(); this.inflight = new Map(); this.fails = new Map();
@@ -12,19 +12,19 @@ export class TtlCache {
 
   set(key, value) {
     const entry = { value, at: this.now() };
-    this.map.delete(key); this.map.set(key, entry);           // ans Ende der Reihenfolge
+    this.map.delete(key); this.map.set(key, entry);           // move to the end of the order
     while (this.map.size > this.max) this.map.delete(this.map.keys().next().value);
     return entry;
   }
 
-  /** Gibt { value, at, stale } zurück. Bei Fehler im Loader: letzter Wert (stale: true), falls vorhanden und nicht zu alt. */
+  /** Returns { value, at, stale }. If the loader fails: the last value (stale: true), if there is one and it is not too old. */
   async get(key, ttlSec, loader, { staleOnError = true, maxStaleSec = Infinity } = {}) {
     const t = this.now();
     const hit = this.map.get(key);
     if (hit && t - hit.at < ttlSec * 1000) return { value: hit.value, at: hit.at, stale: false };
     const usable = staleOnError && hit && (t - hit.at) / 1000 <= maxStaleSec ? hit : null;
     const f = this.fails.get(key);
-    if (f && t - f.at < f.wait) {                              // Quelle hat gerade erst versagt: nicht gleich wieder fragen
+    if (f && t - f.at < f.wait) {                              // the source has just failed: do not ask again right away
       if (usable) return { value: usable.value, at: usable.at, stale: true, error: f.err };
       throw f.err;
     }
