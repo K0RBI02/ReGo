@@ -1,2 +1,2 @@
-// Wird beim Bauen der Android-App überschrieben (Adresse des ReGo-Servers). Im Browser bleibt die Basis leer.
+// Overwritten when the Android app is built (address of the ReGo server). In the browser the base stays empty.
 window.REGO_API = '';

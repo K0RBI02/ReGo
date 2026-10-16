@@ -30,7 +30,7 @@ a:active,button:active{transform:scale(.97)}
 @keyframes rg-scrim{from{opacity:0}to{opacity:1}}
 .rg-sheet{animation:rg-sheet .28s ease-out both;padding-bottom:calc(20px + env(safe-area-inset-bottom)) !important}
 .rg-scrim{animation:rg-scrim .2s ease-out both}
-/* Hinweis über dem offenen Sheet: oben, und er lässt Tippen durch (sonst fängt er den Tipp auf die Abdunklung ab) */
+/* Notice above the open sheet: at the top, and it lets taps through (otherwise it catches the tap meant for the dimming) */
 .rg-toast-top{top:calc(12px + env(safe-area-inset-top,0px)) !important;bottom:auto !important;animation-name:rg-down !important;pointer-events:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 /*rg-dark-start*/
@@ -356,10 +356,10 @@ Strecke hinzufügen</button>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    // Kurzbefehl „Neue Strecke“ (Android) öffnet die Seite mit dem Zusatz #neu: dann steht das Formular schon offen
+    // Shortcut "Neue Strecke" (Android) opens the page with the suffix #neu: then the form is already open
     const wantAdd = /^#neu\b/.test(location.hash);
     if (wantAdd) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
-    // #einstellungen öffnet das Einstellungs-Sheet. Es bekommt einen eigenen Verlaufseintrag: Die Zurück-Taste (Android) schließt erst das Sheet.
+    // #einstellungen opens the settings sheet. It gets a history entry of its own: the back button (Android) closes the sheet first.
     const wantSheet = !wantAdd && /^#einstellungen\b/.test(location.hash);
     if (wantSheet) { try { history.replaceState(null, '', location.pathname); history.pushState(null, '', location.pathname + '#einstellungen'); this._pushed = true; } catch (e) {} }
     this.state = {
@@ -368,24 +368,24 @@ class Component extends DCLogic {
       days: [true, true, true, true, true, false, false],
       trip: 'both', toast: '', prev: null, focus: '', err: '', errCode: '', xroute: null, xbusy: false
     };
-    window.REGO.loadInfo().then(() => this.setState({}), () => {});       // Versionszeile
+    window.REGO.loadInfo().then(() => this.setState({}), () => {});       // version line
   }
   _fromRego() {
     const R = window.REGO, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     return R.tours.map((t) => {
       const d = t.schedule.days, work = d.length === 5 && names.slice(0, 5).every((n) => d.includes(n));
-      // Mit 1 Umstieg: beide Linien als Chips ("S1 › RE") und der Bahnhof, an dem meist gewechselt wird
+      // With 1 transfer: both lines as chips ("S1 › RE") and the station where one usually changes
       const xfer = t.transfers === 1, ids = xfer && t.lineIds && t.lineIds.length ? t.lineIds : [t.lineId];
       const chips = ids.filter(Boolean).map((id) => R.lines[id]).filter((l) => l && l.label).map((l) => ({ label: l.label, color: l.color }));
       const xnote = xfer ? '1 Umstieg' + (t.via ? ' · meist ' + t.via : '') : '';
-      // Aktive Strecke ohne Abfahrt: kurz sagen warum (die Hauptseite zeigt dasselbe groß)
+      // Active route without a departure: say briefly why (the main screen shows the same, big)
       const b = t.view && t.view.big, why = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : xfer ? 'Keine Verbindung mit 1 Umstieg' : 'Keine Direktverbindung';
-      const zeit = t.schedule.departUntil ? R.win.text(R.win.of(t.schedule.departAfter, t.schedule.departUntil)) : 'ab ' + t.schedule.departAfter;      // älterer Server kennt nur „ab“
+      const zeit = t.schedule.departUntil ? R.win.text(R.win.of(t.schedule.departAfter, t.schedule.departUntil)) : 'ab ' + t.schedule.departAfter;      // older server only knows "ab"
       return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ' + zeit, name: t.name, chips, on: t.active, note: why || xnote, noteOff: xnote };
     });
   }
   onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
-  // Einstellungs-Sheet (Push, Neues Handy, Rückmeldung, Version). Der Router ruft onHash, wenn nur der Anker wechselt, ohne die Seite neu aufzubauen.
+  // Settings sheet (push, new phone, feedback, version). The router calls onHash when only the anchor changes, without rebuilding the page.
   openSheet() {
     try { history.pushState(null, '', location.pathname + '#einstellungen'); this._pushed = true; } catch (e) {}
     this.setState({ sheet: true });
@@ -436,7 +436,7 @@ class Component extends DCLogic {
     const editing = !!st.editId;
     const valid = editing || T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
     const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => this.setState({ [st.focus]: q.name, focus: '', err: '', errCode: '', xroute: null }) })) : [];
-    // Vorschau „Mit 1 Umstieg“: die beiden Fahrten und dazwischen die Umstiegszeile
+    // Preview "Mit 1 Umstieg": the two trips and the transfer row in between
     const xr = st.xroute, xrows = [];
     if (xr) (xr.legs || []).forEach((l, k) => {
       if (k === 1) xrows.push({ isXfer: true, text: 'Umstieg ' + (xr.via || '') + (xr.wait != null ? ' · ' + xr.wait + ' Min.' : '') });
@@ -445,12 +445,12 @@ class Component extends DCLogic {
     const pushChips = [3, 5, 10].map((v) => ({
       label: v + ' Min.', on: st.threshold === v,
       style: 'flex: 1; min-height: 52px; border: 1.5px solid ' + (st.threshold === v ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; font-size: 16px; font-weight: 700; ' + (st.threshold === v ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
-      // Die Schwelle ändert nur die Schwelle: wer Push mit dem Schalter ausgemacht hat, bekommt ihn hier nicht heimlich wieder an
+      // The threshold only changes the threshold: anyone who switched push off with the switch does not get it turned back on here secretly
       pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => this.flash(window.REGO.pushActive() ? 'Push aktiv ab ' + v + ' Min.' : 'Gespeichert. Push ist aus (Schalter oben).', null), () => { this.setState({ threshold: window.REGO.settings.pushThresholdMin }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
     }));
     const pushOn = window.REGO.pushActive();
     const saving = !!this._saving;
-    // Pendelzeit: beim Anlegen mit Rückweg zwei Karten (Hin, Rück), sonst eine
+    // Commute time: when creating with a return trip two cards (outward, return), otherwise one
     const both = !editing && st.trip === 'both', R = window.REGO;
     const wins = [R.win.view(st.out, (w) => this.setState({ out: w }), { title: both ? 'Hinweg · Abfahrt zwischen' : 'Abfahrt zwischen', tone: 'w' })]
       .concat(both ? [R.win.view(st.back, (w) => this.setState({ back: w }), { title: 'Rückweg · Abfahrt zwischen', tone: 'o' })] : []);
@@ -481,7 +481,7 @@ class Component extends DCLogic {
       doClaim: () => {
         const code = (st.claim || '').trim();
         if (!code || this._claiming) return;
-        if (st.list.length && !st.confirmClaim) { this.setState({ confirmClaim: true }); return; }          // vorhandene Strecken gehen verloren: erst nachfragen
+        if (st.list.length && !st.confirmClaim) { this.setState({ confirmClaim: true }); return; }          // existing routes are lost: ask first
         this._claiming = true; this.setState({ confirmClaim: false });
         window.REGO.actions.claimTransfer(code).then((n) => { this._claiming = false; this.setState({ claim: '', list: this._fromRego() }); this.flash(n + ' Strecke(n) übernommen', null); }, (e) => { this._claiming = false; this.setState({}); this.flash(e && e.message ? e.message : 'Nicht möglich', null); });
       },
@@ -498,14 +498,14 @@ class Component extends DCLogic {
       setFrom: (e) => this.setState({ from: val(e), focus: 'from', err: '', errCode: '', xroute: null }),
       setTo: (e) => this.setState({ to: val(e), focus: 'to', err: '', errCode: '', xroute: null }),
       hasSaveErr: !!st.err, saveErr: st.err,
-      // Keine Direktverbindung: erst nach dem ausdrücklichen Tipp wird mit 1 Umstieg gesucht; gefunden = Vorschau, Speichern legt die Strecke dann mit Umstieg an
+      // No direct connection: only after the explicit tap is the search with 1 transfer started; found = preview, saving then creates the route with a transfer
       showXferBtn: st.errCode === 'no-direct' || st.errCode === 'retry',
       xbusy: !!st.xbusy, xferBtnLabel: st.xbusy ? 'Suche läuft …' : st.errCode === 'retry' ? 'Nochmal suchen' : 'Mit 1 Umstieg suchen',
       hasXroute: !!xr, xrows, xrouteHead: xr && (xr.legs || []).length > 1 ? 'Gefunden · 1 Umstieg' : 'Gefunden · ohne Umstieg', xrouteDur: xr ? xr.duration || '' : '',
       searchXfer: () => {
         if (this.state.xbusy) return;
         const a = st.from.trim(), b = st.to.trim();
-        const same = () => this.state.from.trim() === a && this.state.to.trim() === b;      // zwischendurch geändert: Ergebnis gilt nicht mehr
+        const same = () => this.state.from.trim() === a && this.state.to.trim() === b;      // changed in the meantime: the result no longer applies
         this.setState({ xbusy: true });
         window.REGO.actions.searchTransfer({ from: a, to: b }).then(
           (r) => {
@@ -520,7 +520,7 @@ class Component extends DCLogic {
       openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', errCode: '', xroute: null, xbusy: false, from: '', to: '', out: window.REGO.win.fresh('out'), back: window.REGO.win.fresh('back'), trip: 'both', days: [true, true, true, true, true, false, false] }),
       cancelAdd: () => this.setState({ adding: false, editId: '', err: '', errCode: '', xroute: null, xbusy: false }),
       saveAdd: () => {
-        if (!valid || this._saving) return;                       // schon unterwegs: ein zweiter Tipp darf nichts doppelt anlegen
+        if (!valid || this._saving) return;                       // already on its way: a second tap must not create anything twice
         const sel = names.filter((n, i) => st.days[i]);
         if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
         const end = () => { this._saving = false; };
@@ -537,14 +537,14 @@ class Component extends DCLogic {
           () => { end(); this.setState({ adding: false, xroute: null, err: '', errCode: '', list: this._fromRego() }); this.flash(st.trip === 'both' ? 'Hin- und Rückweg gespeichert' : 'Strecke gespeichert', null); },
           (e) => {
             end();
-            // Keine Verbindung: die Strecke wird nicht angelegt. Der Grund steht im Formular, das dafür nach oben springt.
-            // Bei „no-direct“ bietet das Formular die Suche mit 1 Umstieg an, bei „no-connection“ gibt es nichts mehr zu suchen.
+            // No connection: the route is not created. The reason is shown in the form, which jumps to the top for that.
+            // For "no-direct" the form offers the search with 1 transfer, for "no-connection" there is nothing left to search.
             if (e && e.status === 422) { this.setState({ err: e.message, errCode: e.code || '', xroute: e.code === 'no-connection' ? null : this.state.xroute }); const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0; return; }
             this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null);
           }
         );
       },
-      // Testmeldung: nur mit eingeschaltetem Push sinnvoll; ein zweiter Tipp während des Sendens zählt nicht
+      // Test notification: only useful with push switched on; a second tap while sending does not count
       testHint: pushOn ? 'Prüft, ob Meldungen bei dir ankommen' : 'Schalte zuerst Push-Meldungen ein',
       testBlocked: !pushOn || !!this._testBusy, testLabel: this._testBusy ? 'Sendet …' : 'Senden',
       testStyle: 'flex: none; min-height: 52px; padding: 0 22px; border-radius: 999px; font-size: 16px; font-weight: 700; background: #fff; color: #1C1A1A; border: 1.5px solid ' + (pushOn ? '#1C1A1A' : '#E8E8E8') + (pushOn ? '' : '; color: #9A9A9A'),

@@ -29,13 +29,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
-/** Holt alle ~15 Minuten die Meldungen vom ReGo-Server und zeigt sie an (Android erlaubt nicht öfter). Firebase stößt dasselbe sofort an. */
+/** Fetches the notifications from the ReGo server every ~15 minutes and shows them (Android does not allow more often). Firebase triggers the same immediately. */
 public class PollWorker extends Worker {
     static final String NAME = "rego-poll";
-    // Benachrichtigungskanäle nach Art der Meldung: Wer Gleiswechsel leise oder Baustellen gar nicht will, stellt das in den Android-Einstellungen je Kanal ein
+    // Notification channels by kind of incident: anyone who wants platform changes quiet or construction not at all sets that per channel in the Android settings
     static final String CH_DELAY = "rego-verspaetung", CH_CANCEL = "rego-ausfall", CH_WORK = "rego-baustelle", CH_PLATFORM = "rego-gleis";
-    private static final String OLD_CHANNEL = "rego-meldungen";          // bis 0.5.1: ein einziger Kanal für alles
-    // Merkzettel an der Benachrichtigung, damit sie später auf „behoben“ umgeschrieben werden kann
+    private static final String OLD_CHANNEL = "rego-meldungen";          // until 0.5.1: a single channel for everything
+    // Tag on the notification so that it can later be rewritten to "behoben"
     private static final String X_KIND = "rego_kind", X_LINE = "rego_line";
 
     public PollWorker(@NonNull Context c, @NonNull WorkerParameters p) { super(c, p); }
@@ -46,9 +46,9 @@ public class PollWorker extends Worker {
         androidx.work.WorkManager.getInstance(c).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, r);
     }
     static void cancel(Context c) { androidx.work.WorkManager.getInstance(c).cancelUniqueWork(NAME); }
-    static void clearBadge(Context c) { /* Meldungen bleiben stehen, bis sie weggewischt werden */ }
+    static void clearBadge(Context c) { /* notifications stay until they are swiped away */ }
 
-    /** Kanal zur Art der Meldung („kind“ vom Server); Testmeldungen und Unbekanntes laufen über „Verspätungen“. */
+    /** Channel for the kind of incident ("kind" from the server); test notifications and unknown kinds go through "Verspätungen". */
     static String channelFor(String kind) {
         if ("cancelled".equals(kind) || "replacement".equals(kind)) return CH_CANCEL;
         if ("construction".equals(kind)) return CH_WORK;
@@ -66,7 +66,7 @@ public class PollWorker extends Worker {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager m = c.getSystemService(NotificationManager.class);
         if (m == null) return;
-        m.deleteNotificationChannel(OLD_CHANNEL);                         // gibt es nichts zu löschen, passiert nichts
+        m.deleteNotificationChannel(OLD_CHANNEL);                         // if there is nothing to delete, nothing happens
         makeChannel(m, CH_DELAY, "Verspätungen", "Dein Zug ist später dran", NotificationManager.IMPORTANCE_HIGH);
         makeChannel(m, CH_CANCEL, "Ausfälle und Ersatzverkehr", "Fahrten fallen aus oder es fährt ein Bus statt der Bahn", NotificationManager.IMPORTANCE_HIGH);
         makeChannel(m, CH_WORK, "Baustellen", "Hinweise auf Bauarbeiten, die länger dauern", NotificationManager.IMPORTANCE_DEFAULT);
@@ -84,7 +84,7 @@ public class PollWorker extends Worker {
             h.setRequestProperty("x-device", device);
             h.setConnectTimeout(10000); h.setReadTimeout(15000);
             int code = h.getResponseCode();
-            if (code == 403) return Result.success();                     // Server verlangt einen Einladungscode (Profil wurde gelöscht): die App fragt beim nächsten Öffnen danach
+            if (code == 403) return Result.success();                     // server demands an invitation code (profile was deleted): the app asks for it on the next open
             if (code != 200) return Result.retry();
             StringBuilder sb = new StringBuilder();
             try (BufferedReader r = new BufferedReader(new InputStreamReader(h.getInputStream(), "UTF-8"))) { String l; while ((l = r.readLine()) != null) sb.append(l); }
@@ -119,9 +119,9 @@ public class PollWorker extends Worker {
     }
 
     /**
-     * Der Vorfall ist vorbei. Eine Verspätung, ein Ersatzverkehr oder eine Baustelle, die noch in der Leiste steht, wird kurz auf „behoben“ umgeschrieben
-     * (leise, nach ein paar Sekunden weg), damit man nicht plötzlich ins Leere schaut. Ausfälle und Gleiswechsel verschwinden einfach.
-     * Hat der Nutzer die Meldung schon weggewischt, passiert nichts.
+     * The incident is over. A delay, a replacement transport or a construction site that is still in the notification shade is briefly rewritten to "behoben"
+     * (silently, gone after a few seconds) so that nobody suddenly stares at nothing. Cancellations and platform changes simply disappear.
+     * If the user has already swiped the notification away, nothing happens.
      */
     private static void resolve(Context c, NotificationManagerCompat nm, String tag) {
         String kind = "", line = "";

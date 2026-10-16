@@ -77,8 +77,8 @@ class Component extends DCLogic {
         this.setState({ busy: true });
         const R = window.REGO;
         try { await R.actions.setThreshold(this.state.v); } catch (e) {}
-        try { await R.requestPosition(); } catch (e) {}      // Standort-Dialog
-        try { await R.actions.enablePush(); } catch (e) {}   // Mitteilungs-Dialog
+        try { await R.requestPosition(); } catch (e) {}      // location dialog
+        try { await R.actions.enablePush(); } catch (e) {}   // notification dialog
         R.navigate('/Main');
       }
     };

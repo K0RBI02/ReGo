@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ReGo</string>
-    <!-- Kurzbefehle am App-Symbol -->
+    <!-- Shortcuts on the app icon -->
     <string name="sc_ticket_short">Ticket</string>
     <string name="sc_ticket_long">Ticket anzeigen</string>
     <string name="sc_alerts_short">Meldungen</string>

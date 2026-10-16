@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Reihenfolge = Rang: Das Ticket steht ganz oben -->
+    <!-- Order = rank: the ticket comes first -->
     <shortcut
         android:shortcutId="ticket"
         android:enabled="true"

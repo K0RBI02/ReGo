@@ -1,4 +1,4 @@
-// RegoScan.decode(imageData) -> Promise<{format, bytes, box}|null>. Nutzt einen Worker, sonst den Hauptthread.
+// RegoScan.decode(imageData) -> Promise<{format, bytes, box}|null>. Uses a worker, otherwise the main thread.
 (function (root) {
   var worker = null, pending = {}, seq = 0, failed = false;
   function start() {

@@ -42,7 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** ReGo als App: die Oberfläche steckt in der App, nur die Daten kommen vom ReGo-Server. */
+/** ReGo as an app: the UI is bundled in the app, only the data comes from the ReGo server. */
 public class MainActivity extends AppCompatActivity {
     static final String HOST = "appassets.androidplatform.net";
     private WebView web;
@@ -67,10 +67,10 @@ public class MainActivity extends AppCompatActivity {
                 if (web != null && web.canGoBack()) web.goBack(); else { setEnabled(false); getOnBackPressedDispatcher().onBackPressed(); }
             }
         });
-        // Meldungen weiter abholen, wenn sie schon einmal eingeschaltet wurden
+        // keep fetching notifications if they were switched on once
         SharedPreferences sp = getSharedPreferences("rego", MODE_PRIVATE);
         if (sp.getBoolean("push", false)) PollWorker.schedule(this);
-        // Nach Drehen, Dunkelmodus-Wechsel o. Ä. den alten Stand wiederherstellen; gelingt das nicht, normal starten
+        // After rotation, dark-mode change or the like restore the old state; if that fails, start normally
         if (b == null || web.restoreState(b) == null) web.loadUrl("https://" + HOST + startPath(getIntent()));
     }
 
@@ -84,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
-        s.setTextZoom(100);                 // feste Schriftgröße: die Systemeinstellung „Schriftgröße“ verschiebt sonst das Layout
+        s.setTextZoom(100);                 // fixed font size: the system font-size setting would otherwise shift the layout
         web.setBackgroundColor(ContextCompat.getColor(this, R.color.window_bg));
         web.addJavascriptInterface(new Bridge(), "RegoNative");
         web.setWebViewClient(new WebViewClient() {
@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
                 Uri u = r.getUrl();
                 if (!HOST.equals(u.getHost())) return null;
                 String path = u.getPath() == null ? "/" : u.getPath();
-                // Seitenadressen ohne Dateiendung (/Meldungen, /Ticket …) zeigen auf die Startseite
+                // Page addresses without a file extension (/Meldungen, /Ticket …) point to the start page
                 if (!path.contains(".")) {
                     return loader.shouldInterceptRequest(Uri.parse("https://" + HOST + "/index.html"));
                 }
@@ -101,10 +101,10 @@ public class MainActivity extends AppCompatActivity {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 if (HOST.equals(u.getHost())) return false;
-                try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { /* keine App dafür */ }
+                try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { /* no app for it */ }
                 return true;
             }
-            // Der Web-Prozess wurde beendet (zu wenig Speicher oder Absturz). Ohne diese Methode würde die ganze App mit abstürzen.
+            // The web process was killed (low memory or crash). Without this method the whole app would crash with it.
             @Override public boolean onRenderProcessGone(WebView v, RenderProcessGoneDetail detail) {
                 if (v != web) return true;
                 ViewGroup parent = (ViewGroup) web.getParent();
@@ -118,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
         });
         web.setWebChromeClient(new WebChromeClient() {
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback cb) {
-                // „Ungefähr“ reicht (ReGo rundet den Standort ohnehin auf etwa einen Kilometer)
+                // "Approximate" is enough (ReGo rounds the location to about a kilometer anyway)
                 if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION) || hasPerm(Manifest.permission.ACCESS_COARSE_LOCATION)) { cb.invoke(origin, true, false); return; }
                 pendingGeo = cb; pendingGeoOrigin = origin;
                 ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, RC_GEO);
@@ -152,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
         String p = i.getStringExtra("path");
         if (p == null || !p.startsWith("/") || web == null) return;
         final String url = "https://" + HOST + p;
-        // Läuft die Oberfläche schon, wechselt sie die Seite selbst (so geht auch dieselbe Seite mit anderem Zusatz, z. B. „#neu“ oder eine andere Meldung); sonst wird normal geladen
+        // If the UI is already running, it switches the page itself (so the same page with a different suffix works too, e.g. "#neu" or another incident); otherwise it loads normally
         web.evaluateJavascript("(function(){try{if(window.REGO&&window.REGO.navigate){window.REGO.navigate(" + JSONObject.quote(p) + ");return 1}}catch(e){}return 0})()",
                 v -> { if (!"1".equals(v) && web != null) web.loadUrl(url); });
     }
@@ -205,8 +205,8 @@ public class MainActivity extends AppCompatActivity {
     private void finishPush(boolean ok) {
         getSharedPreferences("rego", MODE_PRIVATE).edit().putBoolean("push", ok).apply();
         if (!ok) { pushResult(false, ""); return; }
-        PollWorker.schedule(this);          // Nachfrage alle ~15 Min. bleibt als Rückfall
-        try {                               // Firebase-Kennung holen (nur wenn die App mit Firebase gebaut wurde)
+        PollWorker.schedule(this);          // polling every ~15 min stays as a fallback
+        try {                               // get the Firebase token (only if the app was built with Firebase)
             com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnCompleteListener(t -> {
                 String tok = t.isSuccessful() && t.getResult() != null ? t.getResult() : "";
                 getSharedPreferences("rego", MODE_PRIVATE).edit().putString("fcm", tok).apply();
@@ -219,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.__rgPushDone&&window.__rgPushDone(" + (ok ? "'" + token.replace("'", "") + "'" : "false") + ")", null); });
     }
 
-    /** CSS-Farbe aus der Oberfläche („#rrggbb“, „rgb(247, 247, 247)“, „rgba(…)“) in eine Android-Farbe; null, wenn nicht lesbar. */
+    /** CSS color from the UI ("#rrggbb", "rgb(247, 247, 247)", "rgba(…)") to an Android color; null if unreadable. */
     static Integer cssColor(String s) {
         if (s == null) return null;
         String v = s.trim().toLowerCase(Locale.ROOT);
@@ -232,12 +232,12 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) { return null; }
     }
 
-    /** Heller Untergrund: dann bekommen Statusleiste und Navigationsleiste dunkle Symbole. */
+    /** Light background: then the status bar and navigation bar get dark icons. */
     static boolean isLight(int c) { return (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) > 150; }
 
-    /** Was die Oberfläche von der App aus aufrufen kann (window.RegoNative). */
+    /** What the UI can call from the app (window.RegoNative). */
     class Bridge {
-        /** Versionsnummer der App für die Zeile unter „Strecken“. */
+        /** Version number of the app for the line under "Strecken". */
         @JavascriptInterface public String appVersion() {
             try {
                 String v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
@@ -255,7 +255,7 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> { if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); });
         }
         @JavascriptInterface public void setBars(String color) { setBarColors(color, color); }
-        /** Statusleiste oben und Navigationsleiste unten getrennt färben (Detailseite: grüne Karte oben, weißes Blatt unten). */
+        /** Color the status bar at the top and the navigation bar at the bottom separately (detail page: green card on top, white sheet below). */
         @JavascriptInterface public void setBarColors(String top, String bottom) {
             Integer t = cssColor(top), b = cssColor(bottom);
             if (t == null || b == null) return;

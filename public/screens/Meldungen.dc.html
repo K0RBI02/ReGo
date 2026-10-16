@@ -161,8 +161,8 @@ class Component extends DCLogic {
   _rv() {
     const T = window.REGO;
     const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
-    // Jede Meldung bleibt eine eigene Karte (Übersicht), alle führen auf die Seite ihrer Strecke.
-    // Dieselbe Meldung auf Hin- und Rückweg derselben Strecke wird zu einer Karte (T.meldungen, dieselbe Zählung wie die Zahl am Knopf).
+    // Each incident stays a card of its own (overview), all lead to the page of their route.
+    // The same incident on the outward and return trip of the same route becomes one card (T.meldungen, the same count as the number on the button).
     const merged = T.meldungen();
     const items = merged
       .sort((a, b) => ((a.t.distanceKm ?? 0) - (b.t.distanceKm ?? 0)) || b.i.severity - a.i.severity)

@@ -1,4 +1,4 @@
-/* Kleines Ablaufprotokoll, überlebt einen Neustart der Seite (sessionStorage). Wird auf dem Scan-Screen angezeigt. */
+/* Small run log that survives a restart of the page (sessionStorage). Shown on the scan screen. */
 (function () {
   const K = 'rego.log';
   const get = () => { try { return JSON.parse(sessionStorage.getItem(K) || '[]'); } catch (e) { return []; } };

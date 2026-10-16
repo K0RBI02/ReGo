@@ -1,9 +1,9 @@
-/* ReGo – Ticketcodes: QR- und Aztec-Encoder sowie Auslesen von Ticketdaten.
-   Keine Abhängigkeiten. Im Browser als window.RegoCode, in Node per require(). */
+/* ReGo – ticket codes: QR and Aztec encoders, plus reading of ticket data.
+   No dependencies. In the browser as window.RegoCode, in Node via require(). */
 (function (root) {
   'use strict';
 
-  // ---------------------------------------------------------------- QR-Code
+  // ---------------------------------------------------------------- QR code
   var ECC_PER_BLOCK = [
     [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
     [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
@@ -60,7 +60,7 @@
     return res;
   }
 
-  // bytes: Array/Uint8Array. ecl: 0=L 1=M 2=Q 3=H. Gibt Matrix (Array von Zeilen mit true=dunkel) oder null.
+  // bytes: Array/Uint8Array. ecl: 0=L 1=M 2=Q 3=H. Returns a matrix (array of rows with true=dark) or null.
   function qrEncode(bytes, ecl) {
     if (ecl == null) ecl = 1;
     var ver = 1, len = bytes.length;
@@ -212,7 +212,7 @@
       }
       gen = next;
     }
-    // gen[0] ist der Koeffizient von x^deg (=1)
+    // gen[0] is the coefficient of x^deg (=1)
     var rem = []; for (i = 0; i < eccCount; i++) rem.push(0);
     words.forEach(function (w) {
       var factor = w ^ rem[0];
@@ -261,7 +261,7 @@
     }
     return null;
   }
-  // Bits einer Nachricht samt Prüfwörtern (Auffüllung vorne)
+  // Bits of a message including check words (padding at the front)
   function azMessage(stuffed, total, ws) {
     var words = [], i, w;
     for (i = 0; i < stuffed.length; i += ws) { w = 0; for (var j = 0; j < ws; j++) w = (w << 1) | stuffed[i + j]; words.push(w); }
@@ -281,7 +281,7 @@
     wl.concat(ecc).forEach(function (v) { for (var k = 3; k >= 0; k--) out.push((v >>> k) & 1); });
     return out;
   }
-  // Abbildung Nachrichten-Bit -> Position, gemeinsam für Encoder und Testdecoder
+  // Mapping message bit -> position, shared by encoder and test decoder
   function azLayout(compact, layers) {
     var base = compact ? 11 + 4 * layers : 14 + 4 * layers, size, map = [], i;
     if (compact) { size = base; for (i = 0; i < base; i++) map[i] = i; }
@@ -346,7 +346,7 @@
     return m;
   }
 
-  // Gegenprobe: liest eine Aztec-Matrix wieder aus (nur für Tests)
+  // Cross-check: reads an Aztec matrix back (for tests only)
   function azDecodeForTest(m) {
     var size = m.length, compact, layers, i;
     var cands = [];
@@ -359,7 +359,7 @@
     var pad = total % ws, words = [];
     for (i = pad; i < total; i += ws) { var w = 0; for (var j = 0; j < ws; j++) w = (w << 1) | bits[i + j]; words.push(w); }
     var f = azField(ws), eccCount, syn;
-    // Mode-Message prüfen: Anzahl Datenwörter
+    // Check the mode message: number of data words
     var center = Math.floor(size / 2), mode = [];
     if (compact) {
       for (i = 0; i < 7; i++) { var o = center - 3 + i; mode[i] = m[center - 5][o]; mode[i + 7] = m[o][center + 5]; mode[20 - i] = m[center + 5][o]; mode[27 - i] = m[o][center - 5]; }
@@ -373,7 +373,7 @@
     if (lyr !== layers) throw new Error('layers mismatch');
     var dataWords = words.slice(0, wordsCount), eccCalc = azRs(dataWords, words.length - wordsCount, ws);
     if (eccCalc.join() !== words.slice(wordsCount).join()) throw new Error('rs mismatch');
-    // Entstopfen
+    // Unstuffing
     var out = [];
     dataWords.forEach(function (v) {
       var top = v >> 1, allOnes = (1 << (ws - 1)) - 1;
@@ -390,7 +390,7 @@
     return res;
   }
 
-  // ------------------------------------------------------------ Text <-> Bytes
+  // ------------------------------------------------------------ Text <-> bytes
   function utf8(str) {
     if (typeof TextEncoder !== 'undefined') return Array.prototype.slice.call(new TextEncoder().encode(str));
     return Array.prototype.slice.call(Buffer.from(str, 'utf8'));
@@ -400,7 +400,7 @@
     for (var i = 0; i < str.length; i++) { var c = str.charCodeAt(i); if (c > 255) return null; out.push(c); }
     return out;
   }
-  // Mögliche Byte-Folgen zu einem gelesenen Text (UTF-8 zuerst, dann Latin-1)
+  // Possible byte sequences for a read text (UTF-8 first, then Latin-1)
   function candidates(str) {
     var a = utf8(str), b = latin1(str), res = [a];
     if (b && b.join() !== a.join()) res.push(b);
@@ -417,8 +417,8 @@
     return c;
   }
 
-  // Zeichnet den Code zu den gelesenen Bytes neu. format: 'qr_code' | 'aztec'.
-  // Gibt { image, bytes } zurück, wenn der eigene Leser das Ergebnis byte-genau wieder liest, sonst null.
+  // Redraws the code for the read bytes. format: 'qr_code' | 'aztec'.
+  // Returns { image, bytes } if the own reader reads the result back byte-exactly, otherwise null.
   function sameBytes(a, b) { if (!a || !b || a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
   function regenerate(input, format) {
     if (!input || !input.length || (format !== 'qr_code' && format !== 'aztec')) return Promise.resolve(null);
@@ -436,7 +436,7 @@
     return Promise.resolve(null);
   }
 
-  // ------------------------------------------------------------ Ticketdaten
+  // ------------------------------------------------------------ Ticket data
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function validDate(y, m, d) {
     if (y < 2020 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
@@ -468,7 +468,7 @@
     while ((m = re.exec(text))) { var c = validDate(+m[1], +m[2], +m[3]); if (c) out.dates.push(c); }
     return out;
   }
-  // Liest, was sich ohne Schlüssel aus einem Ticketcode erkennen lässt (Text, Daten, Zlib-Teile)
+  // Reads what can be recognized from a ticket code without a key (text, data, zlib parts)
   function parseTicket(raw) {
     var res = { kind: 'empty', type: null, name: null, validUntil: null, validFrom: null };
     if (!raw) return Promise.resolve(res);

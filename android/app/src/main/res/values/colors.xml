@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Farben vor dem ersten Bild der Oberfläche; die Oberfläche selbst ändert Leiste und Hintergrund danach je Seite -->
+    <!-- Colors before the first frame of the UI; the UI itself changes the bar and background per page afterwards -->
     <color name="window_bg">#F7F7F7</color>
     <color name="status_bar">#F7F7F7</color>
     <color name="splash">#E4F4D0</color>
-    <!-- App-Symbol: bei hellem System dunkel mit hellem Läufer, bei dunklem System umgekehrt -->
+    <!-- App icon: dark with a light runner on a light system, the other way round on a dark system -->
     <color name="ic_launcher_background">#1C1B1E</color>
     <color name="ic_launcher_glyph">#EBE8EE</color>
 </resources>

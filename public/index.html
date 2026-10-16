@@ -10,8 +10,8 @@
 <link rel="preload" href="/fonts/InstrumentSans-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="preload" href="/fonts/InstrumentSans-Bold.ttf" as="font" type="font/ttf" crossorigin>
 <style>
-/* Schrift: Instrument Sans (SIL Open Font License, Lizenztext liegt in /fonts/), mitgeliefert statt von einem Drittanbieter geladen.
-   Es gibt zwei Schnitte: 400/500 nutzt Regular, 600 bis 800 nutzt Bold. Fehlt die Datei, greift die Systemschrift. */
+/* Font: Instrument Sans (SIL Open Font License, the license text is in /fonts/), shipped with the app instead of being loaded from a third party.
+   There are two weights: 400/500 uses Regular, 600 to 800 uses Bold. If the file is missing, the system font takes over. */
 @font-face{font-family:'Instrument Sans';src:url('/fonts/InstrumentSans-Regular.ttf') format('truetype');font-weight:400 500;font-style:normal;font-display:swap}
 @font-face{font-family:'Instrument Sans';src:url('/fonts/InstrumentSans-Bold.ttf') format('truetype');font-weight:600 800;font-style:normal;font-display:swap}
 html,body{margin:0;height:100%;background:#F7F7F7;-webkit-text-size-adjust:100%}
@@ -19,22 +19,22 @@ html,body{margin:0;height:100%;background:#F7F7F7;-webkit-text-size-adjust:100%}
 #app{position:fixed;top:0;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;overflow:hidden}
 #screen{height:100%}
 #screen>div{width:100% !important;height:100% !important;max-width:none !important;position:relative !important;padding-top:env(safe-area-inset-top)}
-/* Schwebende Knöpfe: nur die Knöpfe liegen über dem Inhalt, der Streifen dahinter ist durchsichtig */
+/* Floating buttons: only the buttons lie over the content, the strip behind them is transparent */
 .rg-dock{position:absolute !important;left:0;right:0;bottom:0;background:transparent !important;pointer-events:none;z-index:5;padding-bottom:calc(28px + env(safe-area-inset-bottom)) !important}
 .rg-dock > *,.rg-dock a,.rg-dock button{pointer-events:auto}
 .rg-top{position:relative;z-index:5;flex:none;pointer-events:none;background:transparent !important}
 .rg-top a,.rg-top button{pointer-events:auto}
 .rg-under{margin-top:-68px;padding-top:76px !important}
 .rg-dockpad{padding-bottom:calc(120px + env(safe-area-inset-bottom)) !important}
-/* Beim Scrollen läuft der Inhalt oben weich aus statt hart unter der Kopfzeile abgeschnitten zu werden */
+/* When scrolling, the content fades out softly at the top instead of being cut off hard under the header */
 .rg-dockpad.rg-scrolled,.rg-fade.rg-scrolled{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px);mask-image:linear-gradient(to bottom,transparent 0,#000 18px)}
 .rg-under.rg-scrolled{-webkit-mask-image:linear-gradient(to bottom,transparent 0,transparent 44px,#000 80px);mask-image:linear-gradient(to bottom,transparent 0,transparent 44px,#000 80px)}
-/* Illustrationen weichen, wenn der Platz fehlt (kleine Handys), statt über den Text zu rutschen */
+/* Illustrations give way when space is short (small phones) instead of sliding over the text */
 .rg-code{background:#fff !important;border-radius:10px;padding:8px;box-sizing:border-box}
 .rg-illu{container-type:size}
 @container (max-height:120px){.rg-illu svg{display:none}}
 @supports (text-box:trim-both cap alphabetic){.rg-beta{margin-top:0 !important}}
-/* Einladungscode-Maske (kein Inline-Stil, damit die Dunkelmodus-Regeln der Seiten sie nicht umfärben) */
+/* Invitation code gate (no inline style, so that the dark-mode rules of the pages do not recolor it) */
 .rg-gate{position:absolute;inset:0;z-index:55;background:#D4EDF6;color:#1C1A1A;font-family:'Instrument Sans','Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column;padding:calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));box-sizing:border-box;overflow-y:auto}
 .rg-gate-main{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:16px}
 .rg-gate h1{margin:0;font-size:52px;line-height:.98;font-weight:700;letter-spacing:-0.04em}
@@ -43,9 +43,9 @@ html,body{margin:0;height:100%;background:#F7F7F7;-webkit-text-size-adjust:100%}
 .rg-gate input:focus{box-shadow:0 0 0 3px #2F6BFF}
 .rg-gate-err{min-height:22px;font-size:16px;font-weight:700;line-height:1.3}
 .rg-gate button{flex:none;min-height:64px;border:0;border-radius:999px;background:#1C1A1A;color:#fff;font-size:19px;font-weight:700;font-family:inherit;cursor:pointer}
-/* Pendelzeit-Schieber: zwei Griffe auf einer Leiste. Es sind zwei übereinanderliegende Schieber; ihre eigenen Griffe sind unsichtbar und fangen nur Tipper ab,
-   gezeichnet werden die runden Knöpfe daneben. Jeder Schieber reagiert nur bis zur Mitte zwischen den Griffen (clip-path), so greift man auch bei dicht beieinander
-   liegenden Griffen den richtigen. */
+/* Commute-time slider: two handles on one track. There are two sliders on top of each other; their own handles are invisible and only catch taps,
+   the round knobs next to them are what is drawn. Each slider only reacts up to the middle between the handles (clip-path), so the right one is grabbed even when
+   the handles are close together. */
 .rg-dual{position:relative;height:52px}
 .rg-dual.rg-c{height:44px}
 .rg-trk,.rg-fill{position:absolute;top:calc(50% - 3px);height:6px;border-radius:3px}

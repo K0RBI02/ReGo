@@ -2,12 +2,12 @@ plugins {
     id 'com.android.application'
 }
 
-// Sofort-Push (Firebase) nur, wenn die Datei google-services.json vorliegt (kommt im Build aus dem GitHub-Geheimnis). Sonst fragt die App alle ~15 Min. nach.
+// Instant push (Firebase) only if the file google-services.json is present (it comes from the GitHub secret during the build). Otherwise the app asks about every ~15 min.
 if (file('google-services.json').exists()) {
     apply plugin: 'com.google.gms.google-services'
 }
 
-// Adresse, unter der ReGo erreichbar ist (ohne https://). Wird beim Bauen übergeben: -PrgHost=...
+// Address under which ReGo can be reached (without https://). Passed in when building: -PrgHost=...
 def rgHost = (project.findProperty('rgHost') ?: 'rego.tail2a5f03.ts.net').toString()
 def rgVersionName = (project.findProperty('rgVersionName') ?: '0.2.0').toString()
 def rgVersionCode = (project.findProperty('rgVersionCode') ?: '1').toString().toInteger()
@@ -24,7 +24,7 @@ android {
         versionName = rgVersionName
     }
 
-    // Schlüssel kommt aus dem Build (GitHub-Geheimnisse). Ohne ihn wird mit dem Debug-Schlüssel signiert.
+    // The key comes from the build (GitHub secrets). Without it the build is signed with the debug key.
     def ksPath = System.getenv('RG_KEYSTORE')
     def hasKeystore = ksPath != null && !ksPath.isEmpty()
 
@@ -56,7 +56,7 @@ android {
     }
 }
 
-// Die Oberfläche (../public) wird in die App kopiert; native-config.js trägt die Serveradresse ein.
+// The UI (../public) is copied into the app; native-config.js writes in the server address.
 tasks.register('copyWebUi', Copy) {
     from("$rootDir/../public") { exclude 'js/native-config.js', '.well-known/**', 'status.html' }
     into("$buildDir/generated/rego-assets")

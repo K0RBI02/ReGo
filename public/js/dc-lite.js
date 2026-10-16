@@ -1,5 +1,5 @@
-/* dc-lite – kleine Laufzeit, die die ReGo-Screens (*.dc.html aus dem Design) unverändert im Browser ausführt.
- * Unterstützt genau das, was die Screens nutzen: {{pfad}}, <sc-if value>, <sc-for list as>, onClick/onInput,
+/* dc-lite – a small runtime that runs the ReGo screens (*.dc.html from the design) unchanged in the browser.
+ * Supports exactly what the screens use: {{path}}, <sc-if value>, <sc-for list as>, onClick/onInput,
  * class Component extends DCLogic { constructor, state, setState, renderVals }. */
 (function () {
   const EVENTS = ['onclick', 'oninput', 'onchange', 'onkeydown', 'onfocus', 'onblur'];
@@ -24,7 +24,7 @@
   const text = (s, scope) => s.replace(HOLE, (_, p) => { const v = lookup(p, scope); return v == null || v === false ? '' : String(v); });
   const exact = (s) => { const m = /^\s*\{\{\s*([^}]*?)\s*\}\}\s*$/.exec(s); return m ? m[1] : null; };
 
-  /** Template-Knoten + Scope -> Liste frischer DOM-Knoten */
+  /** Template node + scope -> list of fresh DOM nodes */
   function build(node, scope, out) {
     if (node.nodeType === 3) { out.push(document.createTextNode(node.nodeValue.includes('{{') ? text(node.nodeValue, scope) : node.nodeValue)); return; }
     if (node.nodeType !== 1) return;
@@ -47,7 +47,7 @@
       if (EVENTS.includes(n)) { el.removeAttribute(a.name); const f = lookup(exact(a.value) || '', scope); if (typeof f === 'function') el[n] = f; continue; }
       if (a.value.includes('{{')) { const e = exact(a.value); const v = e ? lookup(e, scope) : null; el.setAttribute(a.name, e ? (v == null ? '' : String(v)) : text(a.value, scope)); }
     }
-    // Der Browser schreibt Inline-Styles in rgb(...) um; das Dunkelmodus-CSS der Screens verlässt sich darauf.
+    // The browser rewrites inline styles to rgb(...); the dark-mode CSS of the screens relies on that.
     if (el.hasAttribute('style')) el.setAttribute('style', el.style.cssText);
     const kids = [];
     for (const c of node.childNodes) build(c, scope, kids);
@@ -55,7 +55,7 @@
     out.push(el);
   }
 
-  /** Sehr kleiner DOM-Abgleich: Fokus, Cursor und Scroll bleiben erhalten. */
+  /** Very small DOM diff: focus, cursor and scroll are kept. */
   function morph(live, next) {
     const a = Array.from(live.childNodes), b = Array.from(next.childNodes);
     for (let i = 0; i < b.length; i++) {
@@ -89,12 +89,12 @@
     return s;
   }
 
-  /** Screen in `host` einhängen. Gibt { update, destroy, instance } zurück. */
+  /** Mount a screen into `host`. Returns { update, destroy, instance }. */
   async function mount(name, host, styleEl) {
     const screen = await loadScreen(name);
     styleEl.textContent = screen.css;
     const instance = new screen.Component({});
-    let dead = false;                                    // nach destroy() nichts mehr zeichnen (sonst überschreibt ein Nachzügler die neue Seite)
+    let dead = false;                                    // after destroy() draw nothing anymore (otherwise a straggler overwrites the new page)
     const m = {
       instance,
       update() {

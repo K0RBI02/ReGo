@@ -124,7 +124,7 @@ class Component extends DCLogic {
     })) : [];
     const typed = (st.from.trim() !== '' && !okFrom) || (st.to.trim() !== '' && !okTo);
     window.REGO_pending = ok ? { from: st.from, to: st.to, trip: st.trip, time: st.out.from, until: st.out.until, backTime: st.back.from, backUntil: st.back.until } : null;
-    // Pendelzeit: wann du losfährst (bei Hin und zurück auch für den Rückweg)
+    // Commute time: when you set off (with round trip also for the return trip)
     const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: st.trip === 'both' ? 'Hinweg · Abfahrt' : 'Abfahrt', tone: 'w', compact: true })]
       .concat(st.trip === 'both' ? [T.win.view(st.back, (w) => this.setState({ back: w }), { title: 'Rückweg · Abfahrt', tone: 'w', compact: true })] : []);
     return {

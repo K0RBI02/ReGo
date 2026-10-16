@@ -1,10 +1,10 @@
-name: Android-App (APK) bauen
+name: Build Android app (APK)
 
 on:
   workflow_dispatch:
     inputs:
       host:
-        description: 'Adresse der App ohne https:// (leer = Variable REGO_HOST oder Standard)'
+        description: 'App address without https:// (empty = variable REGO_HOST or the default)'
         required: false
   push:
     branches: [main]
@@ -28,21 +28,21 @@ jobs:
         with:
           gradle-version: 8.9
 
-      - name: Version und Adresse bestimmen
+      - name: Determine version and address
         id: meta
         run: |
           echo "version=$(sed -n 's/^version: "\(.*\)"/\1/p' rego/config.yaml)" >> "$GITHUB_OUTPUT"
           HOST="${{ inputs.host }}"; [ -z "$HOST" ] && HOST="${{ vars.REGO_HOST }}"; [ -z "$HOST" ] && HOST="rego.tail2a5f03.ts.net"
           echo "host=$HOST" >> "$GITHUB_OUTPUT"
 
-      - name: Firebase-Konfiguration bereitstellen
+      - name: Provide Firebase configuration
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
         run: |
-          if [ -n "$GS" ]; then echo "$GS" | base64 -d > android/app/google-services.json; echo "Firebase: ja (Sofort-Push)" >> "$GITHUB_STEP_SUMMARY"
-          else echo "::warning::Geheimnis GOOGLE_SERVICES_JSON_B64 fehlt: App ohne Sofort-Push (Nachfrage alle ~15 Min.)."; fi
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > android/app/google-services.json; echo "Firebase: yes (instant push)" >> "$GITHUB_STEP_SUMMARY"
+          else echo "::warning::Secret GOOGLE_SERVICES_JSON_B64 is missing: app without instant push (polls about every 15 min)."; fi
 
-      - name: Signierschlüssel bereitstellen
+      - name: Provide signing key
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
@@ -50,21 +50,21 @@ jobs:
             echo "$KS" | base64 -d > "$RUNNER_TEMP/rego-release.jks"
             echo "RG_KEYSTORE=$RUNNER_TEMP/rego-release.jks" >> "$GITHUB_ENV"
             echo "RG_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
-            echo "signiert=ja" >> "$GITHUB_STEP_SUMMARY"
+            echo "signed=yes" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::Kein Signierschlüssel hinterlegt (Geheimnis ANDROID_KEYSTORE_B64). Die APK wird mit dem Debug-Schlüssel gebaut, dann zeigt Android eine Browserleiste und Updates lassen sich nicht über die alte Version installieren."
+            echo "::warning::No signing key stored (secret ANDROID_KEYSTORE_B64). The APK is built with the debug key, so it cannot be installed over a version signed with another key."
           fi
 
-      - name: APK bauen
+      - name: Build APK
         run: |
           set -o pipefail
           gradle -p android assembleRelease --no-daemon --stacktrace \
             -PrgHost="${{ steps.meta.outputs.host }}" \
             -PrgVersionName="${{ steps.meta.outputs.version }}" \
             -PrgVersionCode="${{ github.run_number }}" 2>&1 | tee build.log \
-          || { echo "::error::Gradle fehlgeschlagen: $(grep -E 'error:|ERROR|FAILED|What went wrong|Caused by|Could not|build.gradle|Execution failed' -A2 build.log | head -n 40 | tr '\n' '|' | cut -c1-2500)"; exit 1; }
+          || { echo "::error::Gradle failed: $(grep -E 'error:|ERROR|FAILED|What went wrong|Caused by|Could not|build.gradle|Execution failed' -A2 build.log | head -n 40 | tr '\n' '|' | cut -c1-2500)"; exit 1; }
 
-      - name: Datei benennen
+      - name: Name the file
         run: |
           cp android/app/build/outputs/apk/release/*.apk "rego-${{ steps.meta.outputs.version }}.apk"
           ls -la rego-*.apk
@@ -74,10 +74,10 @@ jobs:
           name: rego-apk
           path: rego-*.apk
 
-      - name: Als Release veröffentlichen
+      - name: Publish as release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="app-v${{ steps.meta.outputs.version }}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "ReGo ${{ steps.meta.outputs.version }} (Android)" --notes "APK zum Installieren auf Android. Anleitung: deploy/ANDROID.md"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "ReGo ${{ steps.meta.outputs.version }} (Android)" --notes "APK for installing on Android. Instructions: see the Install section of the README."
           gh release upload "$TAG" rego-*.apk --clobber

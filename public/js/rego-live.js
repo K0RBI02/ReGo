@@ -1,5 +1,5 @@
-/* window.REGO – gleiche Felder wie im Design (rego-data.js), gefüllt aus dem Backend.
- * Offline-first: letzter Stand liegt im Gerät, Tickets verlassen das Gerät nie. */
+/* window.REGO – same fields as in the design (rego-data.js), filled from the backend.
+ * Offline-first: the latest state is kept on the device, tickets never leave the device. */
 (function () {
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -26,7 +26,7 @@
     tight: { label: 'Anschluss wackelt', bg: '#FDE3CF', icon: ['M24 8c1 0 2 .6 2.6 1.6L41 36c1 2-.2 4.2-2.6 4.2H9.6C7.2 40.2 6 38 7 36L21.4 9.6C22 8.6 23 8 24 8z', 'M24 18v11M24 34.5v.1'] },
     missed: { label: 'Anschluss verpasst', bg: '#F9D6D2', icon: ['M24 6a18 18 0 1 0 .01 0z', 'M17 17l14 14M31 17L17 31'] },
   } };
-  // Strecke ohne Abfahrt: der Server liefert eine genaue Ansicht; ein älterer Server (oder ein alter Zwischenstand) nicht, dann gilt diese – nie „pünktlich“
+  // Route without a departure: the server delivers an exact view; an older server (or an old intermediate state) does not, then this one applies – never "pünktlich"
   const NONE_VIEW = { kind: 'none', head: 'Nächste Abfahrt', big: 'Keine', sub: 'Keine Abfahrten gefunden.', rows: [], alternative: null, ticketHint: null, map: null };
 
   const R = window.REGO = {
@@ -35,7 +35,7 @@
     connection: { status: 'ok', loading: true, lastSync: '' },
     settings: { pushThresholdMin: 5, delayGraceMin: 10 },
     clock: nowParts(), stations: [], deviceId: device,
-    invite: { needed: false, wrong: false },          // der Server verlangt einen Einladungscode (neue Geräte)
+    invite: { needed: false, wrong: false },          // the server demands an invitation code (new devices)
     info: { app: '', server: '' },
   };
   let stationCache = LS.get('rego.stations', []);     // [{id,name,region,lat,lon}]
@@ -52,7 +52,7 @@
     }
     return body;
   };
-  /** Einladungscode merken und prüfen. true = angenommen, false = falsch; bei fehlender Verbindung gibt es einen Fehler. */
+  /** Remember and check the invitation code. true = accepted, false = wrong; without a connection there is an error. */
   R.setInvite = async function (code) {
     LS.set('rego.invite', String(code || '').trim());
     try { await api('/state'); } catch (e) { if (e && e.invite) return false; throw e; }
@@ -61,7 +61,7 @@
     R.refresh();
     return true;
   };
-  /** Versionen für die Zeile in den Einstellungen (unter „Strecken“): App (nur in der App bekannt) und Server (öffentliche Statusabfrage) */
+  /** Versions for the line in the settings (under "Strecken"): app (only known in the app) and server (public status request) */
   R.loadInfo = async function () {
     let app = '';
     try { app = window.RegoNative && window.RegoNative.appVersion ? String(window.RegoNative.appVersion()) : ''; } catch (e) {}
@@ -71,7 +71,7 @@
   };
 
   R.version = 'Beta';
-  R.contact = 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent('Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\nGerät: ' + (window.RegoNative ? 'Android-App' : 'Browser'));   // Kontaktadresse für Rückmeldungen (Mail oder Link); leer = Hinweis ohne Adresse
+  R.contact = 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent('Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\nGerät: ' + (window.RegoNative ? 'Android-App' : 'Browser'));   // Contact address for feedback (mail or link); empty = notice without an address
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
@@ -84,8 +84,8 @@
     return now <= until;
   };
 
-  /** Meldungen genau so, wie sie unter „Meldungen“ stehen (auch für die Zahl am Knopf): nur aktive Strecken, nur sichtbare,
-   *  dieselbe Meldung auf Hin- und Rückweg derselben Strecke als eine Karte. */
+  /** Incidents exactly as they appear under "Meldungen" (also for the number on the button): only active routes, only visible ones,
+   *  the same incident on the outward and return trip of the same route as one card. */
   R.meldungen = function () {
     const tours = R.tours.filter((t) => t.active), merged = [];
     for (const x of R.incidents.map((i) => ({ i, t: tours.find((t) => t.id === i.tourId) })).filter((x) => x.t && R.isVisible(x.i))) {
@@ -97,7 +97,7 @@
     return merged;
   };
 
-  /* --- Haltestellen: Vorschläge kommen vom Server, bekannte bleiben im Gerät --- */
+  /* --- Stops: suggestions come from the server, known ones stay on the device --- */
   const norm = (s) => String(s || '').trim().toLowerCase();
   const asked = new Set();
   let timer;
@@ -136,7 +136,7 @@
     return `${dropLoc(a, b)} → ${dropLoc(b, a)}`;
   };
 
-  /* --- Zustand holen --- */
+  /* --- Fetch the state --- */
   function apply(state, status, lastSync) {
     R.tours = (state.tours || []).map((t) => {
       const o = Object.assign({}, t, { name: R.shortRoute(t.name) });
@@ -147,10 +147,10 @@
     R.lines = linesProxy(state.lines || {}); R.settings = Object.assign({}, R.settings, state.settings || {});
     R.connection = { status, loading: false, lastSync };
   }
-  // Der letzte Stand liegt im Gerät. Älter als 6 Stunden nützt er nichts mehr (gestrige Abfahrten): dann lieber ehrlich „keine Daten“.
+  // The latest state is kept on the device. Older than 6 hours it is of no use any more (yesterday's departures): better to say honestly "keine Daten".
   const CACHE_MAX_AGE = 6 * 3600e3;
   const readCache = () => { const c = LS.get('rego.state', null); return c && c.state && typeof c.ts === 'number' && Date.now() - c.ts < CACHE_MAX_AGE ? c : null; };
-  // Immer nur eine Abfrage zur Zeit. Wer währenddessen aktualisieren will (z. B. nach dem Anlegen einer Strecke), bekommt danach eine frische Runde.
+  // Only one request at a time. Whoever wants to refresh in the meantime (e.g. after creating a route) gets a fresh round afterwards.
   let running = null, queued = null;
   R.refresh = function () {
     if (!running) { running = refreshOnce().finally(() => { running = null; }); return running; }
@@ -167,17 +167,17 @@
       if (state.connection && state.connection.status === 'error') {
         const cached = readCache();
         const ids = new Set(((cached && cached.state.tours) || []).map((x) => x.id));
-        // Alten Stand nur zeigen, wenn er alle aktuellen Strecken kennt und Abfahrten hat; sonst würden neu angelegte Strecken verschwinden
+        // Show the old state only if it knows all current routes and has departures; otherwise newly created routes would disappear
         const useCached = cached && state.tours.every((x) => !(x.departures || []).length) && state.tours.every((x) => ids.has(x.id)) && cached.state.tours.some((x) => (x.departures || []).length);
         if (useCached) { apply(cached.state, 'error', cached.at); }
         else apply(state, 'error', state.connection.lastSync || t);
-        // Ohne irgendeine verwertbare Abfahrt gibt es nichts Brauchbares zu zeigen: große Meldung statt leerer Karten
+        // Without any usable departure there is nothing useful to show: a big message instead of empty cards
         R.outage = R.tours.length > 0 && R.tours.every((x) => !(x.departures || []).length);
       } else { R.errorHint = ''; R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t, ts: Date.now() }); }
     } catch (e) {
       R.errorHint = e && e.status ? `Server ${e.status}` : (e && e.name === 'TimeoutError') ? 'Zeitüberschreitung' : 'keine Verbindung zum Server';
       const cached = readCache();
-      if (e && e.invite) {            // der Server wartet auf den Einladungscode: keine Störung, die Maske darüber erklärt es
+      if (e && e.invite) {            // the server is waiting for the invitation code: no outage, the gate above explains it
         R.outage = false;
         if (cached) apply(cached.state, 'offline', cached.at); else { R.tours = []; R.incidents = []; R.connection = { status: 'ok', loading: false, lastSync: '' }; }
       } else if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
@@ -191,25 +191,25 @@
     if (cached) R.connection.status = 'offline';
   };
 
-  /* --- Änderungen (Strecken-Menü) --- */
+  /* --- Changes (route menu) --- */
   const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
   let adding = null;
   R.actions = {
     addTour(opts) {
-      if (adding) return adding;                          // doppelt getippt: dieselbe Anfrage, nicht zwei
+      if (adding) return adding;                          // tapped twice: the same request, not two
       adding = (async () => {
         const { from, to, days, time, until, trip, backTime, backUntil, transfers } = opts;
         const a = R.findStation(from), b = R.findStation(to);
         if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
         const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
         const body = { from: pt(a), to: pt(b), schedule: { days, departAfter: time, ...(until ? { departUntil: until } : {}) }, roundTrip: trip === 'both', returnAfter: backTime, ...(backUntil ? { returnUntil: backUntil } : {}) };
-        if (transfers) body.transfers = 1;                  // nur nach ausdrücklichem „Mit 1 Umstieg suchen“
+        if (transfers) body.transfers = 1;                  // only after the explicit "Mit 1 Umstieg suchen"
         await api('/tours', { method: 'POST', body: JSON.stringify(body) });
         await R.refresh();
       })().finally(() => { adding = null; });
       return adding;
     },
-    /** Verbindung mit höchstens 1 Umstieg zwischen zwei gewählten Haltestellen (Vorschau vor dem Anlegen). */
+    /** Connection with at most 1 transfer between two chosen stops (preview before creating). */
     async searchTransfer({ from, to }) {
       const a = R.findStation(from), b = R.findStation(to);
       if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
@@ -227,7 +227,7 @@
       R.tickets.push({ id, slot: t.slot || null, name: t.name, validUntil: t.validUntil, image: t.image, original: t.original || '', payload: t.payload || '', format: t.format || '' });
       if (!LS.set('rego.tickets', R.tickets)) { R.tickets = before; throw new Error('Das Ticket konnte nicht gespeichert werden: Speicher voll oder gesperrt. Entferne ein altes Ticket oder gib dem Browser Speicherplatz.'); }
     },
-    /** Tickets als Datei sichern (bleibt auf dem Gerät) und wieder einlesen */
+    /** Back up tickets as a file (stays on the device) and read them in again */
     exportTickets() {
       const json = JSON.stringify({ app: 'ReGo', version: 1, savedAt: new Date().toISOString(), tickets: R.tickets });
       if (window.RegoNative) { try { const b64 = btoa(unescape(encodeURIComponent(json))); window.RegoNative.saveFile('rego-tickets.json', 'application/json', b64); } catch (e) {} return R.tickets.length; }
@@ -252,30 +252,30 @@
     removeTicket(id) { R.tickets = R.tickets.filter((x) => x.id !== id); LS.set('rego.tickets', R.tickets); },
     async setThreshold(v) { await api('/settings', { method: 'PUT', body: JSON.stringify({ pushThresholdMin: v }) }); R.settings.pushThresholdMin = v; },
   };
-  /* --- Umzug auf ein neues Handy --- */
+  /* --- Move to a new phone --- */
   R.actions.transferCode = async function () { return (await api('/transfer', { method: 'POST', body: '{}' })).code; };
   R.actions.claimTransfer = async function (code) { const r = await api('/transfer/claim', { method: 'POST', body: JSON.stringify({ code }) }); await R.refresh(); return r.tours; };
 
-  /* --- Push (nur in der Android-App) --- */
+  /* --- Push (Android app only) --- */
   R.actions.enablePush = async function () {
     if (!window.RegoNative) throw new Error('Push-Meldungen gibt es nur in der Android-App.');
     const ok = await new Promise((res) => { window.__rgPushDone = res; try { window.RegoNative.enablePush(device, window.REGO_API || ''); } catch (e) { res(false); } });
     if (ok === false) throw new Error('Benachrichtigungen sind für ReGo blockiert. Bitte in den Android-Einstellungen erlauben.');
-    await api('/push/native', { method: 'PUT', body: JSON.stringify(ok ? { token: ok } : {}) });   // ok = Firebase-Kennung (oder leer ohne Firebase)
+    await api('/push/native', { method: 'PUT', body: JSON.stringify(ok ? { token: ok } : {}) });   // ok = Firebase token (or empty without Firebase)
     LS.set('rego.push', true);
     return true;
   };
-  /** Ist Push an? (wenn er in der App eingeschaltet wurde) */
+  /** Is push on? (if it was switched on in the app) */
   R.pushActive = () => { try { return !!LS.get('rego.push', false) && !!window.RegoNative; } catch (e) { return false; } };
   R.actions.disablePush = async function () {
-    await api('/push', { method: 'DELETE' });                // zuerst beim Server abmelden; klappt das nicht, bleibt alles wie es ist
+    await api('/push', { method: 'DELETE' });                // first sign out at the server; if that fails, everything stays as it is
     if (window.RegoNative) { try { window.RegoNative.disablePush(); } catch (e) {} }
     LS.set('rego.push', false);
     return true;
   };
-  /** Testmeldung an dieses Gerät. Antwort: { ok, instant } – instant = kommt sofort (Firebase), sonst beim nächsten Abholen der App (bis ~15 Min.). */
+  /** Test notification to this device. Answer: { ok, instant } – instant = arrives immediately (Firebase), otherwise at the app's next fetch (up to ~15 min). */
   R.actions.testPush = async function () { return api('/push/test', { method: 'POST', body: '{}' }); };
-  /* --- Standort (grob, auf ca. 1 km gerundet; nur für „nächste Strecke zuerst“) --- */
+  /* --- Location (coarse, rounded to about 1 km; only for "nearest route first") --- */
   R.requestPosition = () => new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(false);
     navigator.geolocation.getCurrentPosition(
@@ -283,21 +283,21 @@
       () => resolve(false), { maximumAge: 600000, timeout: 15000 });
   });
 
-  /* --- Pendelzeit: von wann bis wann man losfährt. Einrichtung und „Strecke ändern“ benutzen dieselben Schieber. --- */
-  // Die Leiste zeigt acht Stunden: für den Hinweg 4 bis 12 Uhr, für den Rückweg 12 bis 20 Uhr (so liegen die Griffe auch bei einer Stunde Abstand weit
-  // genug auseinander und jeder Schritt ist auf dem Handy leicht zu treffen). Liegt der Zeitraum außerhalb, wird die Leiste so lang, dass er hineinpasst.
+  /* --- Commute time: from when to when you leave. Setup and "Strecke ändern" use the same sliders. --- */
+  // The track shows eight hours: 4 to 12 for the outward trip, 12 to 20 for the return trip (so the handles stay well apart even with a gap of one hour
+  // and every step is easy to hit on a phone). If the period lies outside, the track grows long enough to fit it.
   const W = {
-    step: 15,                                          // Minuten je Schritt am Schieber; genauere Zeiten tippt man in die Uhrzeitfelder
-    gap: 10,                                           // so kurz darf ein Zeitraum höchstens sein (wie auf dem Server)
+    step: 15,                                          // minutes per step on the slider; more exact times are typed into the time fields
+    gap: 10,                                           // the shortest a period may be (as on the server)
     day: 24 * 60 - 1,
     out: { from: '07:00', until: '08:00' }, back: { from: '16:30', until: '17:30' },
   };
   const toM = (s) => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : null; };
   const toS = (n) => pad(Math.floor(n / 60)) + ':' + pad(n % 60);
   const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-  // Das Uhrzeitfeld des Browsers zeigt bei englischer Spracheinstellung „07:00 AM“ und braucht dann mehr Platz
+  // With an English language setting the browser's time field shows "07:00 AM" and then needs more room
   const h12 = (() => { try { return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hour12 === true; } catch (e) { return false; } })();
-  /** Ausschnitt des Tages für die Leiste: Beginn vor 12 Uhr = 4 bis 12 Uhr, sonst 12 bis 20 Uhr; bei Bedarf länger (nachts, spät abends) */
+  /** Section of the day for the track: start before 12 = 4 to 12, otherwise 12 to 20; longer if needed (night, late evening) */
   const rangeFor = (f, u) => {
     const base = f < 12 * 60 ? [4 * 60, 12 * 60] : [12 * 60, 20 * 60];
     const lo = Math.min(base[0], Math.floor(f / 60) * 60);
@@ -305,30 +305,30 @@
     return { lo, hi: lo + Math.floor((want - lo) / W.step) * W.step };
   };
   const frac = (w, v) => (clampN(v, w.lo, w.hi) - w.lo) / (w.hi - w.lo);
-  // Die Griffe laufen nicht bis an den Rand der Leiste, sondern mit ihrer Mitte von 18 px bis Breite − 18 px (unsichtbarer Griff = 36 px breit)
+  // The handles do not run to the edge of the track but with their center from 18 px to width − 18 px (invisible handle = 36 px wide)
   const at = (f) => 'calc(18px + (100% - 36px) * ' + f.toFixed(4) + ')';
   R.win = {
     RANGE: W,
-    /** Zeitraum samt Ausschnitt der Leiste: fehlt das Ende (älterer Server) oder taugt es nicht, gilt eine Stunde. */
+    /** Period with the section of the track: if the end is missing (older server) or unusable, one hour applies. */
     of(from, until) {
       const f = toM(from) == null ? toM(W.out.from) : toM(from);
       const u = toM(until) != null && toM(until) >= f + W.gap ? toM(until) : Math.min(W.day, f + 60);
       return Object.assign({ from: toS(f), until: toS(u) }, rangeFor(f, u));
     },
-    /** Vorgabe für einen neuen Hinweg ('out', vormittags) bzw. Rückweg ('back', nachmittags) */
+    /** Default for a new outward trip ('out', morning) or return trip ('back', afternoon) */
     fresh(kind) { const d = kind === 'back' ? W.back : W.out; return R.win.of(d.from, d.until); },
     text(w) { return w.from + '–' + w.until; },
     /**
-     * Werte für eine Schieber-Karte. w = Zeitraum aus of(), set(neuerZeitraum) legt ihn im Zustand der Seite ab.
-     * o = { title, tone: 'w' (weiß) | 'o' (orange), compact }
+     * Values for a slider card. w = period from of(), set(newPeriod) stores it in the state of the page.
+     * o = { title, tone: 'w' (white) | 'o' (orange), compact }
      */
     view(w, set, o = {}) {
       const f = toM(w.from), u = toM(w.until), len = u - f;
       if (w.lo == null || w.hi == null) w = Object.assign({}, w, rangeFor(f, u));
       const compact = !!o.compact;
-      const dir = String(o.title || '').includes(' · ') ? String(o.title).split(' · ')[0] + ': ' : '';      // „Hinweg: …“ / „Rückweg: …“ für Vorlese-Programme, wenn zwei Karten untereinander stehen
-      const keep = (nf, nu) => set({ from: toS(nf), until: toS(nu), lo: w.lo, hi: w.hi });      // Schieber: Ausschnitt bleibt, solange gezogen wird
-      const move = (nf, nu) => set(R.win.of(toS(nf), toS(nu)));                                // Uhrzeit getippt: Ausschnitt rückt nach
+      const dir = String(o.title || '').includes(' · ') ? String(o.title).split(' · ')[0] + ': ' : '';      // "Hinweg: …" / "Rückweg: …" for screen readers when two cards are stacked
+      const keep = (nf, nu) => set({ from: toS(nf), until: toS(nu), lo: w.lo, hi: w.hi });      // slider: the section stays while dragging
+      const move = (nf, nu) => set(R.win.of(toS(nf), toS(nu)));                                // time typed: the section follows
       const ticks = compact ? [] : Array.from({ length: 25 }, (_, h) => h).filter((h) => h % 2 === 0 && h * 60 >= w.lo && h * 60 <= w.hi)
         .map((h) => ({ label: String(h), style: 'position: absolute; top: 0; left: ' + at(frac(w, h * 60)) + '; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: #4A4747; line-height: 16px' }));
       const target = (e) => (e && e.target ? e.target : null);
@@ -342,13 +342,13 @@
         fillStyle: 'left: ' + at(frac(w, f)) + '; right: ' + at(1 - frac(w, u)),
         dualCls: compact ? 'rg-dual rg-c' : 'rg-dual',
         fromKnob: 'left: ' + at(frac(w, f)), untilKnob: 'left: ' + at(frac(w, u)),
-        // Jeder Schieber reagiert nur bis zur Mitte zwischen den beiden Griffen
+        // Each slider reacts only up to the middle between the two handles
         fromClip: 'clip-path: inset(0 ' + at(1 - (frac(w, f) + frac(w, u)) / 2) + ' 0 0)', untilClip: 'clip-path: inset(0 0 0 ' + at((frac(w, f) + frac(w, u)) / 2) + ')',
         ticks, hasTicks: ticks.length > 0, ticksStyle: 'position: relative; height: 16px; margin-bottom: 4px',
-        // Schieber: die Griffe können sich nicht überholen; sie rasten in Viertelstunden ein, mindestens 10 Minuten Abstand
+        // Slider: the handles cannot overtake each other; they snap to quarter hours, at least 10 minutes apart
         setFromRange: (e) => { const t = target(e); if (!t) return; const raw = +t.value; if (!isFinite(raw)) return; const top = w.lo + Math.floor((u - W.gap - w.lo) / W.step) * W.step; const nf = clampN(raw, w.lo, Math.max(w.lo, top)); if (+t.value !== nf) t.value = String(nf); keep(nf, u); },
         setUntilRange: (e) => { const t = target(e); if (!t) return; const raw = +t.value; if (!isFinite(raw)) return; const bottom = w.lo + Math.ceil((f + W.gap - w.lo) / W.step) * W.step; const nu = clampN(raw, Math.min(w.hi, bottom), w.hi); if (+t.value !== nu) t.value = String(nu); keep(f, nu); },
-        // Uhrzeit tippen: schiebt das andere Ende mit, wenn es im Weg ist (die Länge bleibt)
+        // Typing a time: moves the other end along if it is in the way (the length stays)
         setFromText: (e) => { const t = target(e), m = t ? toM(t.value) : null; if (m == null) return; const nf = Math.min(m, W.day - W.gap); move(nf, nf + W.gap > u ? Math.min(W.day, nf + Math.max(len, W.gap)) : u); },
         setUntilText: (e) => { const t = target(e), m = t ? toM(t.value) : null; if (m == null) return; const nu = Math.max(m, W.gap); move(nu - W.gap < f ? Math.max(0, nu - Math.max(len, W.gap)) : f, nu); },
       };

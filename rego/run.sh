@@ -1,15 +1,15 @@
 #!/bin/sh
-# Optionen aus dem Add-on lesen (/data/options.json), optional Tailscale (https) starten, dann ReGo.
-# Daten liegen in /data (bleiben bei Updates erhalten).
+# Read the options of the add-on (/data/options.json), optionally start Tailscale (https), then ReGo.
+# Data lives in /data (it survives updates).
 OPT=/data/options.json
 get() { node -e "try{const o=require('$OPT');process.stdout.write(String(o['$1']??''))}catch(e){}"; }
 export HOST=0.0.0.0 PORT=8080 REGO_DATA=/data REGO_VERBOSE=1
-export NODE_OPTIONS="--dns-result-order=ipv4first $NODE_OPTIONS"      # bahn.de hängt hier per IPv6 (Timeout), IPv4 funktioniert
+export NODE_OPTIONS="--dns-result-order=ipv4first $NODE_OPTIONS"      # bahn.de hangs here over IPv6 (timeout), IPv4 works
 P=$(get provider); [ -n "$P" ] && export REGO_PROVIDER="$P"
 F=$(get fcm_key); [ -n "$F" ] && export REGO_FCM_KEY="$F"
-I=$(get invite_code); [ -n "$I" ] && export REGO_INVITE="$I"          # gesetzt: neue Geräte brauchen diesen Einladungscode
+I=$(get invite_code); [ -n "$I" ] && export REGO_INVITE="$I"          # if set: new devices need this invitation code
 
-# Netz-Selbsttest: erreicht der Container die Bahn per IPv4 und per IPv6?
+# Network self-test: does the container reach bahn.de over IPv4 and over IPv6?
 cat > /tmp/nettest.mjs <<'JS'
 import https from 'node:https';
 const t = (family) => new Promise((res) => {

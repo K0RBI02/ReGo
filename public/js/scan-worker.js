@@ -1,4 +1,4 @@
-// Liest Barcodes im Hintergrund, damit die Oberfläche nicht hängt.
+// Reads barcodes in the background so that the UI does not hang.
 importScripts('/js/ticketcode.js', '/js/barcode-read.js');
 self.onmessage = function (e) {
   var m = e.data, out = { id: m.id, result: null };

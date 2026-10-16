@@ -200,7 +200,7 @@ class Component extends DCLogic {
     this.state = { sel: 'dt', toast: h === '#neu' ? 'Ticket hinzugefügt' : '' };
     if (h === '#neu') setTimeout(() => this.setState({ toast: '' }), 3500);
     try { if (window.RegoNative) { window.RegoNative.setBrightness(1.0); window.RegoNative.keepScreenOn(true); } } catch (e) {}
-    // Bildschirm anlassen (Browser). Der Browser gibt die Sperre frei, sobald die Seite im Hintergrund war: beim Zurückkommen neu anfordern.
+    // Keep the screen on (browser). The browser releases the lock as soon as the page has been in the background: request it again on return.
     this._wake = () => { try { if (navigator.wakeLock && document.visibilityState === 'visible' && !(this._lock && !this._lock.released)) navigator.wakeLock.request('screen').then((l) => { this._lock = l; }, () => {}); } catch (e) {} };
     this._wake();
     try { document.addEventListener('visibilitychange', this._wake); } catch (e) {}

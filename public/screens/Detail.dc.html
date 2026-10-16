@@ -292,8 +292,8 @@ Zurück</a>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
-/* Alle Inhalte kommen aus window.REGO (rego-data.js):
-   Hash  #<incidentId|tourId>-<m|l>   (m = von Dashboard, l = von Meldungen)
+/* All content comes from window.REGO (rego-data.js):
+   Hash  #<incidentId|tourId>-<m|l>   (m = from the main screen, l = from "Meldungen")
    incident.view.map = { stations[], hubIndex, disrupted{from,to}|null, alternative{label,fromIndex,toIndex}|null,
                          haloIndex, connections[{stationIndex,lineId,dir:'down'|'right'}] } */
 class Component extends DCLogic {
@@ -302,32 +302,32 @@ class Component extends DCLogic {
     let h = '';
     try { h = (window.location.hash || '').replace('#', ''); } catch (e) {}
     const p = h.split('-');
-    this.state = { id: p[0] || 'i2', from: p[1] === 'l' ? 'l' : 'm', pref: p[2] || '' };      // pref: angetippte Meldung (aus „Meldungen“) kommt nach oben
+    this.state = { id: p[0] || 'i2', from: p[1] === 'l' ? 'l' : 'm', pref: p[2] || '' };      // pref: the tapped incident (from "Meldungen") moves to the top
   }
   renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
   _rv() {
     const T = window.REGO;
-    // Adresse: <Strecke>-m | <Strecke>.<n>-m (n-te Abfahrt) | <Meldung>-m (alte Links)
+    // Address: <route>-m | <route>.<n>-m (n-th departure) | <incident>-m (old links)
     const id = this.state.id;
     const dotted = id.split('.');
     const byId = T.incidents.find((i) => i.id === id);
     const tour = T.tours.find((t) => t.id === dotted[0]) || (byId ? T.tours.find((t) => t.id === byId.tourId) : null);
     const depIdx = dotted.length > 1 ? parseInt(dotted[1], 10) : -1;
     const dep = tour && depIdx >= 0 ? tour.departures[depIdx] : null;
-    // Alle sichtbaren Meldungen der Strecke auf einer Seite, die schwerste (oder die angetippte) oben
+    // All visible incidents of the route on one page, the most severe (or the tapped one) on top
     const pi = this.state.pref ? T.incidents.find((i) => i.id === this.state.pref) : null;
     const tapped = (m) => m.id === id || !!(pi && m.kind === pi.kind && m.summary === pi.summary);
     const list = tour && !dep ? T.incidents.filter((i) => i.tourId === tour.id && T.isVisible(i)).sort((a, b) => (tapped(b) - tapped(a)) || b.severity - a.severity) : [];
     const inc = list[0] || null;
-    // Nichts gefunden: beim ersten Laden noch leer lassen, danach ehrlich sagen, dass es die Meldung nicht mehr gibt (alte Push-Meldung, Strecke entfernt) – nie die Meldung einer fremden Strecke zeigen
+    // Nothing found: leave it empty on the first load, afterwards say honestly that the incident no longer exists (old push notification, route removed) – never show the incident of a different route
     const nothing = T.connection && T.connection.loading ? { kind: 'ok', head: '', big: '', sub: '', rows: [], map: null }
       : tour && tour.active === false ? { kind: 'none', head: 'Strecke', big: 'Pausiert', sub: 'Diese Strecke ist ausgeschaltet. Unter „Strecken“ schaltest du sie wieder ein.', rows: [], map: null }
       : { kind: 'ok', head: 'Meldung', big: 'Beendet', sub: 'Diese Meldung ist nicht mehr aktuell oder die Strecke wurde entfernt.', rows: [], map: null };
     const view = (dep && dep.view) || (inc && inc.view) || (tour && (tour.view || (tour.departures[0] && tour.departures[0].view))) || nothing;
-    // Weitere Meldungen der Strecke: Überschrift, Text der Meldung, darunter je eine kurze Zeile („ab 01:12 (geplant 01:00)“, „an 02:30“, „Nächster Zug: …“)
+    // More incidents of the route: heading, incident text, below it a short line each ("ab 01:12 (geplant 01:00)", "an 02:30", "Nächster Zug: …")
     const more = list.slice(1).map((m) => {
       const k = T.theme.kinds[m.kind] || T.theme.kinds.ok, rows = m.view.rows || [];
-      // Mit Umstieg: erste Abfahrt und letzte Ankunft (die am Ziel), nicht die Ankunft am Umstiegshalt
+      // With a transfer: first departure and last arrival (the one at the destination), not the arrival at the transfer stop
       const dr = rows.find((r) => /^Abfahrt/.test(r.label)), ar = rows.slice().reverse().find((r) => /^Ankunft/.test(r.label));
       const at = (r) => r.value + (r.planned && r.planned !== r.value ? ' (' + (r.plannedLabel || 'geplant') + ' ' + r.planned + ')' : '');
       const alt = m.view.alternative;
@@ -347,18 +347,18 @@ class Component extends DCLogic {
     const circ = (q, r) => 'M' + (q[0] - r) + ' ' + q[1] + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0z';
     const none = { t: '', s: 'display: none' };
     const n = M.stations.length;
-    // Breite der Karte = Breite der App (schmale Handys, Tablets): sonst wird die Beschriftung rechts abgeschnitten
+    // Width of the card = width of the app (narrow phones, tablets): otherwise the label is cut off on the right
     const W = Math.max(280, (document.getElementById('app') || {}).clientWidth || 390);
     const x0 = 36, x1 = W - (n >= 6 ? 98 : 120);
-    // Fahrt mit Umstieg: zwei Linien in ihren Farben, der Umstiegshalt, Auslassungen („+5“ = 5 Halte nicht gezeigt) und Zeitpillen
+    // Trip with a transfer: two lines in their colors, the transfer stop, omissions ("+5" = 5 stops not shown) and time pills
     const X = M.legs && M.legs.length === 2 ? M : null;
     const skipOf = (i) => (X && (X.skips || []).find((k) => k.after === i)) || null;
-    const wt = (i) => (skipOf(i) ? 2 : 1);                    // eine Auslassung bekommt die doppelte Breite, damit das „+5“ zwischen den Punkten Platz hat
+    const wt = (i) => (skipOf(i) ? 2 : 1);                    // an omission gets double width so that the "+5" has room between the dots
     let wsum = 0; for (let i = 0; i < n - 1; i++) wsum += wt(i);
     let acc = 0;
     const st = M.stations.map((s, i) => { const x = n > 1 ? x0 + (x1 - x0) * acc / wsum : x0; acc += wt(i); return Object.assign({}, s, { x, big: i === 0 || i === n - 1 || i === M.hubIndex }); });
     const seg = (a, b) => [[st[a].x, Y], [st[b].x, Y]];
-    const inDis = (i) => !!M.disrupted && i >= M.disrupted.from && i + 1 <= M.disrupted.to;       // Abschnitt i → i+1 liegt im Ersatzverkehr
+    const inDis = (i) => !!M.disrupted && i >= M.disrupted.from && i + 1 <= M.disrupted.to;       // section i → i+1 is under replacement transport
     const gapHalf = (len) => Math.min(22.6, Math.max(8, len / 2 - 16));
     const legPath = (from, to) => {
       let d = '';
@@ -396,7 +396,7 @@ class Component extends DCLogic {
     if (X && st[M.hubIndex]) {
       const pill = (bg, fg) => 'white-space: nowrap; background: ' + bg + '; color: ' + fg + '; border: 2px solid #1C1A1A; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1';
       const hx = st[M.hubIndex].x, tr = X.transfer || {}, tm = X.times || {}, label = tr.label || '';
-      const half = label.length * 3.8 + 14, px = Math.min(W - 12 - half, Math.max(12 + half, hx));      // die Umstiegspille bleibt im Bild, die Linie zum Halt bleibt senkrecht
+      const half = label.length * 3.8 + 14, px = Math.min(W - 12 - half, Math.max(12 + half, hx));      // the transfer pill stays in view, the line to the stop stays vertical
       connD = 'M' + hx + ' ' + (Y + 13.3) + 'L' + hx + ' 286';
       const warn = tr.state === 'missed' ? '#F9D6D2' : tr.state === 'tight' ? '#FDE3CF' : '';
       if (label) pX = { t: label, s: 'position: absolute; left: ' + px + 'px; top: 286px; transform: translateX(-50%); ' + (warn ? pill(warn, '#1C1A1A') : pill('#1C1A1A', '#fff')) };
@@ -426,19 +426,19 @@ class Component extends DCLogic {
     };
     for (let i = 0; i < 7; i++) {
       const q = st[i];
-      const room = q ? Math.round(Math.max(40, Math.min(150, (W - q.x - 20) * 1.41))) + 'px' : '0px';      // lange Namen enden mit „…“ statt über den Rand zu laufen
+      const room = q ? Math.round(Math.max(40, Math.min(150, (W - q.x - 20) * 1.41))) + 'px' : '0px';      // long names end with "…" instead of running over the edge
       out['l' + i] = q ? { t: q.name, s: 'position: absolute; left: ' + (q.x + 6) + 'px; top: ' + (Y - 24) + 'px; transform-origin: 0 50%; transform: rotate(-45deg); white-space: nowrap; max-width: ' + room + '; overflow: hidden; text-overflow: ellipsis; font-size: ' + (q.big ? 15 : 14) + 'px; font-weight: 700; line-height: 1.15' } : none;
       out['b' + i] = { x: 0, y: 0, w: 0, h: 0 };
       out['c' + i] = none;
     }
-    // angedeutete Anschluss-/Kreuzungslinien: kurzer, auslaufender Stummel mit Linienname
+    // hinted connecting/crossing lines: short, fading stub with the line name
     for (let i = 0; i < 3; i++) {
       const c = (M.connections || [])[i], q = c && st[c.stationIndex];
       if (!q) { out['t' + i] = { x1: 0, y1: 0, x2: 1, y2: 0, d: 'M0 0', bs: 'display: none', bt: '' }; continue; }
       const down = c.dir !== 'right';
-      // Läuft unter diesem Halt die Alternativ-Linie durch, bleibt der Stummel kurz, damit seine Beschriftung nicht darauf liegt
+      // If the alternative line runs below this stop, the stub stays short so that its label does not lie on top of it
       const short = down && !!M.alternative && c.stationIndex >= M.alternative.fromIndex && c.stationIndex <= M.alternative.toIndex;
-      // erst kurz gerade, dann schräg weg
+      // first straight for a short stretch, then diagonally away
       const ax = q.x + (down ? 0 : 9), ay = Y + (down ? 9 : 0);
       const mx = down ? ax : ax + 18, my = down ? ay + 14 : ay;
       const bx = down ? ax + (short ? 12 : 26) : mx + 32, by = down ? my + (short ? 8 : 26) : my + 24;
@@ -449,9 +449,9 @@ class Component extends DCLogic {
       };
     }
 
-    const mainConn = (M.connections || []).find((c) => c.dir === 'right');      // Linie der angezeigten Meldung, nicht die erste Linie der Strecke
+    const mainConn = (M.connections || []).find((c) => c.dir === 'right');      // line of the displayed incident, not the first line of the route
     const rl = T.lines[mainConn ? mainConn.lineId : (tour ? tour.lineId : '')] || { label: '', color: '#5B5B58' };
-    // Mit Umstieg zeigt das Schild beide Linien („S1 › RE“); ohne Linie (Strecke ohne Abfahrt) bleibt es ohne leeren grauen Punkt
+    // With a transfer the sign shows both lines ("S1 › RE"); without a line (route without a departure) it stays without an empty gray dot
     const chipCss = (color) => 'min-width: 34px; height: 34px; border-radius: 17px; padding: 0 6px; box-sizing: border-box; background: ' + color + '; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700';
     const routeLines = X ? X.legs.map((l) => T.lines[l.lineId]).filter((l) => l && l.label) : (rl.label ? [rl] : []);
     const badge = routeLines.length > 0;
@@ -463,11 +463,11 @@ class Component extends DCLogic {
     };
     out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px';
     out.head = view.head; out.big = view.big; out.sub = view.sub;
-    // Große Zeile höchstens 48 px, aber so, dass das Häkchen daneben bleibt (Platz = Breite − 2 × 20 − 2 × 20 − 56 − 8)
+    // Big line at most 48 px, but such that the check mark next to it stays (room = width − 2 × 20 − 2 × 20 − 56 − 8)
     out.bigStyle = 'font-size: ' + Math.max(34, Math.min(48, Math.floor((W - 144) / (0.5 * Math.max(1, String(view.big || '').length))))) + 'px; line-height: 1.04; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap';
     out.icon1 = K.icon[0]; out.icon2 = K.icon[1];
     out.rows = (view.rows || []).map((r) => Object.assign({}, r, { planned: r.planned ? (r.plannedLabel || 'geplant') + ' ' + r.planned : '' }));
-    // Fahrt mit Umstieg: erste Fahrt, Umstiegskarte, zweite Fahrt (der Server liefert die Abschnitte; ohne sie bleibt die einfache Liste)
+    // Trip with a transfer: first trip, transfer card, second trip (the server delivers the sections; without them the simple list stays)
     out.plainRows = !(view.sections && view.sections.length);
     out.sections = (view.sections || []).map((s) => {
       if (s.type === 'transfer') {
@@ -483,12 +483,12 @@ class Component extends DCLogic {
         }))
       };
     });
-    // „Danach“ / „Nächster Zug“ führt zur Seite dieser Abfahrt (Adresse <Strecke>.<n>-m), wenn es sie gibt (die ersten drei der Liste)
+    // "Danach" / "Nächster Zug" leads to the page of that departure (address <route>.<n>-m) if there is one (the first three of the list)
     const av = view.alternative;
     const altTo = av && tour && Number.isInteger(av.departure) && tour.departures[av.departure] ? 'Detail.dc.html#' + tour.id + '.' + av.departure + '-m' : '';
     out.altLink = !!altTo; out.altPlain = !!av && !altTo; out.altHref = altTo || '#';
     out.alt = av || { title: '', line1: '', line2: '', badge: '' };
-    // Ersatzverkehr: „Schneller mit 1 Umstieg“ (nur wenn der Server eine Verbindung gefunden hat, die früher am Ziel ist)
+    // Replacement transport: "Schneller mit 1 Umstieg" (only if the server found a connection that arrives earlier at the destination)
     out.hasShortcut = !!view.shortcut;
     out.sc = view.shortcut || { title: '', line1: '', line2: '', line3: '', badge: '' };
     out.hasAppLink = !!(tour && tour.appLink);

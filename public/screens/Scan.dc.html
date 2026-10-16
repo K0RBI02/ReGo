@@ -217,14 +217,14 @@ class Component extends DCLogic {
     if (this._stream) { this._stream.getTracks().forEach((tr) => tr.stop()); this._stream = null; }
   }
   _b64(bytes) { let t = ''; for (let i = 0; i < bytes.length; i += 4096) t += String.fromCharCode.apply(null, bytes.slice(i, i + 4096)); return btoa(t); }
-  // Bild auf eine Zeichenfläche holen (höchstens max Pixel an der langen Seite) und die Pixel auslesen
+  // Draw the image onto a canvas (at most max pixels on the long side) and read out the pixels
   _grab(source, w, h, max) {
     const k = Math.min(1, max / Math.max(w, h, 1));
     const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
     const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(source, 0, 0, c.width, c.height);
     return { canvas: c, img: g.getImageData(0, 0, c.width, c.height) };
   }
-  // Zuschnitt um den Code samt weißem Rand, damit er später wieder lesbar ist
+  // Crop around the code including a white margin so that it stays readable later
   _crop(source, w, h, box) {
     if (!box || !(box.width > 0)) return this._whole(source, w, h);
     const m = Math.max(24, Math.round(Math.max(box.width, box.height) * 0.12));
@@ -318,7 +318,7 @@ class Component extends DCLogic {
       const g = this._grab(bmp, bmp.width, bmp.height, 1800);
       const t0 = Date.now();
       let r = await window.RegoScan.decode(g.img, { formats: ['qr_code', 'aztec'], scales: Math.max(g.img.width, g.img.height) <= 1000 ? [1, 2] : [1] });
-      if (!r && Math.max(g.img.width, g.img.height) > 1000) {   // zweiter Versuch mit kleinerem Bild
+      if (!r && Math.max(g.img.width, g.img.height) > 1000) {   // second attempt with a smaller image
         const g2 = this._grab(bmp, bmp.width, bmp.height, 1000);
         r = await window.RegoScan.decode(g2.img, { formats: ['qr_code', 'aztec'], scales: [1, 2] });
         if (r) { const k = g.canvas.width / g2.canvas.width; r.box = { x: r.box.x * k, y: r.box.y * k, width: r.box.width * k, height: r.box.height * k }; }

@@ -9,7 +9,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-/** Firebase-Anstoß vom ReGo-Server: der Text kommt danach von dort, nicht über Google. */
+/** Firebase nudge from the ReGo server: the text comes from there afterwards, not through Google. */
 public class PushService extends FirebaseMessagingService {
     @Override public void onMessageReceived(RemoteMessage m) {
         PollWorker.fetchAndShow(getApplicationContext());

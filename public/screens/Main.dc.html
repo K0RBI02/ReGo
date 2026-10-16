@@ -228,9 +228,9 @@ class Component extends DCLogic {
     const toMin = (t) => { const p = t.split(':'); return +p[0] * 60 + +p[1]; };
     const nowM = toMin(T.clock.now);
     const period = nowM < 12 * 60 ? 'am' : 'pm';
-    const bucket = (t) => (t.distanceKm == null ? null : Math.round(t.distanceKm / 2));   // ~2-km-Stufen: bei gleicher Nähe entscheidet die Tageszeit (Hinweg morgens, Rückweg abends)
-    // Reihenfolge: erst die Strecke, deren Pendelzeit gerade läuft, dann die, deren Pendelzeit heute noch kommt (die früheste zuerst), danach der Rest.
-    // Beim Rest (und bei gleichem Stand) entscheidet wie bisher die Nähe, bei gleicher Nähe die Tageszeit.
+    const bucket = (t) => (t.distanceKm == null ? null : Math.round(t.distanceKm / 2));   // ~2 km steps: at equal distance the time of day decides (outward trip in the morning, return trip in the evening)
+    // Order: first the route whose commute time is running right now, then the ones whose commute time still comes today (the earliest first), then the rest.
+    // Among the rest (and at an equal state) distance decides as before, at equal distance the time of day.
     const rank = (t) => (t.window && t.window.mode === 'now' ? 0 : t.window && t.window.mode === 'soon' ? 1 : 2);
     const tours = T.tours.filter((t) => t.active).sort((a, b) => {
       if (rank(a) !== rank(b)) return rank(a) - rank(b);
@@ -242,7 +242,7 @@ class Component extends DCLogic {
     const km = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v))) + ' km';
     const incidents = T.incidents.filter((i) => tours.some((t) => t.id === i.tourId) && T.isVisible(i));
     const activeFor = (t) => incidents.filter((i) => i.tourId === t.id && i.validity.activeNow).sort((a, b) => b.severity - a.severity)[0];
-    const target = (t) => 'Detail.dc.html#' + t.id + '-m';            // eine Seite je Strecke, mit allen Meldungen
+    const target = (t) => 'Detail.dc.html#' + t.id + '-m';            // one page per route, with all incidents
     const inText = (t) => {
       const d = t.departures[0];
       if (!d) return t.stale ? 'keine Daten' : 'keine Abfahrt';
@@ -250,8 +250,8 @@ class Component extends DCLogic {
       const diff = toMin(d.expectedTime) - nowM;
       return diff <= 0 ? 'jetzt' : diff < 60 ? 'in ' + diff + ' Min.' : 'ab ' + d.expectedTime;
     };
-    const parts = (...a) => a.filter(Boolean).join(' · ');            // leere Teile (z. B. keine Linie, weil keine Abfahrt) lassen keinen hängenden „ · “ zurück
-    // Mit 1 Umstieg stehen beide Linien da: „S1 › RE“
+    const parts = (...a) => a.filter(Boolean).join(' · ');            // empty parts (e.g. no line because there is no departure) leave no dangling " · " behind
+    // With 1 transfer both lines are shown: "S1 › RE"
     const lineText = (t) => (t.transfers === 1 && (t.lineIds || []).length > 1 ? t.lineIds.map((id) => T.lines[id].label).join(' › ') : T.lines[t.lineId].label);
     const sub = (t) => parts(t.returnId ? 'Hinweg' : t.returnOf ? 'Rückweg' : '', lineText(t));
     const chipFor = (id) => { const L = T.lines[id], n = L.label.length; return { isChip: true, label: L.label, style: 'width: 34px; height: 34px; border-radius: 50%; background: ' + L.color + '; color: #fff; display: grid; place-items: center; overflow: hidden; white-space: nowrap; font-size: ' + (n > 4 ? 10 : n > 3 ? 12 : 14) + 'px; font-weight: 700' }; };
@@ -264,7 +264,7 @@ class Component extends DCLogic {
     const top = activeFor(near);
     const view = top ? top.view : (near.view || { kind: 'ok', head: 'Alles pünktlich', big: 'Pünktlich', sub: near.name });
     const kind = T.theme.kinds[view.kind] || T.theme.kinds.ok;
-    // Große Zeile: so groß wie möglich (höchstens 58 px), aber so, dass das Häkchen daneben bleibt und nicht darunter rutscht. Platz = Breite der App − 2 × 20 px Rand − 2 × 20 px Innenabstand − Häkchen (72 px) − Abstand (8 px).
+    // Big line: as big as possible (at most 58 px), but such that the check mark stays next to it and does not slip below. Room = width of the app − 2 × 20 px margin − 2 × 20 px padding − check mark (72 px) − gap (8 px).
     const appW = Math.min(520, (document.getElementById('app') || {}).clientWidth || 390);
     const bigPx = Math.max(34, Math.min(58, Math.floor((appW - 160) / (0.5 * Math.max(1, String(view.big || '').length)))));
     const ticker = {
@@ -275,7 +275,7 @@ class Component extends DCLogic {
     const nd = near.departures.slice(0, 3);
     const departures = nd.map((d, idx) => {
       const late = d.delayMin > 0, moved = d.plannedPlatform !== d.expectedPlatform;
-      const x = d.transfer;            // Fahrt mit Umstieg: zwei Linien, Ankunft am Ziel und eine Zeile zum Umstieg
+      const x = d.transfer;            // trip with a transfer: two lines, arrival at the destination and a line about the transfer
       return {
         isDirect: !x, isXfer: !!x,
         chips: x ? (d.lineIds || [d.lineId]).flatMap((id, k) => (k ? [{ isChev: true }] : []).concat(chipFor(id))) : [],
@@ -287,19 +287,19 @@ class Component extends DCLogic {
         time: d.expectedTime, line: T.lines[d.lineId].label,
         badgeStyle: 'width: 40px; height: 40px; border-radius: 50%; background: ' + T.lines[d.lineId].color + '; color: #fff; display: grid; place-items: center; overflow: hidden; white-space: nowrap; font-size: ' + (T.lines[d.lineId].label.length > 4 ? 10 : T.lines[d.lineId].label.length > 3 ? 12 : 15) + 'px; font-weight: 700',
         iconD: late ? 'M24 8L7 38h34zM24 19v9' : 'M9 25l9 9 21-22', iconW: late ? 4 : 5,
-        status: (d.nextDay ? 'morgen · ' : '') + (late ? '+' + d.delayMin + ' Min.' : d.far ? 'planmäßig' : 'pünktlich'),      // weit weg kennt die Quelle noch keine Verspätungen: dann „planmäßig“
+        status: (d.nextDay ? 'morgen · ' : '') + (late ? '+' + d.delayMin + ' Min.' : d.far ? 'planmäßig' : 'pünktlich'),      // far away, the source does not know delays yet: then "planmäßig"
         platform: 'Gl. ' + d.expectedPlatform,
         platformStyle: 'font-size: 15px; white-space: nowrap; font-weight: ' + (moved ? 700 : 600) + '; color: ' + (moved ? '#1C1A1A' : '#4A4747')
       };
     });
-    // Weitere Strecken zeigen ihren Zustand: weiß, mit kleinem Symbol und Art der Meldung (bei Verspätung die Minuten) vor der Zeile
+    // Other routes show their state: white, with a small icon and the kind of incident (minutes for a delay) before the line
     const others = tours.slice(1).filter((t) => !t.hideOnDashboard).map((t) => {
       const w = activeFor(t), k = w ? T.theme.kinds[w.kind] : null;
       const tag = w ? (w.kind === 'delay' ? '+' + w.delayMin + ' Min.' : k.label) : '';
       return { name: t.name, sub: parts(tag, sub(t), inText(t)), href: target(t), i1: k ? k.icon[0] : '', i2: k ? k.icon[1] : '', hasIcon: !!k,
         style: 'animation-delay: 0.16s; background: #fff; border-radius: 28px; min-height: 76px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px' };
     });
-    const bc = T.meldungen().length;      // genau das, was unter Meldungen steht (Hin- und Rückweg derselben Meldung zählen einmal)
+    const bc = T.meldungen().length;      // exactly what is listed under incidents (outward and return trip of the same incident count once)
     return {
       clockNow: T.clock.now, hasTours: true, noTours: false, ticker, departures, others,
       near: { name: near.name, sub: parts(sub(near), near.distanceKm == null ? '' : km(near.distanceKm)), inText: inText(near), href: target(near) },

@@ -1,11 +1,11 @@
-/* ReGo – eigener Barcode-Leser für QR-Code und Aztec (ohne Google Play-Dienste, ohne Abhängigkeiten).
-   Braucht ticketcode.js (Tabellen). Läuft im Web Worker, im Hauptthread und in Node.
+/* ReGo – own barcode reader for QR code and Aztec (without Google Play services, without dependencies).
+   Needs ticketcode.js (tables). Runs in a web worker, on the main thread and in Node.
    decode({ data: RGBA, width, height }) -> { format, bytes, box:{x,y,width,height} } | null */
 (function (root) {
   'use strict';
   var RC = root.RegoCode, I = RC.internals;
 
-  // ---------------------------------------------------------------- Galois-Körper und Reed-Solomon
+  // ---------------------------------------------------------------- Galois field and Reed-Solomon
   function makeField(prim, bits) {
     var size = 1 << bits, exp = new Array(size * 2), log = new Array(size), x = 1, i;
     for (i = 0; i < size - 1; i++) { exp[i] = x; log[x] = i; x <<= 1; if (x >= size) x ^= prim; }
@@ -19,7 +19,7 @@
   var fields = {};
   function getField(prim, bits) { var k = prim + ':' + bits; return fields[k] || (fields[k] = makeField(prim, bits)); }
 
-  // msg: Symbole, höchste Potenz zuerst. Gibt korrigierte Kopie oder null zurück.
+  // msg: symbols, highest power first. Returns a corrected copy or null.
   function rsDecode(f, msg, nsym, fcr) {
     var n = msg.length, q1 = f.size - 1, synd = [], bad = false, i, j, s;
     for (i = 0; i < nsym; i++) {
@@ -40,7 +40,7 @@
     }
     while (C.length > 1 && C[C.length - 1] === 0) C.pop();
     if (C.length - 1 !== L || L * 2 > nsym) return null;
-    function evalAt(poly, p, step) {          // poly(α^(-p)) für Koeffizienten ab Index step (0 oder 1, nur ungerade bei 1)
+    function evalAt(poly, p, step) {          // poly(α^(-p)) for coefficients from index step (0 or 1, only odd ones when 1)
       var sum = 0;
       for (var t = 0; t < poly.length; t++) {
         if (!poly[t]) continue;
@@ -62,7 +62,7 @@
       out[n - 1 - p] ^= f.mul(f.exp[xe], f.div(om, sp));
     }
     if (found !== L) return null;
-    for (i = 0; i < nsym; i++) {            // Gegenprobe
+    for (i = 0; i < nsym; i++) {            // Cross-check
       var a2 = f.exp[(fcr + i) % q1]; s = 0;
       for (j = 0; j < n; j++) s = f.mul(s, a2) ^ out[j];
       if (s) return null;
@@ -70,7 +70,7 @@
     return out;
   }
 
-  // ---------------------------------------------------------------- Binarisieren
+  // ---------------------------------------------------------------- Binarizing
   function binarize(rgba, w, h, mode) {
     var n = w * h, g = new Uint8Array(n), i, x, y;
     for (i = 0; i < n; i++) { var o = i * 4; g[i] = (rgba[o] * 77 + rgba[o + 1] * 150 + rgba[o + 2] * 29) >> 8; }
@@ -98,8 +98,8 @@
     bw.gray = g; return bw;
   }
 
-  // ---------------------------------------------------------------- Hilfen
-  function runsOfLine(bw, w, h, x0, y0, dx, dy, len) {   // Läufe entlang einer Linie
+  // ---------------------------------------------------------------- Helpers
+  function runsOfLine(bw, w, h, x0, y0, dx, dy, len) {   // runs along a line
     var runs = [], cur = -1, start = 0, i;
     for (i = 0; i < len; i++) {
       var v = bw[(y0 + dy * i) * w + (x0 + dx * i)];
@@ -108,7 +108,7 @@
     if (cur >= 0) runs.push({ s: start, l: len - start, c: cur });
     return runs;
   }
-  function solve(A, b) {   // Gauß für 8x8
+  function solve(A, b) {   // Gauss for 8x8
     var n = b.length, i, j, k;
     for (i = 0; i < n; i++) {
       var piv = i; for (j = i + 1; j < n; j++) if (Math.abs(A[j][i]) > Math.abs(A[piv][i])) piv = j;
@@ -120,7 +120,7 @@
     for (i = n - 1; i >= 0; i--) { var s = b[i]; for (j = i + 1; j < n; j++) s -= A[i][j] * x[j]; x[i] = s / A[i][i]; }
     return x;
   }
-  // Abbildung von (gx,gy) auf Bildpunkte aus 4 Punktpaaren: src[i]=[gx,gy], dst[i]=[px,py]
+  // Mapping from (gx,gy) to image points from 4 point pairs: src[i]=[gx,gy], dst[i]=[px,py]
   function homography(src, dst) {
     var A = [], b = [], i;
     for (i = 0; i < 4; i++) {
@@ -131,7 +131,7 @@
     var h = solve(A, b); if (!h) return null;
     return function (gx, gy) { var d = h[6] * gx + h[7] * gy + 1; return [(h[0] * gx + h[1] * gy + h[2]) / d, (h[3] * gx + h[4] * gy + h[5]) / d]; };
   }
-  // Homographie aus beliebig vielen (>=4) Punktpaaren (Normalengleichungen)
+  // Homography from any number (>=4) of point pairs (normal equations)
   function homographyLS(src, dst) {
     var n = src.length, A = [], i, j, k;
     for (i = 0; i < 8; i++) { A.push([]); for (j = 0; j < 9; j++) A[i].push(0); }
@@ -149,7 +149,7 @@
     if (x < 0 || y < 0 || x >= w || y >= h) return 0;
     return bw[y * w + x];
   }
-  // Modul abtasten: Mehrheit aus Mitte und vier Nachbarpunkten
+  // Sample a module: majority from the center and four neighboring points
   function sampleModule(bw, w, h, P, gx, gy, d) {
     var c = 0, k, offs = [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d]];
     for (k = 0; k < 5; k++) { var p = P(gx + offs[k][0], gy + offs[k][1]); c += bitAt(bw, w, h, p[0], p[1]); }
@@ -157,13 +157,13 @@
   }
   function bytesToTextLatin(b) { var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return s; }
 
-  // ---------------------------------------------------------------- Feinausrichtung
-  function grayAt(g, w, h, x, y) {   // bilineare Helligkeit
+  // ---------------------------------------------------------------- Fine alignment
+  function grayAt(g, w, h, x, y) {   // bilinear brightness
     if (x < 0 || y < 0 || x >= w - 1 || y >= h - 1) return 128;
     var x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0, i = y0 * w + x0;
     return (g[i] * (1 - fx) + g[i + 1] * fx) * (1 - fy) + (g[i + w] * (1 - fx) + g[i + w + 1] * fx) * fy;
   }
-  // Verschiebt die vier Eckpunkte der Abbildung, bis die Modulmitten möglichst eindeutig hell oder dunkel sind
+  // Moves the four corner points of the mapping until the module centers are as clearly light or dark as possible
   function refine(Pinit, ideal, samples, known, g, w, h, m) {
     var cur = ideal.map(function (c) { return Pinit(c[0], c[1]).slice(); });
     function score(pts) {
@@ -183,7 +183,7 @@
       var cs = Math.cos(rot), sn = Math.sin(rot);
       return pts.map(function (q) { var x = (q[0] - cx) * k, y = (q[1] - cy) * k; return [cx + dx + x * cs - y * sn, cy + dy + x * sn + y * cs]; });
     }
-    // grobe Rastersuche um die Startabbildung (Maßstab, Drehung, Verschiebung), um lokale Maxima zu umgehen
+    // coarse grid search around the starting mapping (scale, rotation, shift) to avoid local maxima
     (function () {
       var sc, rt, dx, dy, bestT = cur, bestS = best;
       for (sc = -1; sc <= 1; sc++) for (rt = -1; rt <= 1; rt++) for (dx = -1; dx <= 1; dx++) for (dy = -1; dy <= 1; dy++) {
@@ -208,7 +208,7 @@
     return homography(ideal, cur);
   }
 
-  // ---------------------------------------------------------------- QR-Code
+  // ---------------------------------------------------------------- QR code
   function qrFunctionMask(ver) {
     var size = ver * 4 + 17, fn = [], y, x, i, j;
     for (y = 0; y < size; y++) { fn.push([]); for (x = 0; x < size; x++) fn[y].push(false); }
@@ -253,7 +253,7 @@
       else if (mode === 2) { var n2 = bits(cc[1]); while (n2 >= 2) { var t3 = bits(11); out.push(AN.charCodeAt(Math.floor(t3 / 45)), AN.charCodeAt(t3 % 45)); n2 -= 2; } if (n2 === 1) out.push(AN.charCodeAt(bits(6))); }
       else if (mode === 4) { var n3 = bits(cc[2]); for (var i = 0; i < n3; i++) out.push(bits(8)); }
       else if (mode === 7) { var b0 = bits(8); if (b0 & 0x80) { if ((b0 & 0xC0) === 0x80) bits(8); else bits(16); } }
-      else return null;   // Kanji u. a. nicht unterstützt
+      else return null;   // Kanji etc. not supported
     }
     return out;
   }
@@ -287,7 +287,7 @@
     for (b2 = 0; b2 < nb; b2++) blocks.push([]);
     var idx = 0;
     for (i = 0; i < shortLen + 1; i++) for (b2 = 0; b2 < nb; b2++) {
-      if (i === shortLen - eccLen && b2 < shortN) continue;          // Platz, der in kurzen Blöcken fehlt
+      if (i === shortLen - eccLen && b2 < shortN) continue;          // space that is missing in short blocks
       if (idx < cw.length) blocks[b2].push(cw[idx++]);
     }
     var f = getField(0x11D, 8), data = [];
@@ -311,7 +311,7 @@
       }
       cands.push({ x: x, y: yy, m: m, n: 1 });
     }
-    function check5(runs, j, ratio) {   // runs[j] ist schwarz und Mitte; ratio = [1,1,3,1,1] oder [1,1,1,1,1]
+    function check5(runs, j, ratio) {   // runs[j] is black and the center; ratio = [1,1,3,1,1] or [1,1,1,1,1]
       if (j < 2 || j + 2 >= runs.length) return 0;
       var tot = 0, k; for (k = -2; k <= 2; k++) tot += runs[j + k].l;
       var sumR = 0; for (k = 0; k < 5; k++) sumR += ratio[k];
@@ -347,7 +347,7 @@
       var o = d.filter(function (_, i) { return i !== hi; }), avg = (o[0] + o[1]) / 2;
       if (Math.abs(o[0] - o[1]) / avg > 0.4) continue;
       var ratio = d[hi] / avg; if (ratio < 1.2 || ratio > 1.65) continue;
-      // Ecke gegenüber der Hypotenuse
+      // corner opposite the hypotenuse
       var tl = hi === 0 ? t[2] : hi === 1 ? t[1] : t[0], rest = t.filter(function (z) { return z !== tl; });
       res.push({ score: Math.abs(o[0] - o[1]) / avg + Math.abs(ratio - 1.414) - 0.04 * Math.min(t[0].n, t[1].n, t[2].n, 10), tl: tl, p: rest[0], q: rest[1] });
     }
@@ -371,7 +371,7 @@
       }
     }
     if (!best) return null;
-    // senkrecht prüfen/verfeinern
+    // check/refine perpendicularly
     var col = runsOfLine(bw, w, h, Math.round(best.x), ya, 0, 1, yb - ya + 1), t;
     for (t = 2; t + 2 < col.length; t++) {
       if (!col[t].c) continue;
@@ -383,7 +383,7 @@
     }
     return null;
   }
-  // Alignment-Muster (5x5: schwarz-weiß-schwarz) um die vorhergesagte Stelle per Vorlagenvergleich suchen
+  // Search for the alignment pattern (5x5: black-white-black) around the predicted position by template matching
   function locateAlignment(bw, w, h, P, gx, gy, m) {
     var g = bw.gray, c0 = P(gx, gy), r = Math.ceil(m * 3), best = null, bs = -1e18, dx, dy, ux, uy, cs = [];
     var offs = []; for (uy = -2; uy <= 2; uy++) for (ux = -2; ux <= 2; ux++) offs.push([ux, uy, Math.max(Math.abs(ux), Math.abs(uy)) === 1 ? -1 : 1]);
@@ -396,7 +396,7 @@
       for (k = 0; k < base.length; k++) sum += base[k][2] * (T - cs[k]);
       if (sum > bs) { bs = sum; best = [c0[0] + dx, c0[1] + dy]; }
     }
-    // Güte: mittlere Abweichung vom Mittel muss deutlich sein
+    // Quality: the mean deviation from the average must be clear
     var rng = 0, q; for (q = 0; q < base.length; q++) rng += 1;
     return bs / base.length > 18 ? best : null;
   }
@@ -410,7 +410,7 @@
       var cross = (P.x - tl.x) * (Q.y - tl.y) - (P.y - tl.y) * (Q.x - tl.x);
       var tr = cross > 0 ? P : Q, bl = cross > 0 ? Q : P;
       var ang = Math.abs(Math.atan2(tr.y - tl.y, tr.x - tl.x)) % (Math.PI / 2), ang2 = Math.min(ang, Math.PI / 2 - ang);
-      var m = (tl.m + tr.m + bl.m) / 3 * Math.cos(ang2), dd = (dist(tl, tr) + dist(tl, bl)) / 2;   // Läufe sind bei Drehung länger
+      var m = (tl.m + tr.m + bl.m) / 3 * Math.cos(ang2), dd = (dist(tl, tr) + dist(tl, bl)) / 2;   // runs are longer when rotated
       var dim0 = Math.round(dd / m) + 7, base = 17 + 4 * Math.round((dim0 - 17) / 4);
       QLOG.push('Finder TL ' + [tl.x, tl.y, tl.m].map(function (v) { return v.toFixed(1); }) + ' TR ' + [tr.x, tr.y, tr.m].map(function (v) { return v.toFixed(1); }) + ' BL ' + [bl.x, bl.y, bl.m].map(function (v) { return v.toFixed(1); }) + ' dim0 ' + dim0);
       var dims = [base, base - 4, base + 4];
@@ -523,7 +523,7 @@
 
   function azCandidates(bw, w, h) {
     var cands = [], y;
-    // inner: Läufe j-inner..j+inner gleich breit; die beiden äußeren (schwarzen) Läufe dürfen länger sein (Nachbarmodule)
+    // inner: runs j-inner..j+inner equally wide; the two outer (black) runs may be longer (neighboring modules)
     function ring(runs, j, inner) {
       if (j - inner - 1 < 0 || j + inner + 1 >= runs.length) return 0;
       var tot = 0, k; for (k = j - inner; k <= j + inner; k++) tot += runs[k].l;
@@ -545,7 +545,7 @@
         var col = runsOfLine(bw, w, h, xi, 0, 0, 1, h), jj = -1, t;
         for (t = 0; t < col.length; t++) if (col[t].s <= y && y < col[t].s + col[t].l) { jj = t; break; }
         if (jj < 0 || !col[jj].c) continue;
-        [5, 3].forEach(function (inner) {   // volle (R=6) und kompakte (R=4) Bullseye getrennt probieren
+        [5, 3].forEach(function (inner) {   // try full (R=6) and compact (R=4) bullseye separately
           var m = ring(runs, j, inner); if (!m) return;
           var mv = ring(col, jj, inner); if (!mv) return;
           add(cx, col[jj].s + col[jj].l / 2, (m + mv) / 2, inner === 5);
@@ -554,7 +554,7 @@
     }
     return cands.filter(function (c) { return c.n >= 2; }).sort(function (a, b) { return (b.full - a.full) || (b.n - a.n); }).slice(0, 24);
   }
-  // Bullseye-Ring (Abstand 2) als Zusammenhangskomponente → Winkel und Mitte schätzen
+  // Bullseye ring (distance 2) as a connected component → estimate angle and center
   function floodComponent(bw, w, h, sx, sy, limit) {
     var seen = {}, stack = [[sx, sy]], pts = [], key;
     while (stack.length && pts.length < limit) {
@@ -565,7 +565,7 @@
     }
     return pts;
   }
-  function azFindRingStart(bw, w, h, cx, cy, m, ringD) {   // Punkt auf dem schwarzen Ring im Abstand ringD (Läufe von der Mitte nach rechts)
+  function azFindRingStart(bw, w, h, cx, cy, m, ringD) {   // point on the black ring at distance ringD (runs from the center to the right)
     var y = Math.round(cy), x0 = Math.round(cx), len = Math.min(w - x0, Math.ceil(m * (ringD + 3)));
     if (y < 0 || y >= h || x0 < 0 || len < 3) return null;
     var runs = runsOfLine(bw, w, h, x0, y, 1, 0, len), nth = ringD / 2, cnt = 0;
@@ -576,11 +576,11 @@
   function azDecodeAt(bw, w, h, cand, compact) {
     LOG.length = 0;
     var m = cand.m, cx = cand.x, cy = cand.y, R = compact ? 4 : 6;
-    // Schritt 1: Ring im Abstand 2 → grobe Ähnlichkeitsabbildung
+    // Step 1: ring at distance 2 → coarse similarity mapping
     var s2 = azFindRingStart(bw, w, h, cx, cy, m, 2); if (!s2) return null;
     var pts = floodComponent(bw, w, h, s2[0], s2[1], Math.max(4000, Math.ceil(30 * m * m))); if (pts.length < 8) return null;
     var cm = [0, 0]; pts.forEach(function (p) { cm[0] += p[0]; cm[1] += p[1]; }); cm[0] /= pts.length; cm[1] /= pts.length;
-    function corners(list, ax, ay, ex) {   // Extremwerte in gedrehter Basis → 4 Ecken
+    function corners(list, ax, ay, ex) {   // Extreme values in a rotated basis → 4 corners
       var tlP = null, trP = null, blP = null, brP = null, a = -1e18, b = -1e18, c = -1e18, d = -1e18;
       list.forEach(function (p) {
         var u = (p[0] - ax), v = (p[1] - ay);
@@ -593,13 +593,13 @@
     }
     var cr = corners(pts, cm[0], cm[1]);
     if (cr.some(function (p) { return !p; })) return null;
-    // Ringaußenkante: Ecken bei ±2.5 Modulen
+    // Outer edge of the ring: corners at ±2.5 modules
     var P1 = homography([[-2.5, -2.5], [2.5, -2.5], [-2.5, 2.5], [2.5, 2.5]], cr.map(function (p, i) {
       var o = [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]][i]; return [p[0] + o[0], p[1] + o[1]];
     }));
     if (!P1) { LOG.push('P1 null'); return null; }
     LOG.push('P1 ok, ring2 pts ' + pts.length + ' P1 u10=' + (P1(10, 0)[0] - P1(0, 0)[0]).toFixed(1) + ',' + (P1(10, 0)[1] - P1(0, 0)[1]).toFixed(1) + ' c=' + P1(0, 0).map(function (v) { return v.toFixed(1); }) + ' cr=' + JSON.stringify(cr));
-    // Maßstab aus der Läuferbreite der Bullseye-Mitte (zuverlässiger als die kleinen Ringecken)
+    // Scale from the run width of the bullseye center (more reliable than the small ring corners)
     (function () {
       var c0 = P1(0, 0), u = [P1(1, 0)[0] - c0[0], P1(1, 0)[1] - c0[1]], phi = Math.atan2(u[1], u[0]);
       var a = Math.abs(phi) % (Math.PI / 2), th = Math.min(a, Math.PI / 2 - a), sTrue = m * Math.cos(th), sP1 = Math.hypot(u[0], u[1]);
@@ -609,7 +609,7 @@
         if (Hs) { P1 = Hs; LOG.push('Maßstab aus Läufern ' + sTrue.toFixed(2) + ' statt ' + sP1.toFixed(2)); }
       }
     })();
-    // Ringe von innen nach außen (Abstand 2, 4, 6) nacheinander an Geraden anpassen
+    // Fit the rings from the inside out (distance 2, 4, 6) to straight lines one after another
     var P2 = P1, ringD;
     for (ringD = 2; ringD <= R; ringD += 2) {
       var st = azFindRingStart(bw, w, h, cx, cy, m, ringD); if (!st) continue;
@@ -623,7 +623,7 @@
       if (Math.abs(sU - sV) / sAvg < 0.08 && Math.abs(sAvg - scOld) / scOld < 0.15) P2 = Hr; else LOG.push('Ring ' + ringD + ' verworfen (' + sU.toFixed(1) + '/' + sV.toFixed(1) + ' statt ' + scOld.toFixed(1) + ')');
     }
     (function () { var a = P2(0, 0), b = P2(10, 0), c2 = P2(0, 10), e = P2(10, 10); LOG.push('P2 c=' + a.map(function (v) { return v.toFixed(1); }) + ' u10=' + (b[0] - a[0]).toFixed(1) + ',' + (b[1] - a[1]).toFixed(1) + ' v10=' + (c2[0] - a[0]).toFixed(1) + ',' + (c2[1] - a[1]).toFixed(1) + ' d=' + (e[0] - a[0]).toFixed(1) + ',' + (e[1] - a[1]).toFixed(1)); })();
-    // Drehung (Orientierungsmarken) bestimmen
+    // Determine the rotation (orientation marks)
     var rot, best = null, k = compact ? 5 : 7, d0 = 0.22;
     var blacks = [[-k, -k], [-k + 1, -k], [-k, -k + 1], [k, -k], [k, -k + 1], [k, k - 1]];
     var whites = [[k - 1, -k], [-k, k], [-k + 1, k], [-k, k - 1], [k, k], [k - 1, k]];
@@ -642,9 +642,9 @@
     var xs = [c0[0], c1[0], c2[0], c3[0]], ys = [c0[1], c1[1], c2[1], c3[1]], x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
     return { format: 'aztec', bytes: res.bytes, box: { x: x0, y: y0, width: Math.max.apply(null, xs) - x0, height: Math.max.apply(null, ys) - y0 } };
   }
-  // Kanten des äußeren Rings per Geradenanpassung → Abbildung (Module → Pixel)
+  // Edges of the outer ring by line fitting → mapping (modules → pixels)
   function ringHomography(bw, w, h, pts, P1, inv, R) {
-    var mask = {}, i, sides = [[], [], [], []], cm = [0, 0];   // 0 oben, 1 rechts, 2 unten, 3 links
+    var mask = {}, i, sides = [[], [], [], []], cm = [0, 0];   // 0 top, 1 right, 2 bottom, 3 left
     pts.forEach(function (p) { mask[p[1] * w + p[0]] = 1; });
     var nb = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     pts.forEach(function (p) {
@@ -655,9 +655,9 @@
         if (qx < 0 || qy < 0 || qx >= w || qy >= h || mask[qy * w + qx] || bw[qy * w + qx]) continue;
         var gq = inv(qx, qy), n1 = Math.max(Math.abs(gq[0]), Math.abs(gq[1]));
         if (n1 > n0 + 0.01) {
-          if (Math.min(Math.abs(g[0]), Math.abs(g[1])) > R - 0.7) break;   // Ecken auslassen
+          if (Math.min(Math.abs(g[0]), Math.abs(g[1])) > R - 0.7) break;   // leave out the corners
           var side = Math.abs(g[0]) > Math.abs(g[1]) ? (g[0] > 0 ? 1 : 3) : (g[1] > 0 ? 2 : 0);
-          sides[side].push([p[0] + nb[k][0] * 0.5, p[1] + nb[k][1] * 0.5]);   // Pixelkante, nicht Pixelmitte
+          sides[side].push([p[0] + nb[k][0] * 0.5, p[1] + nb[k][1] * 0.5]);   // pixel edge, not pixel center
         }
         break;
       }
@@ -672,7 +672,7 @@
     for (i = 0; i < 4; i++) {
       var L = sides[i]; if (L.length < 8) { LOG.push('Seite ' + i + ' nur ' + L.length + ' Punkte (' + sides.map(function (z) { return z.length; }) + ')'); return null; }
       var ln = fit(L);
-      for (var it = 0; it < 3; it++) {   // Ausreißer entfernen
+      for (var it = 0; it < 3; it++) {   // remove outliers
         var res = L.map(function (q) { return Math.abs((q[0] - ln.x) * -ln.dy + (q[1] - ln.y) * ln.dx); });
         var sorted = res.slice().sort(function (a, b) { return a - b; }), lim = Math.max(0.8, sorted[Math.floor(sorted.length / 2)] * 2.5);
         var keep = L.filter(function (q, ix) { return res[ix] <= lim; });
@@ -691,7 +691,7 @@
     var e = R + 0.5;
     return homography([[-e, -e], [e, -e], [-e, e], [e, e]], [tl, tr, bl, br]);
   }
-  function invert(P) {   // Rückabbildung über 4 Punkte
+  function invert(P) {   // inverse mapping via 4 points
     var pts = [[-3, -3], [3, -3], [-3, 3], [3, 3]], dst = pts.map(function (p) { return P(p[0], p[1]); });
     return homography(dst, pts);
   }
@@ -745,7 +745,7 @@
       var pts = lay.pos.map(function (q) { return [q[0] - ctr, q[1] - ctr]; }), e0 = size / 2;
       var known = [], R0 = compact ? 4 : 6, kx, ky;
       for (kx = -R0; kx <= R0; kx++) for (ky = -R0; ky <= R0; ky++) known.push([kx, ky, Math.max(Math.abs(kx), Math.abs(ky)) % 2 === 0]);
-      if (!compact) {   // Referenzgitter des vollen Aztec: jede 16. Linie ist abwechselnd schwarz/weiß
+      if (!compact) {   // Reference grid of the full Aztec: every 16th line is alternately black/white
         var hs = Math.floor(size / 2), jj, tt;
         for (jj = 0; jj <= hs; jj += 16) for (tt = -hs; tt <= hs; tt++) {
           if (jj === 0 && Math.abs(tt) <= 7) continue;
@@ -780,8 +780,8 @@
     return null;
   }
 
-  // ---------------------------------------------------------------- Einstieg
-  function upscale(img, k) {   // bilineare Vergrößerung (hilft bei winzigen Modulen)
+  // ---------------------------------------------------------------- Entry point
+  function upscale(img, k) {   // bilinear enlargement (helps with tiny modules)
     var w = img.width, h = img.height, W = Math.round(w * k), H = Math.round(h * k), out = new Uint8ClampedArray(W * H * 4), x, y, c;
     for (y = 0; y < H; y++) {
       var fy = Math.min(h - 1.001, y / k), y0 = Math.floor(fy), ty = fy - y0;

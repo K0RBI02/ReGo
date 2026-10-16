@@ -1,4 +1,4 @@
-/* Router + Start. Pfade: /  /Strecken  /Ticket  /Detail#<id>  /Meldungen  /Scan  /Onboarding1..3 */
+/* Router + start. Paths: /  /Strecken  /Ticket  /Detail#<id>  /Meldungen  /Scan  /Onboarding1..3 */
 (function () {
   const R = window.REGO;
   const SCREENS = ['Main', 'Meldungen', 'Detail', 'Ticket', 'Scan', 'Strecken', 'Onboarding1', 'Onboarding2', 'Onboarding3'];
@@ -13,17 +13,17 @@
     return SCREENS.includes(n) ? n : 'Main';
   }
 
-  // „rgb(247, 247, 247)“ -> „#f7f7f7“ (die Statusleiste der App und theme-color verstehen nur die Hex-Schreibweise)
+  // "rgb(247, 247, 247)" -> "#f7f7f7" (the status bar of the app and theme-color only understand the hex notation)
   const hexOf = (c) => { const m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(c || ''); return m ? '#' + [m[1], m[2], m[3]].map((v) => Math.min(255, +v).toString(16).padStart(2, '0')).join('') : (c || ''); };
-  // Seitenhintergrund, Browser-Leiste (theme-color) und in der App Status- und Navigationsleiste. Meist eine Farbe; die Detailseite hat oben die Karte und unten das weiße Blatt.
+  // Page background, browser bar (theme-color) and, in the app, status and navigation bar. Usually one color; the detail page has the card on top and the white sheet below.
   function paint(color, bottom) {
     document.documentElement.style.background = color; document.body.style.background = color;
     const hex = hexOf(color), hexB = bottom ? hexOf(bottom) : hex;
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', hex);
     try { const N = window.RegoNative; if (N) { if (N.setBarColors) N.setBarColors(hex, hexB); else N.setBars(hex); } } catch (e) {}
   }
-  // Statusleiste und Hintergrund nehmen die Farbe des Screens an, damit kein Rand sichtbar bleibt.
-  // Beginnt der Screen oben mit einer eigenen Fläche (data-bar="top", z. B. die Karte der Detailseite), bekommt die Statusleiste deren Farbe, die untere Leiste die des Untergrunds.
+  // Status bar and background take the color of the screen so that no edge stays visible.
+  // If the screen starts with a surface of its own at the top (data-bar="top", e.g. the card of the detail page), the status bar gets its color and the lower bar the color of the background.
   function syncBars() {
     if (document.querySelector('#app > [role=status][style*="z-index:60"]')) return;
     if (inviteEl) { paint('#D4EDF6'); return; }
@@ -34,7 +34,7 @@
   }
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(syncBars, 50)); } catch (e) {}
 
-  // Notlösung, wenn gar keine Daten ankommen: große Meldung über allem (Ticket-Safe und Scan bleiben erreichbar)
+  // Fallback when no data arrives at all: a big message over everything (ticket safe and scan stay reachable)
   const NO_OUTAGE = ['Ticket', 'Scan', 'Onboarding1', 'Onboarding2', 'Onboarding3'];
   let outageEl = null, retrying = false;
   function syncOutage() {
@@ -67,7 +67,7 @@
     paint('#F9D6D2');
   }
 
-  // Einladungscode: Der Server nimmt neue Geräte nur mit Code an. Bis der Code stimmt, liegt diese Maske über allem.
+  // Invitation code: the server only accepts new devices with a code. Until the code is right, this gate lies over everything.
   let inviteEl = null, inviteBusy = false;
   function syncInvite() {
     const on = !!(R.invite && R.invite.needed);
@@ -99,12 +99,12 @@
   }
   R.onInvite = syncInvite;
 
-  // Beta-Hinweis: bei jedem Start 3 Sekunden, Tippen überspringt
+  // Beta notice: 3 seconds at the very first start, a tap skips it
   const BG_SPLASH = '#EAF6CF';
   function splash() {
     const el = document.getElementById('splash');
     if (!el) return;
-    if (flag('rego.splashSeen')) { el.remove(); return; }      // Beta-Hinweis nur beim allerersten Start
+    if (flag('rego.splashSeen')) { el.remove(); return; }      // beta notice only at the very first start
     flag('rego.splashSeen', true);
     const v = document.getElementById('splash-ver'); if (v && R.version) v.textContent = R.version;
     paint(BG_SPLASH);
@@ -117,12 +117,12 @@
     setTimeout(close, 3000);
   }
 
-  // Seiten nacheinander einhängen: Wer zweimal schnell navigiert, soll nicht erleben, dass die ältere Seite später fertig wird und die neuere überschreibt
+  // Mount pages one after the other: if someone navigates twice quickly, the older page must not finish later and overwrite the newer one
   let chain = Promise.resolve();
   function show(name) {
     const my = ++token;
     chain = chain.then(async () => {
-      if (my !== token) return;                                 // inzwischen wurde schon eine neuere Seite angefordert
+      if (my !== token) return;                                 // a newer page has been requested in the meantime
       if (current) { window.RLOG && RLOG('destroy ' + currentName); current.destroy(); current = null; }
       const m = await window.DC.mount(name, host, styleEl);
       current = m; currentName = name; mounted = my; window.RLOG && RLOG('mount ' + name);
@@ -138,14 +138,14 @@
   async function go(url, push = true) {
     const u = new URL(url, location.href);
     let name = routeOf(u.pathname);
-    // Zurück-Taste bei offenem Sheet: Es wechselt nur der Anker. Die Seite bleibt stehen und schließt das Sheet selbst (kein Neuaufbau, Scroll und Eingaben bleiben).
-    // Nur wenn die aktuelle Seite auch wirklich die zuletzt angeforderte ist, sonst gewinnt die neuere Anfrage wie bisher.
+    // Back button with an open sheet: only the anchor changes. The page stays and closes the sheet itself (no rebuild, scroll and inputs stay).
+    // Only if the current page really is the most recently requested one, otherwise the newer request wins as before.
     if (!push && current && name === currentName && mounted === token && typeof current.instance.onHash === 'function') { current.instance.onHash(u.hash); return; }
-    // Ende des Onboardings: gewählte Strecke anlegen
+    // End of onboarding: create the chosen route
     if (name === 'Main' && window.REGO_pending && !R.tours.length) {
       const p = window.REGO_pending; window.REGO_pending = null; flag('rego.onboarded', true);
       R.lastAddError = '';
-      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: p.time || '07:00', until: p.until, trip: p.trip, backTime: p.backTime || '16:30', backUntil: p.backUntil }); } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* Dashboard zeigt den Leerzustand mit dem Grund */ }
+      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: p.time || '07:00', until: p.until, trip: p.trip, backTime: p.backTime || '16:30', backUntil: p.backUntil }); } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* the main screen shows the empty state with the reason */ }
     }
     if (name === 'Main' && R.tours.length) flag('rego.onboarded', true);
     if (push) history.pushState(null, '', u.pathname === '/index.html' ? '/' : u.pathname + u.hash); else if (u.hash !== location.hash) history.replaceState(null, '', u.pathname + u.hash);
@@ -169,10 +169,10 @@
     if (!current) return;
     current.update();
     if (typeof current.instance.onData === 'function') current.instance.onData();
-    syncBars();                                    // die Detailseite wechselt mit dem Zustand die Farbe oben (grün, grau, schwarz bei „offline“)
+    syncBars();                                    // the detail page changes its color at the top with the state (green, gray, black when "offline")
   };
 
-  // Standort nur nutzen, wenn schon erlaubt (kein Dialog beim Start). Letzten Standort merken, bei jedem Öffnen der App neu holen.
+  // Use the location only if already allowed (no dialog at start). Remember the last location, fetch it anew every time the app opens.
   try { const c = JSON.parse(localStorage.getItem('rego.pos') || 'null'); if (c && c.lat && Date.now() - c.at < 12 * 3600 * 1000) R.position = { lat: c.lat, lon: c.lon }; } catch (e) {}
   const fix = () => navigator.geolocation.getCurrentPosition((pos) => {
     const n = { lat: pos.coords.latitude.toFixed(2), lon: pos.coords.longitude.toFixed(2) };
@@ -182,11 +182,11 @@
   }, () => {}, { maximumAge: 600000, timeout: 20000 });
   const locate = () => {
     try {
-      // App: Android fragt beim ersten Mal selbst nach der Freigabe, danach geht es still
+      // App: Android asks for permission itself the first time, afterwards it works silently
       if (window.RegoNative) { setTimeout(fix, 1200); return; }
       navigator.permissions && navigator.permissions.query({ name: 'geolocation' }).then((p) => {
         if (p.state === 'granted') { fix(); return; }
-        // Noch nie gefragt: einmal fragen, sobald es mindestens zwei Strecken gibt (erst dann hilft „nächste zuerst“)
+        // Never asked: ask once, as soon as there are at least two routes (only then "nearest first" helps)
         let asked = false; try { asked = !!localStorage.getItem('rego.posAsked'); } catch (e) {}
         if (p.state === 'prompt' && !asked) setTimeout(() => { if (R.tours && R.tours.filter((t) => t.active).length >= 2) { try { localStorage.setItem('rego.posAsked', '1'); } catch (e) {} fix(); } }, 3000);
       });
@@ -204,7 +204,7 @@
   window.addEventListener('online', tick);
   window.addEventListener('offline', () => R.onChange());
 
-  // Frühere Browser-Versionen haben einen Service Worker angelegt. Den gibt es nicht mehr: abmelden und seine Zwischenspeicher leeren.
+  // Earlier browser versions created a service worker. It no longer exists: unregister it and clear its caches.
   if (!window.RegoNative && 'serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then((rs) => {
       rs.forEach((r) => r.unregister());

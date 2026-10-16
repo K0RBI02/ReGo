@@ -1,4 +1,4 @@
-name: Add-on bauen
+name: Build add-on
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
 
-  bildschirmtest:
+  screen-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
       - run: node scripts/ui-smoke.mjs
 
   build:
-    needs: [test, bildschirmtest]
+    needs: [test, screen-test]
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +44,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - name: Version und Image-Name bestimmen
+      - name: Determine version and image name
         id: meta
         run: |
           echo "version=$(sed -n 's/^version: "\(.*\)"/\1/p' rego/config.yaml)" >> "$GITHUB_OUTPUT"
