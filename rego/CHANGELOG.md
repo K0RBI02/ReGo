@@ -15,6 +15,9 @@
 - Push kommt nur noch für Strecken in ihrer Pendelzeit: an den Tagen der Strecke ab einer Stunde vor dem Fenster bis 10 Minuten nach dessen Ende. Die Nachtruhe 23–4 Uhr bleibt.
 - Der Schalter „Nur rund um die Abfahrtszeit benachrichtigen“ in den Einstellungen entfällt, die Pendelzeit ersetzt ihn. Ein Ende des Fensters nimmt keine bestehende Störung als „behoben“ weg.
 
+**Einstellungen**
+- Der Link „Datenschutz“ öffnet die neue Seite `PRIVACY.md` (die bisherige `DATENSCHUTZ.md` gibt es nicht mehr).
+
 **Schnittstelle**
 - `POST /api/tours` nimmt `schedule.departUntil` sowie `returnAfter` und `returnUntil` an, `PATCH /api/tours/:id` `schedule.departUntil`. Kommt nur `departAfter` (ältere App), behält das Fenster seine Länge.
 - Strecken tragen `schedule.departUntil` und `window: {from, until, mode}`, Abfahrten `far: true`, wenn sie mehr als 45 Minuten entfernt sind (Datenvertrag). `PUT /api/settings`: `pushWindow` wird von älteren Apps noch gesendet, angenommen und ignoriert.

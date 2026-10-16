@@ -376,7 +376,7 @@ await check('Testmeldung und Versionszeile', async () => {
     await p.goto(base + '/Strecken#einstellungen'); await p.waitForTimeout(1500);
     const text = await p.evaluate(() => document.querySelector('#screen').innerText);
     if (!text.includes(`App 9.9.9 · Server ${ver}`)) problems.push(`Versionszeile: erwartet „App 9.9.9 · Server ${ver}“, gefunden: ${(text.match(/(App [^\n]*)?Server [^\n]*/) || ['nichts'])[0]}`);
-    for (const [href, label] of [['https://github.com/K0RBI02/ReGo/blob/main/DATENSCHUTZ.md', 'Datenschutz'], ['https://github.com/K0RBI02/ReGo', 'ReGo auf GitHub']]) {
+    for (const [href, label] of [['https://github.com/K0RBI02/ReGo/blob/main/PRIVACY.md', 'Datenschutz'], ['https://github.com/K0RBI02/ReGo', 'ReGo auf GitHub']]) {
       const a = p.locator(`a[href="${href}"]`);
       if (!(await a.count()) || (await a.getAttribute('target')) !== '_blank' || !(await a.innerText()).includes(label)) problems.push(`Versionszeile: Link „${label}“ fehlt oder öffnet nicht in neuem Fenster`);
     }
