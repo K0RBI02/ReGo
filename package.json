@@ -1,6 +1,6 @@
 {
   "name": "rego-backend",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "description": "ReGo – Backend für die Pendler-App",
   "type": "module",

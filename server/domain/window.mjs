@@ -13,6 +13,8 @@ export const FAR_MIN = 45;               // Fahrten, die weiter weg sind, heiße
 const DAY_END = 24 * 60 - 1;
 const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const fmtMin = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+/** Does the schedule carry usable commute times (start time and days)? Older routes may lack them. */
+const known = (schedule) => !!schedule && HM.test(schedule.departAfter || '') && Array.isArray(schedule.days);
 
 /**
  * Ende des Fensters (Minuten seit Mitternacht) zu einem Beginn. `until` fehlt oder taugt nicht: eine Stunde nach dem Beginn.
@@ -39,7 +41,7 @@ export function windowOf(schedule) {
  * endMs: Ende des Fensters heute (ms), bei now und soon.
  */
 export function windowState(schedule, nowMs) {
-  if (!schedule || !HM.test(schedule.departAfter || '') || !Array.isArray(schedule.days)) return { mode: 'off', anchor: null, endMs: null };
+  if (!known(schedule)) return { mode: 'off', anchor: null, endMs: null };
   const w = windowOf(schedule);
   const base = { from: w.from, until: w.until, anchor: null, endMs: null };
   if (!schedule.days.includes(weekday(nowMs))) return { ...base, mode: 'off' };
@@ -65,11 +67,17 @@ export function windowView(schedule, nowMs) {
  */
 export function pushActive(tour, nowMs) {
   const s = tour?.schedule;
-  if (!s || !HM.test(s.departAfter || '') || !Array.isArray(s.days)) return true;
+  if (!known(s)) return true;
   if (!s.days.includes(weekday(nowMs))) return false;
   const w = windowOf(s), date = berlin(nowMs).date;
   return nowMs >= fromBerlin(date, w.from) - PUSH_LEAD_MIN * MIN && nowMs <= fromBerlin(date, w.until) + PUSH_TAIL_MIN * MIN;
 }
+
+/**
+ * Exception to the night quiet (23:00–04:00): a route with its own commute times may push at night while its push period runs,
+ * e.g. a departure at 04:20 pushes from 03:20. A route without times (older data) stays quiet at night.
+ */
+export const pushAtNight = (tour, nowMs) => known(tour?.schedule) && pushActive(tour, nowMs);
 
 /** Liegt die Abfahrt weiter weg als FAR_MIN? Dann sagt ReGo „planmäßig“ statt „pünktlich“. */
 export const isFar = (depMs, nowMs) => depMs - nowMs > FAR_MIN * MIN;

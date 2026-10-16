@@ -4,7 +4,7 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { berlin } from './lib/time.mjs';
-import { pushActive } from './domain/window.mjs';
+import { pushActive, pushAtNight } from './domain/window.mjs';
 
 const DAY = 24 * 3600e3;
 
@@ -61,15 +61,19 @@ export function createNotifier({ config, store, service, now = () => Date.now(),
     if (!profile.push?.native || !profile.tours.some((t) => t.active !== false)) return 0;
     // App deinstalliert oder Handy verschwunden: die App meldet sich sonst alle ~15 Min. von selbst, bei Funkstille nicht mehr prüfen
     if (profile.lastSeen && now() - profile.lastSeen > idleMs) return 0;
+    // Night quiet 23:00–04:00. The one exception is a route whose own push period runs into the night (a departure at 04:20 pushes from 03:20):
+    // while that lasts, only such routes are looked at – every other route and all notifications stay untouched until morning.
     const hour = Number(berlin(now()).time.slice(0, 2));
-    if (hour < 4 || hour >= 23) return 0;                       // nachts Ruhe
+    const night = hour < 4 || hour >= 23;
+    const inScope = (tour) => !night || pushAtNight(tour, now());
+    if (night && !profile.tours.some((t) => t.active !== false && inScope(t))) return 0;
     const state = await service.getState(device);
     const hasTours = Array.isArray(state.tours);
     if (state.connection.status === 'error' && !hasTours) return 0;
     // Strecken ohne frische Daten (Quelle gestört): keine neuen Meldungen daraus, und Wegfall nicht beurteilen. Andere Strecken laufen normal weiter.
     const stale = new Set(hasTours ? state.tours.filter((t) => t.stale).map((t) => t.id) : []);
     const tourOf = Object.fromEntries(profile.tours.map((t) => [t.id, t]));
-    const usable = state.incidents.filter((i) => !stale.has(i.tourId));
+    const usable = state.incidents.filter((i) => !stale.has(i.tourId) && inScope(tourOf[i.tourId]));
     const cur = new Map(usable.filter((i) => relevant(i, profile.settings.pushThresholdMin)).map((i) => [i.id, i]));
     const present = new Set(state.incidents.map((i) => i.id));
     const notified = profile.notified || {}, shown = profile.shownDelay || {}, gone = profile.goneCount || {};
@@ -78,9 +82,10 @@ export function createNotifier({ config, store, service, now = () => Date.now(),
     // Etwas an einer bekannten Meldung hat sich geändert (Verspätung, Zahl der Ausfälle, Gleis): bestehende Meldung leise aktualisieren
     const updates = [...cur.values()].filter((i) => notified[i.id] && changeOf(i) !== undefined && shown[i.id] != null && changeOf(i) !== shown[i.id]);
     // Vorfall ist weg (Verspätung vorbei, Zug abgefahren): Meldung entfernen
-    const nextGone = {};
-    for (const id of Object.keys(notified)) if (!cur.has(id)) { const c = (gone[id] || 0) + (stale.size ? 0 : 1); if (c) nextGone[id] = c; }
-    const cleared = stale.size ? [] : Object.keys(nextGone).filter((id) => nextGone[id] >= GONE_TICKS && now() - notified[id] < CLEAR_WINDOW);
+    // (At night only the routes in their exception are in `cur`, so the rest of the list can't be judged: nothing is counted or cleared until morning.)
+    const nextGone = night ? { ...gone } : {};
+    if (!night) for (const id of Object.keys(notified)) if (!cur.has(id)) { const c = (gone[id] || 0) + (stale.size ? 0 : 1); if (c) nextGone[id] = c; }
+    const cleared = night || stale.size ? [] : Object.keys(nextGone).filter((id) => nextGone[id] >= GONE_TICKS && now() - notified[id] < CLEAR_WINDOW);
     const goneChanged = JSON.stringify(nextGone) !== JSON.stringify(gone);
     if (!fresh.length && !updates.length && !cleared.length) {
       if (goneChanged) await store.update(device, (p) => { p.goneCount = nextGone; });

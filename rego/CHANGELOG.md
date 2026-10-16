@@ -1,5 +1,14 @@
 # Änderungen
 
+## 0.7.3 – Early commutes
+
+**Push**
+- The night quiet (23:00–04:00) now has an exception for early and late commutes. A route whose push period (one hour before its window until 10 minutes after the window ends) reaches into the night still pushes while that period runs: for a departure at 04:20 that is from 03:20. Every other route, and routes without commute times, stay quiet until morning.
+- At night only routes in such an exception are checked. Notifications of other routes are not touched until the morning check.
+
+**Rebuild**
+- Server change only: update the add-on. The app itself stays the same.
+
 ## 0.7.2 – Pendelzeit
 
 **Strecken**

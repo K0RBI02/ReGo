@@ -6,7 +6,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  fmtMin, untilMin, windowOf, windowState, windowView, windowRank, pushActive, isFar, DEFAULT_SCHEDULE,
+  fmtMin, untilMin, windowOf, windowState, windowView, windowRank, pushActive, pushAtNight, isFar, DEFAULT_SCHEDULE,
   ANCHOR_LEAD_MIN, PUSH_LEAD_MIN, PUSH_TAIL_MIN, FAR_MIN, WINDOW_DEFAULT_LEN, WINDOW_MIN_LEN,
 } from '../server/domain/window.mjs';
 import { buildTour } from '../server/domain/state.mjs';
@@ -83,6 +83,26 @@ test('Push: ab einer Stunde vor dem Fenster bis 10 Minuten danach, nur an Pendel
   assert.equal(pushActive({ schedule: { days: WEEK, departAfter: '07:00' } }, ms('08:11')), false);
   // Strecke ohne Zeiten (ältere Daten): Push wie bisher
   for (const bad of [undefined, {}, { schedule: {} }, { schedule: { departAfter: '07:00' } }]) assert.equal(pushActive(bad, ms('03:00')), true);
+});
+
+test('Night quiet exception: only a route with its own times, and only while its push period runs', () => {
+  const early = { schedule: { days: WEEK, departAfter: '04:20', departUntil: '05:20' } };       // push period 03:20–05:30
+  assert.equal(pushAtNight(early, ms('03:19', MON, '59')), false);
+  assert.equal(pushAtNight(early, ms('03:20')), true);                                          // one hour before the window
+  assert.equal(pushAtNight(early, ms('04:20')), true);
+  assert.equal(pushAtNight(early, ms('05:30')), true);
+  assert.equal(pushAtNight(early, ms('05:30', MON, '01')), false);
+  assert.equal(pushAtNight(early, ms('03:30', SAT)), false);                                    // Saturday is no commute day
+  const late = { schedule: { days: WEEK, departAfter: '22:30', departUntil: '23:30' } };        // the period reaches past 23:00
+  assert.equal(pushAtNight(late, ms('23:40')), true);
+  assert.equal(pushAtNight(late, ms('23:41')), false);
+  // an ordinary morning route has no part in the night
+  assert.equal(pushAtNight({ schedule: SCH }, ms('03:00')), false);
+  // no times (older data): pushActive allows it, but at night that is not enough
+  for (const bad of [undefined, {}, { schedule: {} }, { schedule: { departAfter: '04:20' } }, { schedule: { days: WEEK } }]) {
+    assert.equal(pushActive(bad, ms('03:30')), true);
+    assert.equal(pushAtNight(bad, ms('03:30')), false);
+  }
 });
 
 test('Weit entfernte Fahrten, Reihenfolge der Strecken und die Zeiten nach außen', () => {

@@ -261,6 +261,74 @@ test('Push: Ende der Pendelzeit nimmt eine gemeldete Störung nicht als „behob
   assert.deepEqual((await n.takeOutbox(s.dev)).map((o) => !!o.clear), [true]);
 });
 
+// ---------- Night quiet (23:00–04:00) and its exception for routes whose own push period reaches into the night ----------
+
+const MON = '2026-10-12', TUE = '2026-10-13';                       // summer time (CEST)
+const delayOf = (id, tourId, delayMin = 9) => ({ id, tourId, kind: 'delay', delayMin, title: 'S1 Freising → München Hbf', summary: 'x', validity: { activeNow: true } });
+const FS = { id: '8002078', name: 'Freising' }, MH = { id: '8000261', name: 'München Hbf' };
+const addRoute = (s, to, schedule, legacy = false) => s.store.update(s.dev, (p) => {
+  const id = addTours(p, { from: FS, to, schedule })[0].id;
+  if (legacy) delete p.tours.find((t) => t.id === id).schedule;      // older data: a route without commute times
+  return id;
+});
+const atTime = (s, hm, day = TUE) => { s.clock.t = Date.parse(`${day}T${hm}:00+02:00`); };
+
+test('Night quiet: a route with an early window still pushes (one hour before it), every other route stays quiet until morning', async () => {
+  // A leaves Tuesdays at 04:20 (push period 03:20–05:30), B at 07:00, C is an older route without times
+  const s = await setup('rego-nq1-', { incidents: [], t: Date.parse(`${MON}T12:00:00+02:00`), tours: { schedule: { days: ['Di'], departAfter: '04:20', departUntil: '05:20' } } });
+  const A = s.tourId;
+  const B = await addRoute(s, { id: '8000105', name: 'Frankfurt Hbf' }, { days: ['Di'], departAfter: '07:00', departUntil: '08:00' });
+  const C = await addRoute(s, { id: '8100002', name: 'Salzburg Hbf' }, { days: ['Di'], departAfter: '09:00' }, true);
+  s.cur.incidents = [delayOf('a1', A), delayOf('b1', B), delayOf('c1', C)];
+  const tags = async () => ((await s.store.load(s.dev)).outbox || []).map((o) => o.tag);
+  atTime(s, '02:30'); assert.equal(await s.n.checkDevice(s.dev), 0);          // night, A's period has not begun
+  atTime(s, '03:19'); assert.equal(await s.n.checkDevice(s.dev), 0);
+  assert.deepEqual(await tags(), []);
+  atTime(s, '03:20'); assert.equal(await s.n.checkDevice(s.dev), 1);          // exactly one hour before A's window: only A, B and C stay silent
+  assert.deepEqual(await tags(), ['inc|a1']);
+  atTime(s, '03:21'); assert.equal(await s.n.checkDevice(s.dev), 0);          // not twice
+  s.cur.incidents = [delayOf('a1', A, 12), delayOf('b1', B), delayOf('c1', C)];
+  atTime(s, '03:40'); assert.equal(await s.n.checkDevice(s.dev), 1);          // a changed delay on A is still updated (silently) at night
+  assert.deepEqual((await s.store.load(s.dev)).outbox.map((o) => [o.tag, !!o.update]), [['inc|a1', false], ['inc|a1', true]]);
+  atTime(s, '04:00'); assert.equal(await s.n.checkDevice(s.dev), 1);          // morning: the older route C pushes as before, B's period (from 06:00) has not begun
+  assert.deepEqual((await s.store.load(s.dev)).outbox.map((o) => o.tag).slice(-1), ['inc|c1']);
+});
+
+test('Night quiet: without a route in its exception the server does not even ask the source', async () => {
+  const s = await setup('rego-nq2-', { incidents: [], t: Date.parse(`${MON}T12:00:00+02:00`), tours: { schedule: { days: ['Mo', 'Di'], departAfter: '07:00', departUntil: '08:00' } } });
+  let asked = 0;
+  const n = createNotifier({ config: s.cfg, store: s.store, service: { getState: async () => { asked++; return { connection: { status: 'ok' }, incidents: [delayOf('x1', s.tourId)] }; } }, now: s.now, fcm: s.fcm });
+  for (const hm of ['23:00', '00:30', '03:59']) { atTime(s, hm, MON); assert.equal(await n.checkDevice(s.dev), 0); }
+  assert.equal(asked, 0);
+  atTime(s, '06:00'); assert.equal(await n.checkDevice(s.dev), 1); assert.equal(asked, 1);      // the morning period begins
+});
+
+test('Night quiet: a notification of another route is neither counted as gone nor cleared at night, in the morning it is', async () => {
+  // E is the evening route (Mondays 21:00–22:00), its delay was announced at 21:30; A leaves Tuesdays at 04:20
+  const s = await setup('rego-nq3-', { incidents: [], t: Date.parse(`${MON}T21:30:00+02:00`), tours: { schedule: { days: ['Mo'], departAfter: '21:00', departUntil: '22:00' } } });
+  const E = s.tourId;
+  const A = await addRoute(s, { id: '8000105', name: 'Frankfurt Hbf' }, { days: ['Di'], departAfter: '04:20', departUntil: '05:20' });
+  s.cur.incidents = [delayOf('e1', E)];
+  assert.equal(await s.n.checkDevice(s.dev), 1); await s.n.takeOutbox(s.dev);
+  s.cur.incidents = [delayOf('a1', A)];                                       // E's delay is over, A's begins
+  atTime(s, '03:20'); assert.equal(await s.n.checkDevice(s.dev), 1); await s.n.takeOutbox(s.dev);
+  for (const hm of ['03:21', '03:22', '03:23']) { atTime(s, hm); assert.equal(await s.n.checkDevice(s.dev), 0); }
+  assert.deepEqual((await s.store.load(s.dev)).goneCount, {});                  // nothing counted during the night
+  atTime(s, '04:00'); assert.equal(await s.n.checkDevice(s.dev), 0);          // morning: the first pass counts …
+  atTime(s, '04:01'); assert.equal(await s.n.checkDevice(s.dev), 1);          // … the second clears E's notification
+  assert.deepEqual((await s.n.takeOutbox(s.dev)).map((o) => [!!o.clear, o.tag]), [[true, 'inc|e1']]);
+});
+
+test('Night quiet: a late window pushes past 23:00 until ten minutes after its end, and not on days off', async () => {
+  const s = await setup('rego-nq4-', { incidents: [], t: Date.parse(`${MON}T12:00:00+02:00`), tours: { schedule: { days: ['Mo'], departAfter: '22:30', departUntil: '23:30' } } });
+  s.cur.incidents = [delayOf('l1', s.tourId)];
+  const reset = () => s.store.update(s.dev, (p) => { p.notified = {}; p.shownDelay = {}; p.goneCount = {}; p.outbox = []; });
+  atTime(s, '23:20', MON); assert.equal(await s.n.checkDevice(s.dev), 1);
+  await reset(); atTime(s, '23:40', MON); assert.equal(await s.n.checkDevice(s.dev), 1);     // ten minutes after the end, still in
+  await reset(); atTime(s, '23:41', MON); assert.equal(await s.n.checkDevice(s.dev), 0);
+  await reset(); atTime(s, '23:20', TUE); assert.equal(await s.n.checkDevice(s.dev), 0);     // Tuesday is not a day of this route
+});
+
 import { createFcm } from '../server/fcm.mjs';
 import { generateKeyPairSync } from 'node:crypto';
 test('FCM: ohne Schlüssel aus, mit Schlüssel sendet Anstoß und erkennt ungültige Token', async () => {
