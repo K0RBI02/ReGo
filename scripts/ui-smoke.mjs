@@ -67,7 +67,7 @@ if (!dl) problems.push('Back up tickets: no file produced');
 const check = async (name, fn) => { if (process.env.SMOKE_ONLY && !name.includes(process.env.SMOKE_ONLY)) return; where = name; try { await fn(); } catch (e) { problems.push(`${name}: ${String(e.message).split('\n').slice(0, 2).join(' ')}`); } };
 const suggest = async (n, text) => { const i = page.locator('input[type=text]').nth(n); await i.click(); await i.pressSequentially(text, { delay: 40 }); await page.waitForTimeout(1400); await page.getByRole('option').first().click(); };
 
-// Double tap on "Speichern": outward and return trip only once. The commute time is typed by hand here (05:30), because the server does not create the same route with the same
+// Double tap on "Speichern": the route only once. The activity time is typed by hand here (05:30), because the server does not create the same route with the same
 // times again (the route from the start has the default time 07:00–08:00).
 await check('Double tap', async () => {
   const before = (await j('/api/profile')).tours.length;
@@ -78,12 +78,13 @@ await check('Double tap', async () => {
   await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Speichern'); b.click(); b.click(); });
   await page.waitForTimeout(1500);
   const tours = (await j('/api/profile')).tours, added = tours.length - before;
-  if (added !== 2) problems.push(`Double tap: ${added} routes created instead of 2 (outward + return)`);
-  const outward = tours.find((t) => t.schedule.departAfter === '05:30');
-  if (!outward || outward.schedule.departUntil !== '06:30') problems.push(`Double tap: outward trip does not have the typed commute time 05:30–06:30 (${outward ? outward.schedule.departAfter + '–' + outward.schedule.departUntil : 'missing'})`);
+  if (added !== 1) problems.push(`Double tap: ${added} routes created instead of 1`);
+  const mine = tours.find((t) => t.schedule.departAfter === '05:30');
+  if (!mine || mine.schedule.departUntil !== '06:30') problems.push(`Double tap: the route does not have the typed activity time 05:30–06:30 (${mine ? mine.schedule.departAfter + '–' + mine.schedule.departUntil : 'missing'})`);
 });
 
-// Commute time (0.7.2): two sliders per direction (outward 04–12, return 12–20, in half hours since 0.8.5), also operable by keyboard and with typed times.
+// Activity time (0.7.2 as "commute time"): two sliders (04–12, in half hours since 0.8.5), also operable by keyboard and with typed times.
+// Since 0.8.6 only one window when creating (a return trip is a route of its own for now).
 // The handles do not overtake each other (at least 10 minutes apart); when changing a route the commute time is saved and shown in the list.
 await check('Commute time', async () => {
   const slider = (name) => page.getByRole('slider', { name });
@@ -93,16 +94,18 @@ await check('Commute time', async () => {
   const expect = async (label, got, want) => { const g = await got; if (g !== want) problems.push(`Commute time: ${label}: "${g}" instead of "${want}"`); };
   await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
   await page.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await page.waitForTimeout(400);
-  await expect('sliders in the new form (min/max/step/value)', dims(), '240/720/30/420 240/720/30/480 720/1200/30/990 720/1200/30/1050');
-  await expect('times in the new form', Promise.all([0, 1, 2, 3].map(read)).then((a) => a.join(' ')), '07:00 08:00 16:30 17:30');
+  await expect('sliders in the new form (min/max/step/value)', dims(), '240/720/30/420 240/720/30/480');
+  await expect('times in the new form', Promise.all([0, 1].map(read)).then((a) => a.join(' ')), '07:00 08:00');
+  if ((await page.getByText('Pendelst du auch zurück?').count()) || (await page.getByRole('button', { name: 'Hin und zurück' }).count())) problems.push('Commute time: the new form still asks about a return trip');
+  if (!(await page.getByText('Aktivitätszeit').count())) problems.push('Commute time: the card is not called "Aktivitätszeit"');
   // Keyboard: two half hours earlier; it goes no further than shortly before the end
-  await press(slider('Hinweg: Früheste Abfahrt'), 'ArrowLeft', 2);
+  await press(slider('Früheste Abfahrt'), 'ArrowLeft', 2);
   await expect('earliest departure after pressing ← twice', read(0), '06:00');
-  await press(slider('Hinweg: Früheste Abfahrt'), 'ArrowRight', 30);
+  await press(slider('Früheste Abfahrt'), 'ArrowRight', 30);
   await expect('earliest departure at the limit', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '07:30 08:00');
-  await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowLeft', 30);
+  await press(slider('Späteste Abfahrt'), 'ArrowLeft', 30);
   await expect('latest departure does not pass the start', read(1), '08:00');
-  await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowRight', 2);
+  await press(slider('Späteste Abfahrt'), 'ArrowRight', 2);
   await expect('latest departure after pressing → twice', read(1), '09:00');
   // Typing a time: if the start lies beyond the end, the end moves along (the length stays); an end after 12:00 widens the slider
   await page.locator('input[type=time]').nth(0).fill('10:00');
@@ -112,9 +115,6 @@ await check('Commute time', async () => {
   await page.locator('input[type=time]').nth(1).fill('09:00');
   await expect('an end before the start moves the start along', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '06:00 09:00');
   await expect('sliders return to 04–12 after shortening', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/720/30/360 240/720/30/540');
-  // Return trip: own range from 12:00, a half hour earlier
-  await press(slider('Rückweg: Früheste Abfahrt'), 'ArrowLeft', 1);
-  await expect('return trip earliest departure', read(2), '16:00');
   if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Commute time: form scrolls sideways');
   await page.getByRole('button', { name: 'Abbrechen' }).click(); await page.waitForTimeout(400);
   // Change route (own route with its own time so the order of the list does not matter): one card; end a half hour later, save, server and list have it
@@ -231,7 +231,7 @@ await check('Dark mode', async () => {
   // the sheet stands out from the darkened background (not the same surface as the page behind it)
   const same = await dp.evaluate(() => { const d = document.querySelector('[role=dialog]'), r = document.querySelector('#screen > div'); return !d || getComputedStyle(d).backgroundColor === getComputedStyle(r).backgroundColor; });
   if (same) problems.push('Dark mode: settings sheet has the same surface as the page behind it');
-  // Commute time in the "Neue Strecke" form: times readable, handles and bar stand out from the card (both cards: dark and orange)
+  // Activity time in the "Neue Strecke" form: times readable, handle and bar stand out from the card
   await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1200);
   await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await dp.waitForTimeout(500);
   const pz = await dp.evaluate(() => {
@@ -244,8 +244,8 @@ await check('Dark mode', async () => {
     for (const el of document.querySelectorAll('.rg-fill')) rows.push(['Balken', ratio(getComputedStyle(el).backgroundColor, bgOf(el.parentElement)), 3]);
     return rows;
   });
-  if (pz.length < 10) problems.push(`Dark mode: commute-time form incomplete (${pz.length} parts found)`);
-  for (const [label, r, need] of pz) if (r < need) problems.push(`Dark mode: commute time "${label}" hard to make out (contrast ${r.toFixed(1)}:1)`);
+  if (pz.length < 5) problems.push(`Dark mode: activity-time form incomplete (${pz.length} parts found)`);
+  for (const [label, r, need] of pz) if (r < need) problems.push(`Dark mode: activity time "${label}" hard to make out (contrast ${r.toFixed(1)}:1)`);
   await dark.close();
 });
 
@@ -345,23 +345,24 @@ const beside = (pg, sel, svgSel = 'svg') => pg.evaluate(([sel, svgSel]) => {
   return s.top < c.bottom - 4 && s.left >= c.right - 2 && s.right <= r.right + 1;
 }, [sel, svgSel]);
 
-// New route without a direct connection (T2): is not created, the reason is shown in the form, changing the stop hides it
-await check('Create without direct connection', async () => {
+// New route without any connection, not even with 1 transfer (T2): is not created, the reason is shown in the form, changing the stop hides it
+await check('Create without connection', async () => {
   expect422 = true;
   try {
   const before = (await j('/api/profile')).tours.length;
   await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
   await page.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-  await suggest(0, 'Freis'); await suggest(1, 'Salzb');
-  await page.getByRole('button', { name: 'Speichern' }).click(); await page.waitForTimeout(1200);
-  const alert = page.getByRole('alert').filter({ hasText: 'keine Direktverbindung gefunden' });
-  if (!(await alert.count())) problems.push('Create without direct connection: no explanation in the form');
-  if (!(await page.getByRole('button', { name: 'Abbrechen' }).count())) problems.push('Create without direct connection: form was closed');
-  if ((await j('/api/profile')).tours.length !== before) problems.push('Create without direct connection: route was created anyway');
+  await suggest(0, 'Passau'); await suggest(1, 'Wien');
+  await page.getByRole('button', { name: 'Speichern' }).click(); await page.waitForTimeout(2500);        // no direct connection: ReGo searches with 1 transfer by itself
+  const alert = page.getByRole('alert').filter({ hasText: 'Mit weniger als 2 Umstiegen nicht erreichbar' });
+  if (!(await alert.count())) problems.push('Create without connection: no explanation in the form');
+  if (await page.getByRole('button', { name: /Umstieg suchen/ }).count()) problems.push('Create without connection: there is still a button for the search with 1 transfer');
+  if (!(await page.getByRole('button', { name: 'Abbrechen' }).count())) problems.push('Create without connection: form was closed');
+  if ((await j('/api/profile')).tours.length !== before) problems.push('Create without connection: route was created anyway');
   const to = page.locator('input[type=text]').nth(1); await to.fill('');
   await to.pressSequentially('Münch', { delay: 40 }); await page.waitForTimeout(900);
-  if (await alert.count()) problems.push('Create without direct connection: explanation stays after changing the stop');
-  if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Create without direct connection: page scrolls sideways');
+  if (await alert.count()) problems.push('Create without connection: explanation stays after changing the stop');
+  if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Create without connection: page scrolls sideways');
   } finally { expect422 = false; }
 });
 
@@ -543,27 +544,36 @@ await check('Invitation code', async () => {
     // with the code creating a route works (header is sent along)
     await p.goto(b2 + '/Strecken'); await p.waitForTimeout(1200);
     if (await p.locator('.rg-gate').count()) problems.push('Invitation code: gate comes back after reloading');
-    const r = await p.evaluate(async () => { try { await window.REGO.actions.addTour({ from: 'Freising', to: 'Freising', days: ['Mo'], time: '07:00', trip: 'one', backTime: '16:30' }); return 'ok'; } catch (e) { return e.message; } });
+    const r = await p.evaluate(async () => { try { await window.REGO.actions.addTour({ from: 'Freising', to: 'Freising', days: ['Mo'], time: '07:00' }); return 'ok'; } catch (e) { return e.message; } });
     if (/Einladungscode/.test(r)) problems.push('Invitation code: creating a route asks for a code again despite the saved code');
   } finally { await c.close(); s2.close(); }
 });
 
-// End of onboarding with a route without a direct connection: nothing is created, the main page says why (instead of empty and silent)
+// End of onboarding with a route without a direct connection: ReGo searches with 1 transfer by itself and saves what it finds right away (nobody confirms a preview during the setup);
+// with nothing to find, nothing is created and the main page says why (instead of empty and silent)
 await check('Onboarding without a direct connection', async () => {
-  const dev = 'smokeonb0123456789abcdefg';
-  const c = await browser.newContext(NEW_CTX);
-  await c.addInitScript(([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} }, [dev]);
-  const p = await c.newPage(); p.setDefaultTimeout(8000);
-  expect422 = true;
-  try {
-    await p.goto(base + '/Onboarding1'); await p.waitForTimeout(1200);
-    await p.evaluate(async () => { const R = window.REGO; R.searchStations('Freising'); await new Promise((r) => setTimeout(r, 900)); R.searchStations('Salzburg'); await new Promise((r) => setTimeout(r, 900)); window.REGO_pending = { from: 'Freising', to: 'Salzburg Hbf', trip: 'both' }; R.navigate('/Main'); });
-    await p.waitForTimeout(2000);
-    const t = await p.evaluate(() => document.querySelector('#screen').innerText);
-    if (!/keine Direktverbindung gefunden/.test(t)) problems.push('Onboarding without a direct connection: page does not name the reason');
-    const n = (await (await fetch(base + '/api/profile', { headers: { 'x-device': dev, 'content-type': 'application/json' } })).json()).tours.length;
-    if (n !== 0) problems.push(`Onboarding without a direct connection: ${n} route(s) created`);
-  } finally { expect422 = false; await c.close(); }
+  const run = async (dev, from, to, a, b) => {
+    const c = await browser.newContext(NEW_CTX);
+    await c.addInitScript(([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} }, [dev]);
+    const p = await c.newPage(); p.setDefaultTimeout(8000);
+    expect422 = true;
+    try {
+      await p.goto(base + '/Onboarding1'); await p.waitForTimeout(1200);
+      await p.evaluate(async ([qa, qb, fa, fb]) => { const R = window.REGO; R.searchStations(qa); await new Promise((r) => setTimeout(r, 900)); R.searchStations(qb); await new Promise((r) => setTimeout(r, 900)); window.REGO_pending = { from: fa, to: fb, trip: 'one' }; R.navigate('/Main'); }, [a, b, from, to]);
+      await p.waitForTimeout(3000);
+      const t = await p.evaluate(() => document.querySelector('#screen').innerText);
+      const tours = (await (await fetch(base + '/api/profile', { headers: { 'x-device': dev, 'content-type': 'application/json' } })).json()).tours;
+      return { t, tours };
+    } finally { expect422 = false; await c.close(); }
+  };
+  // Freising → Salzburg Hbf: no direct connection, with 1 transfer there is one → saved right away
+  let r = await run('smokeonb0123456789abcdefg', 'Freising', 'Salzburg Hbf', 'Freising', 'Salzburg');
+  if (r.tours.length !== 1 || r.tours[0].transfers !== 1) problems.push(`Onboarding without a direct connection: ${r.tours.length} route(s) with transfer ${r.tours.map((x) => x.transfers).join('/')} instead of 1 × 1`);
+  if (/keine Direktverbindung|nicht erreichbar|Sorry/.test(r.t)) problems.push('Onboarding without a direct connection: the main page shows an error although the route was found');
+  // Passau → Wien: nothing to find → nothing created, the main page names the reason
+  r = await run('smokeonb2123456789abcdefg', 'Passau Hbf', 'Wien Hbf', 'Passau', 'Wien');
+  if (!/Mit weniger als 2 Umstiegen nicht erreichbar/.test(r.t)) problems.push(`Onboarding without a connection: page does not name the reason (${r.t.replace(/\s+/g, ' ').slice(0, 120)})`);
+  if (r.tours.length !== 0) problems.push(`Onboarding without a connection: ${r.tours.length} route(s) created`);
 });
 
 // Platform change (sample data: the next train runs on platform 3 instead of 2) appears as its own card under "Meldungen"
@@ -634,8 +644,10 @@ await check('Hero line and "Danach"', async () => {
       if (!big || big.text !== 'pünktlich') problems.push(`Main screen (${w} px): expected "pünktlich" (injected state), found: ${big && big.text}`);
       if (w === 390 && big && !(big.px >= 44 && big.px <= 58)) problems.push(`Main screen: hero line has an unsuitable size (${big.px} px)`);
       if (w === 390) {
-        const times = await pg.locator('a.rg-dep').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent.trim()));
+        const times = await pg.locator('a.rg-dep').evaluateAll((els) => els.map((e) => e.querySelector('span span').textContent.trim()));      // the departure time (the arrival sits below it)
         if (times.length !== 3) { problems.push(`Danach: departure list has ${times.length} rows instead of 3`); continue; }
+        const rowTexts = await pg.locator('a.rg-dep').evaluateAll((els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
+        if (!rowTexts.every((x) => /^\d\d:\d\d an \d\d:\d\d/.test(x))) problems.push(`Main screen: the departure rows do not show the arrival under the departure time (${rowTexts[0]})`);
         // Page of the first departure: "Danach" is a link to the second, there to the third; the third has no link any more (fourth trip without detail page)
         await pg.locator('a.rg-dep').nth(0).click(); await pg.waitForTimeout(1200);
         const danach = () => pg.locator('a[href^="Detail.dc.html#"]').filter({ hasText: 'Danach' });
@@ -693,59 +705,60 @@ const contrastScan = (pg, args) => pg.evaluate(({ items, root, min }) => {
 const contrastOf = (pg, items) => contrastScan(pg, { items });
 const lowContrast = (pg, root, min = 4.5) => contrastScan(pg, { root, min });
 
-// Creating: no direct connection → "Mit 1 Umstieg suchen" → preview (two lines, transfer station) → saving creates outward and return trip with a transfer
+// Creating: no direct connection → "Speichern" searches with 1 transfer by itself → preview (two lines, transfer station) → a second "Speichern" creates the route with the transfer
 await check('Create with transfer', async () => {
   const XD = 'smokexfer1123456789abcdefg';
   expect422 = true;
   const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [XD]);
   const p = await c.newPage(); p.setDefaultTimeout(8000); watch(p);
-  const hint = () => p.getByRole('alert').filter({ hasText: 'keine Direktverbindung gefunden' });
-  const find = () => p.getByRole('button', { name: 'Mit 1 Umstieg suchen' });
+  const hint = () => p.getByRole('alert');
   const card = () => p.getByRole('status').filter({ hasText: 'Gefunden · 1 Umstieg' });
-  const save = async () => { await p.getByRole('button', { name: 'Speichern' }).click(); await p.waitForTimeout(1300); };
+  const save = async () => { await p.getByRole('button', { name: 'Speichern' }).click(); await p.waitForTimeout(2500); };
   try {
     await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
     await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb');
-    // 1) Save: nothing is created, the explanation is in the form and offers the search with 1 transfer
+    // 1) Save: nothing is created, the form searches by itself (no button) and shows the connection it found; no red notice
     await save();
-    if (!(await hint().count())) { problems.push('Create with transfer: no explanation in the form'); return; }
-    if (!(await find().count())) { problems.push('Create with transfer: button "Mit 1 Umstieg suchen" is missing under the explanation'); return; }
-    if ((await jx(XD, '/api/profile')).tours.length) problems.push('Create with transfer: route was already created before the search');
-    // 2) Search: preview with both lines and the transfer station; the red hint goes away
-    await find().click(); await p.waitForTimeout(2500);
-    if (!(await card().count())) { problems.push('Create with transfer: no preview after the search'); return; }
+    if (!(await card().count())) { problems.push('Create with transfer: no preview after "Speichern"'); return; }
+    if (await p.getByRole('button', { name: /Umstieg suchen/ }).count()) problems.push('Create with transfer: there is still a button for the search with 1 transfer');
+    if (await hint().count()) problems.push('Create with transfer: red notice although a connection was found');
+    if ((await jx(XD, '/api/profile')).tours.length) problems.push('Create with transfer: route was already created before the preview was confirmed');
     const t = await card().innerText();
     if (!/München Hbf/.test(t) || !/S ?1/.test(t) || !/RE ?5/.test(t) || !/Umstieg München Hbf · \d+ Min\./.test(t)) problems.push(`Create with transfer: preview does not name lines and transfer (${t.replace(/\s+/g, ' ').slice(0, 120)})`);
-    if (await hint().count()) problems.push('Create with transfer: red notice stays after a connection was found');
     if (await sideways(p)) problems.push('Create with transfer: page scrolls sideways (preview)');
-    // 3) Change the stop: the preview no longer applies
+    // 2) Change the stop: the preview no longer applies
     await p.locator('input[type=text]').nth(1).fill(''); await p.waitForTimeout(500);
     if (await card().count()) problems.push('Create with transfer: preview stays after changing the stop');
     await suggestOn(p, 1, 'Salzb');
     await save();
-    if (!(await find().count())) { problems.push('Create with transfer: button is missing again after the change'); return; }
-    await find().click(); await p.waitForTimeout(2500);
-    if (!(await card().count())) { problems.push('Create with transfer: second search yields no preview'); return; }
-    // 4) Save with preview: outward and return trip, both with a transfer; the list names transfer and station
+    if (!(await card().count())) { problems.push('Create with transfer: the second search yields no preview'); return; }
+    // 3) Save with preview: the route with a transfer (one window, no return trip); the list names transfer and station
     await save(); await p.waitForTimeout(600);
     const tours = (await jx(XD, '/api/profile')).tours;
-    if (tours.length !== 2 || tours.some((x) => x.transfers !== 1)) problems.push(`Create with transfer: ${tours.length} route(s) with transfer ${tours.map((x) => x.transfers).join('/')} instead of 2 × 1`);
+    if (tours.length !== 1 || tours.some((x) => x.transfers !== 1)) problems.push(`Create with transfer: ${tours.length} route(s) with transfer ${tours.map((x) => x.transfers).join('/')} instead of 1 × 1`);
     await p.goto(base + '/Strecken'); await p.waitForTimeout(1800);
     const list = await p.evaluate(() => document.querySelector('#screen').innerText);
     if (!/1 Umstieg · meist München Hbf/.test(list)) problems.push(`Create with transfer: route list does not name "1 Umstieg · meist München Hbf" (${list.replace(/\s+/g, ' ').slice(0, 160)})`);
     if (await sideways(p)) problems.push('Create with transfer: route list scrolls sideways');
-    // 5) Without a connection even with a transfer (Passau → Wien does not exist in the sample data): honest sentence, no button any more
+    // 4) Nothing to find even with a transfer (Passau → Wien does not exist in the sample data): honest sentence, no preview, nothing created
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
     await suggestOn(p, 0, 'Passau'); await suggestOn(p, 1, 'Wien');
     await save();
-    if (!(await find().count())) { problems.push('Create with transfer (Passau → Wien): button "Mit 1 Umstieg suchen" is missing'); return; }
-    await find().click(); await p.waitForTimeout(2500);
-    if (!(await p.getByRole('alert').filter({ hasText: 'Auch mit 1 Umstieg habe ich zwischen' }).count())) problems.push('Create with transfer (Passau → Wien): no explanation "Auch mit 1 Umstieg …"');
-    if (await find().count()) problems.push('Create with transfer (Passau → Wien): button stays after the unsuccessful search');
-    if ((await jx(XD, '/api/profile')).tours.length !== 2) problems.push('Create with transfer (Passau → Wien): something was created despite the missing connection');
+    if (!(await p.getByRole('alert').filter({ hasText: 'Mit weniger als 2 Umstiegen nicht erreichbar' }).count())) problems.push('Create with transfer (Passau → Wien): no explanation "Mit weniger als 2 Umstiegen nicht erreichbar"');
+    if (await card().count()) problems.push('Create with transfer (Passau → Wien): preview although nothing was found');
+    if ((await jx(XD, '/api/profile')).tours.length !== 1) problems.push('Create with transfer (Passau → Wien): something was created despite the missing connection');
+    // 5) The source does not answer (search without result): "Sorry" instead of a wrong "no"; the next tap searches again
+    await p.route('**/api/connections/search', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ found: null }) }));
+    try {
+      await save();
+      if (!(await p.getByRole('alert').filter({ hasText: 'Sorry, gerade antwortet keine Quelle' }).count())) problems.push('Create with transfer: no "Sorry" when the source does not answer');
+      if (await p.getByRole('alert').filter({ hasText: 'nicht erreichbar' }).count()) problems.push('Create with transfer: "nicht erreichbar" although the source did not answer (must not be a wrong "no")');
+    } finally { await p.unroute('**/api/connections/search'); }
+    await save();
+    if (!(await p.getByRole('alert').filter({ hasText: 'Mit weniger als 2 Umstiegen nicht erreichbar' }).count())) problems.push('Create with transfer: the next tap does not search again');
   } finally { expect422 = false; await c.close(); }
-  // Dark mode: red hint, button and green preview stay readable
+  // Dark mode: green preview and red notice stay readable
   expect422 = true;
   const dk = await browser.newContext({ ...NEW_CTX, colorScheme: 'dark' }); await dk.addInitScript(initFor(), ['smokexfer3123456789abcdefg']);
   try {
@@ -753,13 +766,15 @@ await check('Create with transfer', async () => {
     await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1000);
     await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click();
     await suggestOn(dp, 0, 'Freis'); await suggestOn(dp, 1, 'Salzb');
-    await dp.getByRole('button', { name: 'Speichern' }).click(); await dp.waitForTimeout(1300);
-    const verdict = (what, rows) => { for (const [label, ratio] of rows) if (ratio < 4.5) problems.push(`Dark mode: ${what} "${label}" poorly readable${ratio ? ` (contrast ${ratio.toFixed(1)}:1)` : ' (not found)'}`); };
-    verdict('notice "keine Direktverbindung"', await contrastOf(dp, [['span', 'Zwischen Freising und Salzburg Hbf habe ich keine Direktverbindung gefunden.'], ['button', 'Mit 1 Umstieg suchen']]));
-    await dp.getByRole('button', { name: 'Mit 1 Umstieg suchen' }).click(); await dp.waitForTimeout(2500);
+    await dp.getByRole('button', { name: 'Speichern' }).click(); await dp.waitForTimeout(2500);
     const bad = await lowContrast(dp, '[role=status]');
     if (bad.length) problems.push(`Dark mode: preview "Gefunden · 1 Umstieg" poorly readable: ${bad.slice(0, 4).join(', ')}`);
     if (!(await dp.getByRole('status').filter({ hasText: 'Gefunden · 1 Umstieg' }).count())) problems.push('Dark mode: no preview "Gefunden · 1 Umstieg"');
+    await suggestOn(dp, 0, 'Passau'); await suggestOn(dp, 1, 'Wien');
+    await dp.getByRole('button', { name: 'Speichern' }).click(); await dp.waitForTimeout(2500);
+    if (!(await dp.getByRole('alert').filter({ hasText: 'nicht erreichbar' }).count())) problems.push('Dark mode: no notice "nicht erreichbar"');
+    const badAlert = await lowContrast(dp, '[role=alert]');
+    if (badAlert.length) problems.push(`Dark mode: notice "nicht erreichbar" poorly readable: ${badAlert.slice(0, 4).join(', ')}`);
   } finally { expect422 = false; await dk.close(); }
 });
 
@@ -1012,4 +1027,4 @@ await check('Feedback without address', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, commute time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without direct connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, transfer trip on time / at risk / missed, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, transfer trip on time / at risk / missed, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');

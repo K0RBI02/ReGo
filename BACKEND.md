@@ -107,7 +107,7 @@ JSON over plain http. Every path except `/api/health` and `/api/status` needs th
 | `GET /api/notifications` | Collect the pending notifications (after a nudge, or about every 15 minutes). |
 | `POST /api/transfer`, `POST /api/transfer/claim` | "New phone": a one-time code (valid for 10 minutes) moves routes and settings to another device. |
 
-Creating a route checks it against the source first. Without a direct connection the answer is **422** (`no-direct`), and the app then offers to search with one transfer. The search with one transfer looks at the current time first; if nothing is left today (closure, night), it looks at the next normal weekday morning (07:30) as well, and the sample connection then carries its weekday ("Mo ab 07:42"). A route is meant for such mornings, so what runs this minute does not decide whether it can be created. "Hin und zurück" creates two linked routes; a device can have up to 20.
+Creating a route checks it against the source first. Without a direct connection the answer is **422** (`no-direct`), and the app then searches with one transfer by itself and shows what it found before the route is saved with `transfers: 1`. The search with one transfer looks at the current time first; if nothing is left today (closure, night), it looks at the next normal weekday morning (07:30) as well, and the sample connection then carries its weekday ("Mo ab 07:42"). A route is meant for such mornings, so what runs this minute does not decide whether it can be created. `roundTrip` creates two linked routes (the app does not offer it for now); a device can have up to 20.
 
 ## What the state contains
 

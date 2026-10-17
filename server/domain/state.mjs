@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { berlin, hhmm, shortDate, fromBerlin } from '../lib/time.mjs';
 import { lineLabel, lineColor, productName } from '../lib/lines.mjs';
 import { regionOf, country, distanceKm } from '../lib/geo.mjs';
-import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
+import { classifyRemark, extractMinutes, extractSegment, arrivalOf } from './classify.mjs';
 import { buildMap, shortName } from './map.mjs';
 import { windowView, isFar } from './window.mjs';
 
@@ -37,7 +37,7 @@ function noDeparturesView(tour, journeys, stale, staleNote) {
   const cancelled = journeys.some((j) => j.legs[0] && j.legs[0].cancelled);
   const [big, sub] = stale ? ['Keine Daten', staleNote || 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
-      : ['Keine', 'Keine Direktverbindung gefunden. Lege die Strecke neu an, dann bietet ReGo dir „Mit 1 Umstieg suchen“ an.'];
+      : ['Keine', 'Keine Direktverbindung gefunden. Lege die Strecke neu an, dann sucht ReGo auch mit 1 Umstieg.'];
   // Map: start and destination, joined by a dotted line (as for a disruption)
   const stations = [tour.from, tour.to].map((s) => ({ id: s.id, name: shortName(s.name) }));
   return { kind: 'none', head: 'Nächste Abfahrt', big, sub, rows: [], alternative: null, ticketHint: null, map: { stations, hubIndex: -1, haloIndex: -1, connections: [], disrupted: { from: 0, to: 1 }, alternative: null } };
@@ -130,6 +130,7 @@ export async function buildTour(tour, journeys, ctx) {
       return {
         plannedTime: hhmm(l.plannedDep), expectedTime: hhmm(l.dep), lineId: registerLine(l.line),
         plannedPlatform: l.plannedPlatform || '', expectedPlatform: l.platform || '', delayMin: l.depDelay,
+        arrTime: hhmm(arrivalOf(l)),                     // arrival at the destination (with replacement transport including the extra time)
         ...(berlin(Date.parse(l.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
         ...(st.plan ? { far: true } : {}),               // the app says "planmäßig" instead of "pünktlich" (far away, or no real-time data; older apps only know this flag)
         ...(st.unconfirmed ? { noRt: true } : {}),       // near, but no real-time data: newer apps show it neutral
@@ -220,7 +221,7 @@ export async function buildTour(tour, journeys, ctx) {
       summary: r.summary || (kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'),
       view: {
         kind, head: `${kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${label}`,
-        big: delay ? `+${delay} Min.` : 'Hinweis', sub: kind === 'replacement' ? `Statt ${leg.line.name} fährt Ersatzverkehr · ${leg.origin.name} → ${leg.destination.name}` : `${leg.line.name} ${leg.origin.name} → ${leg.destination.name}`,
+        big: delay ? `+${delay} Min.` : 'Hinweis', sub: kind === 'replacement' ? `${leg.line.name} ab ${hhmm(leg.dep)} · mit Ersatzverkehr` : `${leg.line.name} ${leg.origin.name} → ${leg.destination.name}`,
         rows: [
           { label: `Abfahrt ${leg.origin.name}`, sub: sub(leg), value: hhmm(leg.dep), planned: hhmm(leg.plannedDep) !== hhmm(leg.dep) ? hhmm(leg.plannedDep) : '' },
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },

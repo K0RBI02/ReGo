@@ -224,7 +224,7 @@
         if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
         const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
         const body = { from: pt(a), to: pt(b), schedule: { days, departAfter: time, ...(until ? { departUntil: until } : {}) }, roundTrip: trip === 'both', returnAfter: backTime, ...(backUntil ? { returnUntil: backUntil } : {}) };
-        if (transfers) body.transfers = 1;                  // only after the explicit "Mit 1 Umstieg suchen"
+        if (transfers) body.transfers = 1;                  // only after the search with 1 transfer has found a connection
         await api('/tours', { method: 'POST', body: JSON.stringify(body) });
         await R.refresh();
       })().finally(() => { adding = null; });

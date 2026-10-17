@@ -109,10 +109,10 @@ test('Replacement-transport incident: if the trip itself is even later than the 
   assert.equal(rep.view.shortcut.line3, 'An 07:56 statt 08:28'); assert.equal(rep.view.shortcut.badge, '−32 Min.');
 });
 
-test('Route without a direct connection ("Keine"): the sentence points to "Mit 1 Umstieg suchen", no longer to "nur Fahrten ohne Umstieg"', async () => {
+test('Route without a direct connection ("Keine"): the sentence says that ReGo searches with 1 transfer when the route is created again, no longer points to a button or to "nur Fahrten ohne Umstieg"', async () => {
   const r = await buildTour(tour, [], ctx());
   assert.equal(r.tour.view.big, 'Keine'); assert.match(r.tour.view.sub, /^Keine Direktverbindung gefunden\./);
-  assert.match(r.tour.view.sub, /Mit 1 Umstieg suchen/); assert.doesNotMatch(r.tour.view.sub, /nur Fahrten ohne Umstieg/);
+  assert.match(r.tour.view.sub, /sucht ReGo auch mit 1 Umstieg/); assert.doesNotMatch(r.tour.view.sub, /nur Fahrten ohne Umstieg|Mit 1 Umstieg suchen/);
 });
 
 // ---------- in the service ----------

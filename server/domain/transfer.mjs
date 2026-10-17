@@ -1,4 +1,4 @@
-// Routes with one transfer ("Mit 1 Umstieg suchen" – search with 1 transfer).
+// Routes with one transfer (search with 1 transfer).
 //
 // The source only returns connections that still work in real time – a missed connection would not appear in it at all.
 // ReGo therefore rates the connection itself: feeder trips (A) come from the combined search, the connecting trips (B)
@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { berlin, hhmm, weekday } from '../lib/time.mjs';
 import { lineLabel, lineColor } from '../lib/lines.mjs';
 import { cleanStopName } from '../providers/hafas.mjs';
-import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
+import { classifyRemark, extractMinutes, extractSegment, arrivalOf } from './classify.mjs';
 import { sampleStops, shortName, findStation, buildMap } from './map.mjs';
 import { buildTour, tidyName, localIso, validityLabel, ticketHintFor, appLinkFor, andList, times, sub, okWord, okState, okView, PLATFORM_HORIZON, CANCEL_HORIZON } from './state.mjs';
 import { windowView } from './window.mjs';
@@ -34,17 +34,6 @@ const byArr = (x, y) => t(x.arr) - t(y.arr) || t(x.dep) - t(y.dep);
 const dur = (m) => { m = Math.max(0, Math.round(m)); const h = Math.floor(m / 60), r = m % 60; return h ? (r ? `${h} Std. ${r} Min.` : `${h} Std.`) : `${r} Min.`; };
 const uniq = (list) => { const seen = new Set(); return list.filter((x) => { const k = keyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }); };
 const platformChanged = (l) => !!(l && l.plannedPlatform && l.platform && String(l.plannedPlatform) !== String(l.platform));
-
-/** Arrival of the feeder trip at the transfer station (ms): real time; with replacement transport at least planned arrival + the stated extra time. */
-function arrivalOf(a) {
-  let at = t(a.arr || a.plannedArr);
-  for (const r of a.remarks || []) {
-    if (classifyRemark(r) !== 'replacement') continue;
-    const extra = Math.min(extractMinutes(r.text), 60);
-    if (extra) at = Math.max(at, t(a.plannedArr) + extra * MIN);
-  }
-  return at;
-}
 
 function pairsOf(journeys) {
   const out = [];
@@ -408,7 +397,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
           station: nm(a.destination), minutes: e.state === 'missed' ? (e.next ? Math.round((t(e.next.dep) - e.aArr) / MIN) : 0) : e.buffer, state: e.state,
           text: e.state === 'ok' ? `Umstieg ${nm(a.destination)} · ${e.buffer} Min.` : e.state === 'tight' ? `Umstieg nur noch ${e.buffer} Min.` : e.cancelledB ? 'Anschluss fällt aus' : 'Anschluss verpasst',
         },
-      } : { lineIds: [registerLine(a.line)], arrTime: hhmm(a.arr) }),
+      } : { lineIds: [registerLine(a.line)], arrTime: hhmm(arrivalOf(a)) }),
       view: e.view,
     });
   }
@@ -482,7 +471,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
         summary: r.summary || (kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'),
         view: {
           kind, head: `${kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${label}`,
-          big: delay ? `+${delay} Min.` : 'Hinweis', sub: kind === 'replacement' ? `Statt ${leg.line.name} fährt Ersatzverkehr · ${where}${suffix}` : `${leg.line.name} ${where}${suffix}`,
+          big: delay ? `+${delay} Min.` : 'Hinweis', sub: kind === 'replacement' ? `${leg.line.name} ab ${hhmm(leg.dep)} · mit Ersatzverkehr${suffix}` : `${leg.line.name} ${where}${suffix}`,
           rows: sections.flatMap((s) => s.rows || []), sections, alternative: alt ? thenCard(alt, kind === 'replacement' ? 'Ohne Ersatzverkehr' : 'Danach') : null, ticketHint: hint,
           map: transferMap(e, { segment: seg }),
         },

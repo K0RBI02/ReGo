@@ -98,7 +98,17 @@ test('Replacement transport and construction: the date appears only once in the 
   const r = await buildTour(tour, J(leg(at('07:20'), { remarks: [remark] }), leg(at('08:20'))), ctx());
   const i = r.incidents.find((x) => x.kind === 'replacement');
   assert.match(i.view.head, /bis Sa 17\.10\./); assert.doesNotMatch(i.view.sub, /bis|\d\d\.\d\d\./);
-  assert.equal(i.view.sub, 'Statt RE 5 fährt Ersatzverkehr · München Hbf → Salzburg Hbf');
+  assert.equal(i.view.sub, 'RE 5 ab 07:20 · mit Ersatzverkehr');           // names the affected trip, never claims that the whole line is replaced
+});
+
+test('Direct trips: every departure carries its arrival at the destination (real time; replacement transport with the stated extra time)', async () => {
+  const remark = { type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Rosenheim und Prien Schienenersatzverkehr. Die Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: at('00:00', '2026-10-10'), validUntil: at('23:00', '2026-10-17'), priority: 90 };
+  const r = await buildTour(tour, J(
+    leg(at('07:20'), { plannedArr: at('08:20'), arr: at('08:25'), arrDelay: 5 }),                    // 5 minutes late at the destination
+    leg(at('07:40'), { plannedArr: at('08:40'), arr: at('08:40'), remarks: [remark] }),              // replacement transport: planned arrival + 25 minutes
+    leg(at('08:00'), { plannedArr: at('09:00'), arr: at('09:00') }),
+  ), ctx());
+  assert.deepEqual(r.tour.departures.map((d) => d.arrTime), ['08:25', '09:05', '09:00']);
 });
 
 test('Colors: every incident kind has a color that dark mode knows; server and app agree', async () => {

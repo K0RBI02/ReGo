@@ -107,26 +107,26 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     }
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
-    if (path === '/api/connections/search' && m === 'POST') {            // preview for "Mit 1 Umstieg suchen": is there anything, and what does it look like?
+    if (path === '/api/connections/search' && m === 'POST') {            // preview for a route without a direct connection (the app asks by itself): is there anything with 1 transfer, and what does it look like?
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                           // checks start and destination (400), stores nothing
       const r = await service.searchTransfer(toStop(b.from), toStop(b.to));
       // A source that has put ReGo on pause is not "try again in a moment": say which one and that it takes a while (the form shows this text)
-      if (r.found === null && r.paused) throw Object.assign(new ValidationError(`${r.paused} lässt gerade keine Abfragen zu. Die Suche mit Umstieg geht für diese Strecke später wieder.`, 503), { extra: { code: 'source-paused' } });
+      if (r.found === null && r.paused) throw Object.assign(new ValidationError(`Sorry, ${r.paused} lässt gerade keine Abfragen zu. Die Suche geht für diese Strecke später wieder.`, 503), { extra: { code: 'source-paused' } });
       return send(res, 200, { found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
     }
     if (path === '/api/tours' && m === 'POST') {
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                       // checks the input (400), stores nothing
       const mine = await store.load(dev);
-      // Do not create routes without a direct connection on our own: the user decides ("Mit 1 Umstieg suchen", transfers: 1). If the source does not know, the route is created when in doubt.
+      // Do not create routes without a direct connection on our own: the app searches with 1 transfer and the user confirms the preview (transfers: 1). If the source does not know, the route is created when in doubt.
       // This also applies to a route that already exists (from an older version, without a direct connection): that way the user gets the hint and can switch it to a transfer.
       // Only someone who already has a route with a transfer for this pair and creates it "with transfer" again is not checked once more.
       const haveX = mine.tours.some((x) => x.from?.id === b.from.id && x.to?.id === b.to.id && x.transfers === 1);
       if (!(b.transfers === 1 && haveX)) {
         for (const [a, c] of b.roundTrip ? [[b.from, b.to], [b.to, b.from]] : [[b.from, b.to]]) {
           if (b.transfers === 1) {
-            if ((await service.searchTransfer(toStop(a), toStop(c))).found === false) throw Object.assign(new ValidationError(`Auch mit 1 Umstieg habe ich zwischen ${a.name} und ${c.name} nichts gefunden.`, 422), { extra: { code: 'no-connection' } });
+            if ((await service.searchTransfer(toStop(a), toStop(c))).found === false) throw Object.assign(new ValidationError(`${a.name} → ${c.name}: Mit weniger als 2 Umstiegen nicht erreichbar.`, 422), { extra: { code: 'no-connection' } });
           } else if ((await service.hasDirect(toStop(a), toStop(c))) === false) throw Object.assign(new ValidationError(`Zwischen ${a.name} und ${c.name} habe ich keine Direktverbindung gefunden.`, 422), { extra: { code: 'no-direct' } });
         }
       }

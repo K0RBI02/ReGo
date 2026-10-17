@@ -145,7 +145,17 @@
     if (name === 'Main' && window.REGO_pending && !R.tours.length) {
       const p = window.REGO_pending; window.REGO_pending = null; flag('rego.onboarded', true);
       R.lastAddError = '';
-      try { await R.actions.addTour({ from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: p.time || '07:00', until: p.until, trip: p.trip, backTime: p.backTime || '16:30', backUntil: p.backUntil }); } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* the main screen shows the empty state with the reason */ }
+      const route = { from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: p.time || '07:00', until: p.until };
+      try {
+        try { await R.actions.addTour(route); } catch (e) {
+          if (!(e && e.status === 422 && e.code === 'no-direct')) throw e;
+          // No direct connection: look for one with a transfer, like the "Neue Strecke" form does. Nobody confirms a preview during the setup, so a connection that is found is saved right away.
+          const r = await R.actions.searchTransfer({ from: p.from, to: p.to });
+          if (r && r.found === true) await R.actions.addTour({ ...route, transfers: 1 });
+          else if (r && r.found === false) throw new Error(`${p.from} → ${p.to}: Mit weniger als 2 Umstiegen nicht erreichbar.`);
+          else throw new Error('Sorry, gerade antwortet keine Quelle. Lege die Strecke gleich noch einmal an.');
+        }
+      } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* the main screen shows the empty state with the reason */ }
     }
     if (name === 'Main' && R.tours.length) flag('rego.onboarded', true);
     if (push) history.pushState(null, '', u.pathname === '/index.html' ? '/' : u.pathname + u.hash); else if (u.hash !== location.hash) history.replaceState(null, '', u.pathname + u.hash);

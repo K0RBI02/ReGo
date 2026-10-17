@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.6 – One activity time
+
+**New routes and setup**
+- The time card is now called "Aktivitätszeit": the time in which ReGo is active for this route. There is only this one card; the question "Pendelst du auch zurück?" and the second card for the return trip are gone. A return trip is a route of its own for now ("Strecke hinzufügen").
+- The button "Mit 1 Umstieg suchen" is gone. If a route has no direct connection, "Speichern" looks for one with one transfer by itself. What it finds shows up as a preview at the top of the form, and a second tap on "Speichern" creates the route with that transfer. The setup has nobody to confirm a preview, so a connection that is found there is saved right away.
+- If nothing can be reached with at most one transfer, the form says "A → B: Mit weniger als 2 Umstiegen nicht erreichbar." If the sources do not answer, it says "Sorry, gerade antwortet keine Quelle …" instead of a wrong "no", and the next tap on "Speichern" searches again.
+
+**Main screen**
+- Every departure shows its arrival under the departure time ("an 08:12"). With replacement transport the extra time from the message is included.
+
+**Messages**
+- Replacement transport names the trip it is about instead of saying that a whole line is replaced: "RE 5 ab 07:25 · mit Ersatzverkehr" (before: "Statt RE 5 fährt Ersatzverkehr · …").
+- A route without a direct connection says "Lege die Strecke neu an, dann sucht ReGo auch mit 1 Umstieg."
+- The text for a source on pause starts with "Sorry, …".
+
+**Rebuild**
+- Looks and server changed: install the new APK (`app-v0.8.6`) and update the add-on. Older apps keep working with the new server.
+
 ## 0.8.5 – Calmer screens
 
 **Main screen**

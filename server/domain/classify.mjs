@@ -16,6 +16,17 @@ export function extractMinutes(text = '') {
   return m ? Number(m[1]) : 0;
 }
 
+/** Arrival of a trip (ms): real time; with replacement transport at least planned arrival + the stated extra time (up to 60 minutes). */
+export function arrivalOf(leg) {
+  let at = Date.parse(leg.arr || leg.plannedArr);
+  for (const r of leg.remarks || []) {
+    if (classifyRemark(r) !== 'replacement') continue;
+    const extra = Math.min(extractMinutes(r.text), 60);
+    if (extra) at = Math.max(at, Date.parse(leg.plannedArr) + extra * 60000);
+  }
+  return at;
+}
+
 /** "zwischen A und B" -> ['A','B'] */
 export function extractSegment(text = '') {
   const m = text.match(/zwischen\s+(.+?)\s+und\s+(.+?)(?:[\s.,;:]|$)/i);

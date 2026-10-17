@@ -118,8 +118,8 @@ class Component extends DCLogic {
     })) : [];
     const typed = (st.from.trim() !== '' && !okFrom) || (st.to.trim() !== '' && !okTo);
     window.REGO_pending = ok ? { from: st.from, to: st.to, trip: 'one', time: st.out.from, until: st.out.until } : null;
-    // Travel time window: from when to when you set off (the return trip is added later through "Strecke hinzufügen")
-    const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: 'Dein Reisezeitfenster', tone: 'w', compact: true })];
+    // Activity time: when ReGo is active for this route (the return trip is added later through "Strecke hinzufügen")
+    const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: 'Aktivitätszeit', tone: 'w', compact: true })];
     return {
       wins, from: st.from, to: st.to, sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
       setFrom: (e) => this.setState({ from: val(e), focus: 'from' }), setTo: (e) => this.setState({ to: val(e), focus: 'to' }),

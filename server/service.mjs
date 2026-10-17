@@ -156,7 +156,7 @@ export function createService({ config, store, now = () => Date.now(), providers
 
   /**
    * "Schneller mit 1 Umstieg" (faster with 1 transfer): if a route without transfer has replacement transport, we also ask for connections with at most one transfer
-   * (same query and same cache as the "Mit 1 Umstieg suchen" search). Without replacement transport this costs nothing. Returns a function for
+   * (same query and same cache as the search with 1 transfer when a route is created). Without replacement transport this costs nothing. Returns a function for
    * buildTour, or undefined if there is nothing to check or the source does not answer in time (then there is simply no hint).
    */
   async function loadShortcut(tour, journeys, t, at = t, stamp = '', ttl = config.ttl.journeys) {

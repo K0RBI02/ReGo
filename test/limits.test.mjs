@@ -305,7 +305,7 @@ test('Run-through: every route without data (the only source is closed) still sh
   } finally { globalThis.fetch = realFetch; }
 });
 
-test('Interface: a source on pause – "Mit 1 Umstieg suchen" names it (503), saving is not blocked, the status shows the pause', async () => {
+test('Interface: a source on pause – the search with 1 transfer names it (503, "Sorry"), saving is not blocked, the status shows the pause', async () => {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (u, o) => {
     const url = String(u);
@@ -327,8 +327,8 @@ test('Interface: a source on pause – "Mit 1 Umstieg suchen" names it (503), sa
     await assert.rejects(service.providers.efas[1].get('XML_STOPFINDER_REQUEST'), /HTTP 429/);       // the first request gets the answer, the pause begins
     let r = await post('/api/connections/search', { from: A, to: B });
     assert.equal(r.status, 503); assert.equal(r.body.code, 'source-paused');
-    assert.equal(r.body.error, 'MoBY lässt gerade keine Abfragen zu. Die Suche mit Umstieg geht für diese Strecke später wieder.');
-    // when in doubt the route is created (the user must not be locked out), with or without "Mit 1 Umstieg"
+    assert.equal(r.body.error, 'Sorry, MoBY lässt gerade keine Abfragen zu. Die Suche geht für diese Strecke später wieder.');
+    // when in doubt the route is created (the user must not be locked out), with or without a transfer
     r = await post('/api/tours', { from: A, to: B }); assert.equal(r.status, 201);
     r = await post('/api/tours', { from: B, to: A, transfers: 1 }); assert.equal(r.status, 201);
     // a route in the area of the other association is not affected

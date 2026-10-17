@@ -141,7 +141,7 @@ test('Replacement transport on the feeder: the connection stays reachable, the i
   assert.equal(r.incidents.length, 1);
   const i = r.incidents[0];
   assert.equal(i.kind, 'replacement'); assert.equal(i.lineName, 'S1'); assert.equal(i.delayMin, 4);
-  assert.equal(i.view.sub, 'Statt S1 fährt Ersatzverkehr · Moosach → München Hbf · Anschluss bleibt erreichbar');
+  assert.equal(i.view.sub, 'S1 ab 07:02 · mit Ersatzverkehr · Anschluss bleibt erreichbar');
   assert.ok(i.view.map.disrupted && i.view.map.disrupted.to === i.view.map.hubIndex);        // the disrupted section ends at the transfer station
   // if the extra time is no longer enough: connection at risk/missed (bus 25 min later)
   const longRemark = { ...bus, text: bus.text.replace('ca. 4 Minuten', 'ca. 25 Minuten') };
@@ -271,7 +271,7 @@ test('Create route with transfer: first without a direct connection (422 no-dire
     let r = await post('/api/tours', { from: FS, to: SZ });
     assert.equal(r.status, 422); assert.equal(r.body.code, 'no-direct'); assert.equal(r.body.error, 'Zwischen Freising und Salzburg Hbf habe ich keine Direktverbindung gefunden.');
     r = await post('/api/tours', { from: PA, to: WI, transfers: 1 });
-    assert.equal(r.status, 422); assert.equal(r.body.code, 'no-connection'); assert.equal(r.body.error, 'Auch mit 1 Umstieg habe ich zwischen Passau Hbf und Wien Hbf nichts gefunden.');
+    assert.equal(r.status, 422); assert.equal(r.body.code, 'no-connection'); assert.equal(r.body.error, 'Passau Hbf → Wien Hbf: Mit weniger als 2 Umstiegen nicht erreichbar.');
     assert.equal((await post('/api/tours', { from: FS, to: SZ, transfers: 2 })).status, 400);
     assert.equal((await (await fetch(`${base}/api/profile`, { headers: h })).json()).tours.length, 0);       // none of it was stored
     r = await post('/api/tours', { from: FS, to: SZ, roundTrip: true, transfers: 1 });
