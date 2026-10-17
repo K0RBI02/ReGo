@@ -8,6 +8,13 @@ import { classifyRemark } from './domain/classify.mjs';
 import { windowState, windowView, windowRank, pushActive, DEFAULT_SCHEDULE } from './domain/window.mjs';
 import { createProviders } from './providers/index.mjs';
 
+/** Names of the sources in the texts for the traveller */
+const SOURCE_NAME = { mvv: 'MVV', moby: 'MoBY', db: 'DB', oebb: 'ÖBB' };
+/** The source that has put ReGo on pause ("too many requests", HTTP 429), as a name for the texts. '' for every other error. */
+const pausedSource = (err) => (err?.status === 429 && err.source ? SOURCE_NAME[err.source] || err.source : '');
+/** Why a route has no data, if the reason is known: the pause itself is logged once by the source, so there is no line per route and minute. */
+const noteOf = (err) => { const src = pausedSource(err); return src ? `${src} lässt gerade keine Abfragen zu. ReGo fragt später wieder an.` : ''; };
+
 /** Waits at most ms for p. After that fallback() applies (if it returns something), otherwise an error. The request itself keeps running and fills the cache. */
 function withDeadline(p, ms, fallback) {
   let timer;
@@ -58,7 +65,7 @@ export function createService({ config, store, now = () => Date.now(), providers
     return { key, load: (ttl = config.ttl.journeys) => cache.get(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 }), { maxStaleSec: STALE_MAX_SEC }) };
   };
 
-  /** Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. */
+  /** Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. paused = name of the source that has put ReGo on pause. */
   async function searchTransfer(from, to) {
     const t = now();
     const q = transferJourneys(from, to, t);
@@ -66,7 +73,10 @@ export function createService({ config, store, now = () => Date.now(), providers
       const r = await withDeadline(q.load(), DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
       const route = previewRoute(r.value || []);
       return { found: route ? true : (r.value || []).length ? null : false, route };
-    } catch (err) { log('Suche mit Umstieg fehlgeschlagen', from.id, to.id, err.message); return { found: null, route: null }; }
+    } catch (err) {
+      if (err?.status !== 429) log('Suche mit Umstieg fehlgeschlagen', from.id, to.id, err.message);
+      return { found: null, route: null, ...(pausedSource(err) ? { paused: pausedSource(err) } : {}) };      // paused: a source that has put ReGo on pause is the reason
+    }
   }
 
   /** Connecting trips from the transfer station to the destination (second query), per station; if one is missing it is left out and the source's own suggestion counts. */
@@ -81,7 +91,7 @@ export function createService({ config, store, now = () => Date.now(), providers
           cache.get(key, ttl, () => client.journeys({ from: v.stop, to: tour.to, fromId: v.stop.id, toId: tour.to.id, when, results: 10 }), { maxStaleSec: STALE_MAX_SEC }),
           B_DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         out.set(v.key, (r.value || []).map((j) => j.legs?.[0]).filter((l) => l && l.line));
-      } catch (err) { log('Anschlussfahrten nicht verfügbar', v.name, err.message); }
+      } catch (err) { if (err?.status !== 429) log('Anschlussfahrten nicht verfügbar', v.name, err.message); }
     }));
     return out;
   }
@@ -98,7 +108,7 @@ export function createService({ config, store, now = () => Date.now(), providers
       const r = await withDeadline(q.load(ttl), B_DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
       const list = r.value || [];
       return (o) => shortcutFor(list, { now: t, ...o });
-    } catch (err) { log('Vorschlag mit Umstieg nicht verfügbar', tour.id, err.message); return undefined; }
+    } catch (err) { if (err?.status !== 429) log('Vorschlag mit Umstieg nicht verfügbar', tour.id, err.message); return undefined; }
   }
 
   const linesAt = async (id) => {
@@ -113,13 +123,13 @@ export function createService({ config, store, now = () => Date.now(), providers
     const t = now();
     const lines = {};
     const tours = [], incidents = [];
-    let stale = false, failed = 0, oldest = t, hadData = false;
+    let stale = false, failed = 0, served = 0, oldest = t, hadData = false;      // served = routes that show older data from the cache
     const here = lat != null && lon != null ? { lat: Number(lat), lon: Number(lon) } : null;
 
     await Promise.all(profile.tours.map(async (tour, i) => {
       if (tour.active === false) { tours[i] = { out: { id: tour.id, name: tour.name, lineId: '', active: false, period: tour.period, ...(tour.transfers === 1 ? { transfers: 1 } : {}), ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}), distanceKm: null, ...windowView(tour.schedule, t), departures: [] }, inc: [] }; return; }
       const client = (providers.forTourSafe || providers.forTour).call(providers, tour.from, tour.to);
-      let journeys = [], tourStale = false;
+      let journeys = [], tourStale = false, staleNote = '';
       const xfer = tour.transfers === 1;
       // Commute time: before the window (a few hours before at most) we request the trains from its start, otherwise from now
       const win = windowState(tour.schedule || DEFAULT_SCHEDULE, t);
@@ -132,15 +142,18 @@ export function createService({ config, store, now = () => Date.now(), providers
           xfer ? q.load(ttl) : cache.get(key, ttl, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(at).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
           DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         journeys = r.value; hadData = true;
-        if (r.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r.at); }
-      } catch (err) { failed++; stale = true; tourStale = true; log('Abruf fehlgeschlagen', tour.id, err.message); }
+        if (r.stale) { stale = true; served++; tourStale = true; oldest = Math.min(oldest, r.at); }
+      } catch (err) {
+        failed++; stale = true; tourStale = true; staleNote = noteOf(err);
+        if (err?.status !== 429) log('Abruf fehlgeschlagen', tour.id, err.message);
+      }
       const started = Date.now();
       const linesAtBudget = (id) => (Date.now() - started > MAP_BUDGET_MS ? Promise.resolve([]) : withDeadline(linesAt(id), Math.max(300, MAP_BUDGET_MS - (Date.now() - started)), () => []));
       const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
       const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t, stamp, ttl) : undefined;
       const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t, at, stamp, ttl);
-      const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, bLists, shortcutFor: shortcut, window: win });
+      const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, staleNote, bLists, shortcutFor: shortcut, window: win });
       if (tourStale) built.tour.stale = true;                  // this route shows old data (or none at all)
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
@@ -155,7 +168,9 @@ export function createService({ config, store, now = () => Date.now(), providers
     return {
       schemaVersion: SCHEMA_VERSION,
       clock: { date: b.date, now: b.time },
-      connection: { status: allFailed || stale ? 'error' : 'ok', loading: false, lastSync: hhmm(stale ? oldest : t) },
+      // "error" (the app says "Keine aktuellen Daten") when nothing could be loaded or old data is shown as if it were current. Routes without any data
+      // (e.g. one source is closed) say so themselves; they do not put the banner on top of the routes that are fine.
+      connection: { status: allFailed || served ? 'error' : 'ok', loading: false, lastSync: hhmm(stale ? oldest : t) },
       settings: profile.settings,
       theme: THEME, lines, tours: outTours, incidents,
     };

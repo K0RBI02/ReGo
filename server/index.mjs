@@ -80,7 +80,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
       }
     } catch { /* no profiles yet */ }
     const p = service.providers;
-    const sources = [...(p?.efas || []), p?.db, p?.oebb].filter(Boolean).map((c) => ({ name: c.name || c.key || '?', ok: c.healthy ? c.healthy() !== false : null }));
+    // pausedSec: the source has put ReGo on pause ("too many requests"); that is how long ReGo leaves it alone
+    const sources = [...(p?.efas || []), p?.db, p?.oebb].filter(Boolean).map((c) => ({ name: c.name || c.key || '?', ok: c.healthy ? c.healthy() !== false : null, ...(c.pause?.left?.() > 0 ? { pausedSec: c.pause.left() } : {}) }));
     // instantPush: does the server know a valid Firebase key? pushWithToken: how many push subscriptions have a Firebase token from the phone? Numbers only, nothing personal.
     return { version: await version(), provider: cfg.provider, uptimeMin: Math.round((now() - startedAt) / 60000), devices, apps, pushSubscriptions: pushes, pushWithToken: withToken, instantPush: !!(await fcmP).enabled, sources, time: new Date(now()).toISOString() };
   }
@@ -110,6 +111,8 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                           // checks start and destination (400), stores nothing
       const r = await service.searchTransfer(toStop(b.from), toStop(b.to));
+      // A source that has put ReGo on pause is not "try again in a moment": say which one and that it takes a while (the form shows this text)
+      if (r.found === null && r.paused) throw Object.assign(new ValidationError(`${r.paused} lässt gerade keine Abfragen zu. Die Suche mit Umstieg geht für diese Strecke später wieder.`, 503), { extra: { code: 'source-paused' } });
       return send(res, 200, { found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
     }
     if (path === '/api/tours' && m === 'POST') {

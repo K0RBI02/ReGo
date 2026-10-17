@@ -194,8 +194,8 @@ function entriesOf(journeys, bLists) {
 }
 
 /** Route without a departure: say honestly why – never "pünktlich" (on time). */
-function noEntriesView(tour, stale, cancelled) {
-  const [big, sub2] = stale ? ['Keine Daten', 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
+function noEntriesView(tour, stale, cancelled, staleNote) {
+  const [big, sub2] = stale ? ['Keine Daten', staleNote || 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
       : ['Keine', 'Keine Verbindung mit höchstens 1 Umstieg gefunden.'];
   const stations = [tour.from, tour.to].map((s) => ({ id: s.id, name: shortName(s.name) }));
@@ -516,7 +516,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
   }
 
   // No incident: "pünktlich" view on the route itself; without a departure an honest explanation
-  if (!shown.length) out.view = noEntriesView(tour, ctx.stale, all.some((e) => e.kind === 'cancelledA'));
+  if (!shown.length) out.view = noEntriesView(tour, ctx.stale, all.some((e) => e.kind === 'cancelledA'), ctx.staleNote);
   else if (!incidents.length) out.view = shown[0].view;
   return { tour: out, incidents };
 }

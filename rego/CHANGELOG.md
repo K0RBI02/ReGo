@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.1 – A source says no
+
+**Timetable sources**
+- A source that asks for a long pause is left alone for as long as it asks, up to 24 hours (before: at most 30 minutes). MoBY answered with "HTTP 429, Retry-After 86400" and "This endpoint is not an open data endpoint. Please contact the portal owner": ReGo no longer knocks every half hour, it asks once a day. Restarting the add-on makes ReGo ask once more.
+- A route that has no data because of that says which source is closed ("MoBY lässt gerade keine Abfragen zu. ReGo fragt später wieder an.") instead of "the source does not answer".
+- "Mit 1 Umstieg suchen" says the same when the source for the route is on pause, instead of "Bitte gleich noch einmal versuchen".
+- One log line per pause (with what the source answered) instead of one line per route and minute.
+
+**Main screen**
+- Routes without any data no longer put "Keine aktuellen Daten" on top of the routes that are fine. The banner stays for a complete outage and for old data shown from the cache; routes without data say so themselves.
+
+**API**
+- `GET /api/status`: a source on pause carries `pausedSec` (seconds until ReGo asks again).
+- `POST /api/connections/search`: 503 with `code: "source-paused"` if the source for the route has put ReGo on pause.
+
+**Rebuild**
+- Server only: update the add-on. The app stays at 0.8.0.
+
 ## 0.8.0 – Ready for testers
 
 **Honest status**

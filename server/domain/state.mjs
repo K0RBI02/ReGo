@@ -33,9 +33,9 @@ export const THEME = {
 };
 
 /** View for a route without a departure: say honestly why (no data, trips cancelled, no direct connection), never "pünktlich" (on time). */
-function noDeparturesView(tour, journeys, stale) {
+function noDeparturesView(tour, journeys, stale, staleNote) {
   const cancelled = journeys.some((j) => j.legs[0] && j.legs[0].cancelled);
-  const [big, sub] = stale ? ['Keine Daten', 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
+  const [big, sub] = stale ? ['Keine Daten', staleNote || 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
       : ['Keine', 'Keine Direktverbindung gefunden. Lege die Strecke neu an, dann bietet ReGo dir „Mit 1 Umstieg suchen“ an.'];
   // Map: start and destination, joined by a dotted line (as for a disruption)
@@ -97,6 +97,7 @@ const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direc
  * @param tour     profile route { id,name,from,to,active,period,returnId?,returnOf?,schedule }
  * @param journeys normalized journeys (direct connections)
  * @param ctx      { now, minDelay, linesAt, lines (registry), graceMin, stale (data comes from the cache or is missing because of a disruption),
+ *                   staleNote? (says why there is no data, e.g. a source that has put ReGo on pause; otherwise the general sentence applies),
  *                   shortcutFor? ({depart, arrive}) -> "Schneller mit 1 Umstieg" card | null, for replacement-transport incidents,
  *                   window? commute time of the route (windowState): before and during the window only trips up to its end are rated }
  * @returns { tour, incidents }
@@ -168,7 +169,7 @@ export async function buildTour(tour, journeys, ctx) {
     });
   }
 
-  if (!legs.length) { out.view = noDeparturesView(tour, journeys, ctx.stale); return { tour: out, incidents }; }
+  if (!legs.length) { out.view = noDeparturesView(tour, journeys, ctx.stale, ctx.staleNote); return { tour: out, incidents }; }
 
   const first = legs[0];
 

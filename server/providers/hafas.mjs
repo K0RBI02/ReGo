@@ -13,7 +13,8 @@ import { SourcePause, retryAfterSec, fmtPause } from './pause.mjs';
 //   Journey{ legs:Leg[] }
 // rt = the source has real-time data for the departure. Without it depDelay is 0 only because nothing is known, not because the trip is on time.
 export class ProviderError extends Error {
-  constructor(message, { status = 0, kind = 'network' } = {}) { super(message); this.status = status; this.kind = kind; }
+  /** source = name of the source that said "too many requests" (HTTP 429): the texts for the traveller can name it */
+  constructor(message, { status = 0, kind = 'network', source = '' } = {}) { super(message); this.status = status; this.kind = kind; this.source = source; }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,13 +36,13 @@ export class HafasClient {
     let lastErr;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
-        if (!this.pause.allow()) throw new ProviderError(`${this.name}: derzeit nicht erreichbar (zu viele Anfragen, Pause noch ${fmtPause(Math.max(1, this.pause.left()))})`, { status: 429, kind: 'network' });
+        if (!this.pause.allow()) throw new ProviderError(`${this.name}: derzeit nicht erreichbar (zu viele Anfragen, Pause noch ${fmtPause(Math.max(1, this.pause.left()))})`, { status: 429, kind: 'network', source: this.name });
         const res = await this.fetch(url, { headers: { 'user-agent': this.userAgent, accept: 'application/json' }, signal: AbortSignal.timeout(this.timeoutMs) });
         if (res.ok) { const data = await res.json(); this.pause.ok(); return data; }
         if (res.status === 429) {
           const asked = retryAfterSec(res), { sec, fresh } = this.pause.limited(asked);
           if (fresh) this.log(`${this.name}: zu viele Anfragen (HTTP 429${Number.isFinite(asked) ? `, Retry-After ${asked} s` : ''}) – Pause ${fmtPause(sec)}`);
-          throw new ProviderError(`${this.name}: HTTP 429 – zu viele Anfragen, Pause ${fmtPause(sec)}`, { status: 429, kind: 'http' });
+          throw new ProviderError(`${this.name}: HTTP 429 – zu viele Anfragen, Pause ${fmtPause(sec)}`, { status: 429, kind: 'http', source: this.name });
         }
         lastErr = new ProviderError(`${this.name}: HTTP ${res.status}`, { status: res.status, kind: 'http' });
         if (res.status < 500) throw lastErr;

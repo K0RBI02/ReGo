@@ -85,7 +85,7 @@ ReGo is a private hobby project. The data comes from publicly reachable but **un
 - Which source answers a route depends on its stops: the association if both stops belong to the same one (MoBY, the wider one, if they belong to two), otherwise ÖBB if one end is in Austria, otherwise Deutsche Bahn. Stops are translated between sources by name and position.
 - The station search asks all sources in parallel, removes duplicates and caches the result.
 - Answers are cached for a short time and concurrent requests share one source query. If a source fails, the last value is used for up to 30 minutes and marked as stale, and the source is left alone for a short pause. A route without usable data says so; it never shows "on time" without data.
-- If a source answers "too many requests" (HTTP 429), ReGo stops asking it: for as long as the source says (`Retry-After`), otherwise 1 minute, then 2, 4 … at most 30 minutes, and then tests it with a single request. Until then the app shows the last state, and `/status` marks the source. A source also gets at most three requests at the same time.
+- If a source answers "too many requests" (HTTP 429), ReGo stops asking it: for as long as the source says (`Retry-After`, at most 24 hours), otherwise 1 minute, then 2, 4 … at most 30 minutes, and then tests it with a single request. Until then the app shows the last state, `/status` marks the source as "pausiert" and `/api/status` says for how many more seconds it is left alone. A route that has no data because of that says which source is closed ("MoBY lässt gerade keine Abfragen zu"). A source also gets at most three requests at the same time.
 
 ## HTTP API
 
@@ -94,10 +94,10 @@ JSON over plain http. Every path except `/api/health` and `/api/status` needs th
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/health` | Liveness check (used by the add-on watchdog). |
-| `GET /api/status` | Version, state of the sources, number of devices (also per app version) and push subscriptions; no personal data. The page `/status` shows the same. |
+| `GET /api/status` | Version, state of the sources (`ok`, and `pausedSec` while a source is left alone), number of devices (also per app version) and push subscriptions; no personal data. The page `/status` shows the same. |
 | `GET /api/stations?q=` | Station search. |
 | `GET /api/state` | The complete state of the device: routes with departures, incidents, settings, and the feedback address (`contact`). The Android app adds `?app=<version>`; if that app is older than `APP_LATEST`, the answer also carries `app: {latest, url}` for the update hint. |
-| `POST /api/connections/search` | Looks for a connection with at most one transfer. |
+| `POST /api/connections/search` | Looks for a connection with at most one transfer. `found` is `true`, `false` or `null` (unknown); 503 with `code: "source-paused"` if the source for this route has put ReGo on pause. |
 | `POST /api/tours`, `PATCH /api/tours/:id`, `DELETE /api/tours/:id` | Create, change or delete a route. |
 | `GET/PUT/DELETE /api/profile` | Read, replace (the app's undo) or delete the data of the device. |
 | `PUT /api/settings` | Push threshold (3, 5 or 10 minutes). |
@@ -153,8 +153,8 @@ How to set up instant push is described in the [README](README.md#instant-push-f
 ## Troubleshooting
 
 - `/status` shows version, sources, devices, push subscriptions and whether instant push is on. The add-on log starts with a network test and lists the errors of the sources. If ReGo hangs, switch on **Watchdog** in the add-on.
-- If the timetable sources are down, the app shows the last state (at most 30 minutes old) with "Keine aktuellen Daten".
-- The log says "zu viele Anfragen" (HTTP 429): a source is slowing ReGo down. ReGo pauses that source by itself and tries again later; the log line says for how long. Fewer routes and no app left open on a second device ease the load. Every log line starts with the time, and the first one names the version.
+- If the timetable sources are down, the app shows the last state (at most 30 minutes old) with "Keine aktuellen Daten". If only the routes of one source have no data at all, they say so themselves ("Keine Daten") and the banner stays off for the others.
+- The log says "zu viele Anfragen" (HTTP 429): a source is slowing ReGo down. ReGo pauses that source by itself and tries again later; the log line says for how long and what the source answered, and `/status` marks the source as "pausiert". A source that asks for a day ("Retry-After 86400") is left alone for a day; a restart of the add-on makes ReGo ask once more. If the answer says the interface is not open data, ReGo cannot change that: the operator has to allow access. Fewer routes and no app left open on a second device ease the load. Every log line starts with the time, and the first one names the version.
 - The test notification arrives only after minutes although Firebase is set up: open `/status`. "Sofort-Push: aus" means the key is missing or unreadable (the log says so at start). "an" with "0 mit Firebase-Kennung" means the phone never reported a token: use an APK built with Firebase and switch push off and on again in the app.
 - The app asks for an invitation code: `invite_code` is set and the server does not know the device yet (fresh install, or after "delete profile").
 

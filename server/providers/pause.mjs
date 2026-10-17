@@ -1,10 +1,11 @@
 // Pause for a source that tells us to slow down (HTTP 429 "too many requests").
 // While the pause runs no request goes out at all. When it is over, exactly one request tests whether the source answers again;
-// the others keep waiting for its result. The pause follows the Retry-After header; without one it grows with every hit in a row
-// (1, 2, 4 … minutes, at most 30), so a source that stays closed is asked only a few times per hour.
+// the others keep waiting for its result. The pause follows the Retry-After header, however long it is (at most a day: a source that
+// asks for 24 hours means it, and asking every half hour anyway is how a closed door becomes a locked one). Without a statement the
+// pause grows with every hit in a row (1, 2, 4 … minutes, at most 30), so a source that stays closed is asked only a few times per hour.
 export class SourcePause {
-  constructor({ now = () => Date.now(), baseSec = 60, maxSec = 1800 } = {}) {
-    this.now = now; this.baseSec = baseSec; this.maxSec = maxSec;
+  constructor({ now = () => Date.now(), baseSec = 60, maxSec = 1800, maxAskedSec = 86400 } = {}) {
+    this.now = now; this.baseSec = baseSec; this.maxSec = maxSec; this.maxAskedSec = maxAskedSec;
     this.hits = 0; this.until = 0; this.testUntil = 0;
   }
 
@@ -32,8 +33,8 @@ export class SourcePause {
     const t = this.now();
     if (t < this.until) return { sec: this.left(), fresh: false };
     this.hits++;
-    const asked = Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? Math.max(10, retryAfterSec) : this.baseSec * 2 ** Math.min(this.hits - 1, 16);
-    const sec = Math.min(this.maxSec, asked);
+    const said = Number.isFinite(retryAfterSec) && retryAfterSec > 0;
+    const sec = said ? Math.min(this.maxAskedSec, Math.max(10, retryAfterSec)) : Math.min(this.maxSec, this.baseSec * 2 ** Math.min(this.hits - 1, 16));
     this.until = t + sec * 1000; this.testUntil = 0;
     return { sec, fresh: true };
   }
@@ -52,5 +53,5 @@ export function retryAfterSec(res, now = Date.now()) {
   return Number.isNaN(d) ? NaN : Math.max(0, Math.round((d - now) / 1000));
 }
 
-/** "45 s" / "5 Min." for log lines and error texts */
-export const fmtPause = (sec) => (sec < 90 ? `${sec} s` : `${Math.round(sec / 60)} Min.`);
+/** "45 s" / "5 Min." / "24 Std." for log lines and error texts */
+export const fmtPause = (sec) => (sec < 90 ? `${sec} s` : sec < 7200 ? `${Math.round(sec / 60)} Min.` : `${Math.round(sec / 3600)} Std.`);

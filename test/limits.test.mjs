@@ -17,7 +17,7 @@ const tooMany = (retryAfter = null) => ({ ok: false, status: 429, headers: { get
 const fine = (body = { locations: [] }) => ({ ok: true, status: 200, json: async () => body });
 const tick = () => new Promise((r) => setImmediate(r));
 
-test('Pause: follows Retry-After, otherwise grows 1, 2, 4 … up to 30 minutes; several hits of one round count once', () => {
+test('Pause: follows Retry-After (up to a day), otherwise grows 1, 2, 4 … up to 30 minutes; several hits of one round count once', () => {
   let t = 0; const p = new SourcePause({ now: () => t });
   assert.equal(p.allow(), true); assert.equal(p.active(), false);
   assert.deepEqual(p.limited(NaN), { sec: 60, fresh: true });
@@ -30,13 +30,17 @@ test('Pause: follows Retry-After, otherwise grows 1, 2, 4 … up to 30 minutes; 
   t += 121e3; assert.equal(p.allow(), true); assert.equal(p.limited(NaN).sec, 240);
   for (let i = 0; i < 12; i++) { t += 3600e3; p.allow(); p.limited(NaN); }
   assert.equal(p.limited(NaN).fresh, false);
-  t += 3600e3; p.allow(); assert.equal(p.limited(NaN).sec, 1800);       // never longer than 30 minutes
+  t += 3600e3; p.allow(); assert.equal(p.limited(NaN).sec, 1800);       // growing on its own: never longer than 30 minutes
   t += 1801e3; p.allow(); p.ok();                                       // test worked: everything forgotten
   assert.equal(p.allow(), true); assert.equal(p.limited(NaN).sec, 60);
-  // the source says how long: at least 10 s, at most 30 minutes
+  // the source says how long: at least 10 s, at most a day (a source that asks for 24 hours means it)
   t += 3600e3; p.ok(); assert.equal(p.limited(90).sec, 90);
   t += 3600e3; p.ok(); assert.equal(p.limited(2).sec, 10);
-  t += 3600e3; p.ok(); assert.equal(p.limited(99999).sec, 1800);
+  t += 3600e3; p.ok(); assert.equal(p.limited(7200).sec, 7200);
+  t += 3600e3; p.ok(); assert.equal(p.limited(86400).sec, 86400);
+  t += 86401e3; p.allow(); p.ok(); assert.equal(p.limited(99999999).sec, 86400);
+  // after such a pause nothing goes out for hours, then exactly one test request
+  t += 86401e3; assert.equal(p.active(), false); assert.equal(p.left(), 0);
 });
 
 test('Pause: Retry-After as seconds or date, texts', () => {
@@ -45,6 +49,7 @@ test('Pause: Retry-After as seconds or date, texts', () => {
   assert.equal(retryAfterSec(h('Wed, 21 Oct 2026 07:30:00 GMT'), Date.parse('Wed, 21 Oct 2026 07:28:00 GMT')), 120);
   assert.ok(Number.isNaN(retryAfterSec(h(null)))); assert.ok(Number.isNaN(retryAfterSec(h('soon')))); assert.ok(Number.isNaN(retryAfterSec({})));
   assert.equal(fmtPause(45), '45 s'); assert.equal(fmtPause(120), '2 Min.'); assert.equal(fmtPause(1800), '30 Min.');
+  assert.equal(fmtPause(5400), '90 Min.'); assert.equal(fmtPause(7200), '2 Std.'); assert.equal(fmtPause(86400), '24 Std.');
 });
 
 test('EFA: "too many requests" is not retried, the source is left alone until the pause is over, one test request decides', async () => {
@@ -224,4 +229,113 @@ test('Run-through: the source says "too many requests" – nine routes cost thre
     assert.equal(s.connection.status, 'ok'); assert.ok(s.tours.every((x) => !x.stale));
     assert.equal((await service.providers.efas[0].healthy()), true);
   } finally { globalThis.fetch = realFetch; }
+});
+
+// ---------- A source that asks for a day of peace (MoBY in October 2026: HTTP 429, Retry-After 86400, "not an open data endpoint") ----------
+
+const CLOSED = { ok: false, status: 429, headers: { get: (h) => (String(h).toLowerCase() === 'retry-after' ? '86400' : null) }, text: async () => 'This endpoint is not an open data endpoint. Please contact the portal owner' };
+const efaLeg = (from, to, dep, arr) => ({
+  origin: { id: `${from}:1`, name: 'Von', type: 'platform', coord: [48.1, 11.5], parent: { id: from, name: 'Von', type: 'stop', coord: [48.1, 11.5] }, departureTimePlanned: dep, departureTimeEstimated: dep, properties: { platformName: '1', plannedPlatformName: '1' } },
+  destination: { id: `${to}:1`, name: 'Nach', type: 'platform', coord: [48.2, 11.6], parent: { id: to, name: 'Nach', type: 'stop', coord: [48.2, 11.6] }, arrivalTimePlanned: arr, arrivalTimeEstimated: arr, properties: { platformName: '2', plannedPlatformName: '2' } },
+  transportation: { id: 'x', name: 'S-Bahn S1', number: 'S1', product: { class: 1, name: 'S-Bahn' }, destination: { name: 'Nach' } },
+  realtimeStatus: ['MONITORED'], stopSequence: [],
+});
+const MVV_TRIP = { journeys: [{ legs: [efaLeg('de:09162:1', 'de:09162:2', '2026-10-12T05:10:00Z', '2026-10-12T05:30:00Z')] }, { legs: [efaLeg('de:09162:1', 'de:09162:2', '2026-10-12T05:30:00Z', '2026-10-12T05:50:00Z')] }] };
+const EFAS = [{ key: 'mvv', url: 'https://mvv.test/efa' }, { key: 'moby', url: 'https://moby.test/efa' }];
+
+test('Run-through: a source asks for a day of peace – no request for hours, the routes say why, the banner stays off for the routes that are fine', async () => {
+  const realFetch = globalThis.fetch, realLog = console.log;
+  let moby = 0; const lines = [];
+  globalThis.fetch = async (u) => {
+    const url = String(u);
+    if (url.includes('moby.test')) { moby++; return CLOSED; }
+    if (url.includes('mvv.test')) return fine(MVV_TRIP);
+    throw new Error(`unexpected ${url}`);
+  };
+  console.log = (...a) => { lines.push(a.join(' ')); };
+  try {
+    const clock = { t: Date.parse('2026-10-12T07:00:00+02:00') }; const now = () => clock.t;
+    const dir = await mkdtemp(join(tmpdir(), 'rego-closed-'));
+    const store = new ProfileStore(dir, now); const dev = 'einenmonatruhe12345';
+    const sched = { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:30', departUntil: '09:00' };
+    await store.update(dev, (p) => {
+      addTours(p, { from: { id: 'mvv|de:09162:1', name: 'Von' }, to: { id: 'mvv|de:09162:2', name: 'Nach' }, schedule: sched });
+      for (let i = 1; i <= 2; i++) addTours(p, { from: { id: `moby|de:09162:${i}`, name: `Von ${i}` }, to: { id: `moby|de:09163:${i}`, name: `Nach ${i}` }, schedule: sched });
+    });
+    const ids = (await store.load(dev)).tours.map((x) => x.id);
+    const cfg = { ...config, provider: 'transport-rest', verbose: true, tourDeadlineMs: 3000, upstream: { ...config.upstream, efa: EFAS, retries: 0 } };
+    const providers = createProviders(cfg, now);
+    for (const e of providers.efas) e.pause = new SourcePause({ now });
+    const service = createService({ config: cfg, store, now, providers });
+
+    let s = await service.getState(dev);
+    const live = s.tours.find((x) => x.id === ids[0]), dead = s.tours.filter((x) => ids.slice(1).includes(x.id));
+    assert.ok(live.departures.length >= 1 && !live.stale);
+    assert.equal(dead.length, 2);
+    for (const d of dead) {
+      assert.equal(d.stale, true); assert.equal(d.view.big, 'Keine Daten');
+      assert.equal(d.view.sub, 'MoBY lässt gerade keine Abfragen zu. ReGo fragt später wieder an.');       // the reason, not "the source does not answer"
+    }
+    assert.equal(s.connection.status, 'ok');                                 // two dead routes do not turn the whole screen into "Keine aktuellen Daten"
+    assert.ok(moby >= 1 && moby <= 2); const first = moby;
+    assert.equal(lines.filter((l) => /moby: zu viele Anfragen \(HTTP 429, Retry-After 86400 s, „This endpoint is not an open data endpoint\. Please contact the portal owner“\) – Pause 24 Std\./.test(l)).length, 1);
+    assert.equal(lines.filter((l) => /Abruf fehlgeschlagen/.test(l)).length, 0);      // not a line per route and minute
+
+    for (const hours of [1, 6, 12]) { clock.t += hours * 3600e3; s = await service.getState(dev); }
+    assert.equal(moby, first);                                               // 19 hours later: still not a single request to the source that asked for a day
+    assert.equal(s.connection.status, 'ok');
+    clock.t += 6 * 3600e3 + 120e3; await service.getState(dev);              // 25 hours: the pause is over, one test request decides
+    assert.equal(moby, first + 1);
+    assert.equal(lines.filter((l) => /Pause 24 Std\./.test(l)).length, 2);   // it still says no: another day of peace, one more line
+    assert.equal(lines.filter((l) => /Abruf fehlgeschlagen/.test(l)).length, 0);
+  } finally { globalThis.fetch = realFetch; console.log = realLog; }
+});
+
+test('Run-through: every route without data (the only source is closed) still shows the banner', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u) => { if (String(u).includes('moby.test')) return CLOSED; throw new Error(`unexpected ${u}`); };
+  try {
+    const clock = { t: Date.parse('2026-10-12T07:00:00+02:00') }; const now = () => clock.t;
+    const dir = await mkdtemp(join(tmpdir(), 'rego-closed-')); const store = new ProfileStore(dir, now); const dev = 'allesdichtgemacht123';
+    await store.update(dev, (p) => { for (let i = 1; i <= 2; i++) addTours(p, { from: { id: `moby|de:09162:${i}`, name: `Von ${i}` }, to: { id: `moby|de:09163:${i}`, name: `Nach ${i}` } }); });
+    const cfg = { ...config, provider: 'transport-rest', verbose: false, tourDeadlineMs: 3000, upstream: { ...config.upstream, efa: EFAS, retries: 0 } };
+    const providers = createProviders(cfg, now); for (const e of providers.efas) e.pause = new SourcePause({ now });
+    const s = await createService({ config: cfg, store, now, providers }).getState(dev);
+    assert.equal(s.connection.status, 'error'); assert.ok(s.tours.every((x) => x.stale && x.view.big === 'Keine Daten'));
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test('Interface: a source on pause – "Mit 1 Umstieg suchen" names it (503), saving is not blocked, the status shows the pause', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u, o) => {
+    const url = String(u);
+    if (url.startsWith('http://127.0.0.1')) return realFetch(u, o);
+    if (url.includes('moby.test')) return CLOSED;
+    if (url.includes('mvv.test')) return fine(MVV_TRIP);
+    throw new Error(`unexpected ${url}`);
+  };
+  const clock = { t: Date.parse('2026-10-12T07:00:00+02:00') };
+  const dir = await mkdtemp(join(tmpdir(), 'rego-closed-'));
+  const cfg = { ...config, dataDir: dir, provider: 'transport-rest', verbose: false, upstream: { ...config.upstream, efa: EFAS, retries: 0 } };
+  const { createApp } = await import('../server/index.mjs');
+  const { server, service } = createApp({ cfg, now: () => clock.t });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`, h = { 'x-device': 'quellegesperrt123456', 'content-type': 'application/json' };
+  const post = async (p, b) => { const r = await fetch(`${base}${p}`, { method: 'POST', headers: h, body: JSON.stringify(b) }); return { status: r.status, body: await r.json() }; };
+  try {
+    const A = { id: 'moby|de:09162:1', name: 'Von' }, B = { id: 'moby|de:09163:1', name: 'Nach' };
+    await assert.rejects(service.providers.efas[1].get('XML_STOPFINDER_REQUEST'), /HTTP 429/);       // the first request gets the answer, the pause begins
+    let r = await post('/api/connections/search', { from: A, to: B });
+    assert.equal(r.status, 503); assert.equal(r.body.code, 'source-paused');
+    assert.equal(r.body.error, 'MoBY lässt gerade keine Abfragen zu. Die Suche mit Umstieg geht für diese Strecke später wieder.');
+    // when in doubt the route is created (the user must not be locked out), with or without "Mit 1 Umstieg"
+    r = await post('/api/tours', { from: A, to: B }); assert.equal(r.status, 201);
+    r = await post('/api/tours', { from: B, to: A, transfers: 1 }); assert.equal(r.status, 201);
+    // a route in the area of the other association is not affected
+    r = await post('/api/connections/search', { from: { id: 'mvv|de:09162:1', name: 'Von' }, to: { id: 'mvv|de:09162:2', name: 'Nach' } }); assert.equal(r.status, 200); assert.equal(r.body.found, true);
+    const st = await (await fetch(`${base}/api/status`)).json();
+    const m = st.sources.find((x) => x.name === 'moby'), v = st.sources.find((x) => x.name === 'mvv');
+    assert.equal(m.ok, false); assert.ok(m.pausedSec > 86000 && m.pausedSec <= 86400);
+    assert.equal(v.ok, true); assert.ok(!('pausedSec' in v));
+  } finally { server.close(); globalThis.fetch = realFetch; }
 });

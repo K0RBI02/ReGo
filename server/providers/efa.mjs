@@ -38,7 +38,7 @@ export class EfaClient {
         // The answer is judged before the place is handed on, so a "too many requests" stops the ones waiting in line
         return await this.place(async () => {
           // Checked only now (after waiting in line): if the source has just said "too many requests", nothing more goes out
-          if (!this.pause.allow()) throw new ProviderError(`${this.name}: derzeit nicht erreichbar (zu viele Anfragen, Pause noch ${fmtPause(Math.max(1, this.pause.left()))})`, { status: 429, kind: 'network' });
+          if (!this.pause.allow()) throw new ProviderError(`${this.name}: derzeit nicht erreichbar (zu viele Anfragen, Pause noch ${fmtPause(Math.max(1, this.pause.left()))})`, { status: 429, kind: 'network', source: this.name });
           const res = await this.fetch(url, { headers: { 'user-agent': this.userAgent, accept: 'application/json' }, signal: AbortSignal.timeout(this.timeoutMs) });
           if (res.ok) { const data = await res.json(); this.pause.ok(); return data; }
           if (res.status === 429) throw await this.tooMany(res);
@@ -63,7 +63,7 @@ export class EfaClient {
       try { said = String((await res.text?.()) || '').replace(/\s+/g, ' ').trim().slice(0, 100); } catch { /* no text, no problem */ }
       this.log(`${this.name}: zu viele Anfragen (HTTP 429${Number.isFinite(asked) ? `, Retry-After ${asked} s` : ''}${said ? `, „${said}“` : ''}) – Pause ${fmtPause(sec)}`);
     }
-    return new ProviderError(`${this.name}: HTTP 429 – zu viele Anfragen, Pause ${fmtPause(sec)}`, { status: 429, kind: 'http' });
+    return new ProviderError(`${this.name}: HTTP 429 – zu viele Anfragen, Pause ${fmtPause(sec)}`, { status: 429, kind: 'http', source: this.name });
   }
 
   async searchStops(query) {
