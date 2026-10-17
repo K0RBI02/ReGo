@@ -8,7 +8,7 @@
 //   missed  – "Anschluss verpasst" (connection missed): buffer ≤ 0 or the connecting trip is cancelled; the next connection is shown
 // ReGo picks the transfer anew for every departure.
 import { createHash } from 'node:crypto';
-import { berlin, hhmm } from '../lib/time.mjs';
+import { berlin, hhmm, weekday } from '../lib/time.mjs';
 import { lineLabel, lineColor } from '../lib/lines.mjs';
 import { cleanStopName } from '../providers/hafas.mjs';
 import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
@@ -74,17 +74,19 @@ export function transferVias(journeys) {
 /**
  * Sample connection for the preview when creating a route: the first one with a transfer and a reasonable wait (otherwise simply the first).
  * With `now` trips that have left already do not count (the route itself leaves them out as well). null = nothing found.
+ * today (ms, the real time): a trip on another day than today gets its weekday in front of the time ("Mo ab 07:34").
  */
-export function previewRoute(journeys, now = -Infinity) {
+export function previewRoute(journeys, now = -Infinity, today = now) {
   const pairs = pairsOf(journeys).filter((p) => !p.a.cancelled && !(p.b && p.b.cancelled) && !(t(p.a.dep) < now - 120000));
   if (!pairs.length) return null;
   const two = pairs.filter((p) => p.b);
   const pick = two.find((p) => diffMin(p.a.arr, p.b.dep) <= MAX_WAIT_MIN) || two[0] || pairs[0];
   const legs = [pick.a, pick.b].filter(Boolean);
+  const dayOf = (l, k) => (Number.isFinite(today) && berlin(t(l.dep)).date !== berlin(k ? t(legs[0].dep) : today).date ? `${weekday(t(l.dep))} ` : '');
   return {
     duration: dur(diffMin(legs[0].dep, legs[legs.length - 1].arr)),
     ...(pick.b ? { via: nm(pick.a.destination), wait: Math.max(0, diffMin(pick.a.arr, pick.b.dep)) } : {}),
-    legs: legs.map((l) => ({ lineId: lineLabel(l.line.name), line: l.line.name, color: lineColor(l.line.name, l.line.product), title: `${nm(l.origin)} → ${nm(l.destination)}`, times: `ab ${hhmm(l.dep)} · an ${hhmm(l.arr)}` })),
+    legs: legs.map((l, k) => ({ lineId: lineLabel(l.line.name), line: l.line.name, color: lineColor(l.line.name, l.line.product), title: `${nm(l.origin)} → ${nm(l.destination)}`, times: `${dayOf(l, k)}ab ${hhmm(l.dep)} · an ${hhmm(l.arr)}` })),
   };
 }
 

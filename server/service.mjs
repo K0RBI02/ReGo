@@ -1,6 +1,6 @@
 // Core logic: station search and the complete state of a device, in the shape the UI expects.
 import { TtlCache } from './store/cache.mjs';
-import { berlin, hhmm } from './lib/time.mjs';
+import { berlin, hhmm, fromBerlin, weekday } from './lib/time.mjs';
 import { distanceKm, regionOf } from './lib/geo.mjs';
 import { buildTour, stillVisible, THEME, SCHEMA_VERSION } from './domain/state.mjs';
 import { buildTransferTour, transferVias, previewRoute, shortcutFor } from './domain/transfer.mjs';
@@ -97,14 +97,40 @@ export function createService({ config, store, now = () => Date.now(), providers
     return { key, load: (ttl = config.ttl.journeys) => askTrips(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 })) };
   };
 
-  /** Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. paused = name of the source that has put ReGo on pause. */
+  /**
+   * A typical commute morning, for the check at creation when nothing is left today: the next weekday at 07:30, at least two hours from now.
+   * The route is meant for such mornings; a closure over the weekend or the night without service must not decide whether it can be created.
+   */
+  const commuteSample = (t) => {
+    const [y, m, d] = berlin(t).date.split('-').map(Number);
+    for (let i = 0; i < 9; i++) {
+      const ms = fromBerlin(new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10), '07:30');
+      if (ms - t >= 2 * 3600e3 && !['Sa', 'So'].includes(weekday(ms))) return ms;
+    }
+    return null;
+  };
+
+  /**
+   * Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. paused = name of the source that has put ReGo on pause.
+   * The answer for "now" comes first. If it holds no trip that is still to come (closure, no service at the moment), the next normal morning is checked as well:
+   * the question is whether the two stops are connected, not what runs this minute. The route itself keeps showing the current state.
+   */
   async function searchTransfer(from, to) {
     const t = now();
-    const q = transferJourneys(from, to, t);
+    const look = async (at, stamp, ttl) => {
+      const q = transferJourneys(from, to, at, stamp);
+      const r = await withDeadline(q.load(ttl), DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
+      return r.value || [];
+    };
     try {
-      const r = await withDeadline(q.load(), DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
-      const route = previewRoute(r.value || [], t);      // a trip that has left already is no sample: the route would not show it either
-      return { found: route ? true : (r.value || []).length ? null : false, route };
+      const route = previewRoute(await look(t, ''), t);      // a trip that has left already is no sample: the route would not show it either
+      if (route) return { found: true, route };
+      const m = commuteSample(t);
+      if (m) {
+        const sample = previewRoute(await look(m, `@${berlin(m).date}`, 600), m, t);
+        if (sample) return { found: true, route: sample };
+      }
+      return { found: false, route: null };
     } catch (err) {
       if (err?.status !== 429) log('Suche mit Umstieg fehlgeschlagen', from.id, to.id, err.message);
       return { found: null, route: null, ...(pausedSource(err) ? { paused: pausedSource(err) } : {}) };      // paused: a source that has put ReGo on pause is the reason

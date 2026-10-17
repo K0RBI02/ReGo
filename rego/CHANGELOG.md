@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.4 – Connections during closures
+
+**Routes with a transfer**
+- The associations (MVV and MoBY) apply the limit of one transfer only after they have picked their best trips. When the network has closures the best trips need more transfers than allowed, so nothing was left and the route said "Keine Verbindung mit höchstens 1 Umstieg gefunden", although there are connections. ReGo now asks again with the limit inside the search (and, if that does not help either, for the trips with the fewest transfers) whenever the plain answer holds no trip that is still to come. The variant that worked is asked first for the next ten minutes.
+- Creating a route no longer depends on the minute. If nothing is left today (closure, night), the check also looks at the next normal weekday morning, so a closure over the weekend does not stop a route that is meant for weekday mornings. The sample connection then shows its weekday ("Mo ab 07:42").
+- The preview and the saved route still use the same query and the same cache, so they agree.
+
+**Log**
+- If no usable trip is left, the one line per route and ten minutes now says what each query returned: number of trips, first and last departure, how many are usable, transfers, and the source's own messages.
+
+**Rebuild**
+- Server only: update the add-on. The app stays at 0.8.0.
+
 ## 0.8.3 – Steadier connections
 
 **Routes with a transfer**

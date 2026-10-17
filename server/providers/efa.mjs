@@ -3,12 +3,25 @@
 // Normalized types as in hafas.mjs: Stop { id, name, lat, lon, products? }
 import { ProviderError } from './hafas.mjs';
 import { SourcePause, retryAfterSec, fmtPause } from './pause.mjs';
-import { berlin } from '../lib/time.mjs';
+import { berlin, weekday } from '../lib/time.mjs';
 
 const COORD = 'WGS84[dd.ddddd]';
 
-const SECOND_TRY_PAUSE_MS = 5 * 60000;     // the second try (few transfers) found nothing: not again for this long
-const NOTE_EVERY_MS = 10 * 60000;          // one log line per route and this long about an answer without trips
+const NO_LUCK_MS = 5 * 60000;              // the stronger queries found nothing for a route: not again for this long
+const STRONGER_KEEP_MS = 10 * 60000;       // a stronger query found trips: for this long it is the first one asked for the route
+const NOTE_EVERY_MS = 10 * 60000;          // one log line per route and this long about an answer without usable trips
+
+// EFA applies the limit on transfers (maxChanges) inside its search only when the route options are switched on (ptOptionsActive=1). Without them it first
+// picks its best trips and drops the ones with too many transfers afterwards. That leaves enough on a normal day, but when the network has closures the best
+// trips need more transfers than allowed: nothing is left, and the answer only holds earlier trips (EFA adds one trip from before the time asked for).
+// So the plain query comes first (it is what has always worked), and when its answer holds no usable trip that is still to come, EFA is asked again with
+// the limit inside the search, if need be for the trips with the fewest transfers. calcOneDirection=1 keeps EFA from adding trips that have left already.
+const STRONGER = [
+  { key: 'limit', name: 'Umstiegslimit in der Suche', extra: { ptOptionsActive: 1, calcOneDirection: 1 } },
+  { key: 'lean', name: 'wenigste Umstiege', extra: { ptOptionsActive: 1, calcOneDirection: 1, routeType: 'LEASTINTERCHANGE' }, transfersOnly: true },
+];
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const stampOf = (ms) => `${weekday(ms)} ${berlin(ms).time}`;      // "Sa 16:36"
 
 export class EfaClient {
   /** maxParallel: at most this many requests at the same time (more wait in line); pause: what to do after "too many requests" (HTTP 429) */
@@ -16,7 +29,7 @@ export class EfaClient {
     this.base = base.replace(/\/$/, ''); this.key = key; this.name = key;
     this.fetch = fetchImpl; this.userAgent = userAgent; this.timeoutMs = timeoutMs; this.retries = retries;
     this.pause = pause; this.log = log; this.now = now; this.maxParallel = maxParallel; this.running = 0; this.waiting = [];
-    this.noLuck = new Map(); this.noted = new Map();      // route -> until when the second try is skipped / when the last log line was written
+    this.noLuck = new Map(); this.stronger = new Map(); this.noted = new Map();      // route -> until when the stronger queries are skipped / the variant that worked and until when it comes first / when the last log line was written
   }
 
   owns(id) { return String(id || '').startsWith(`${this.key}|`); }
@@ -90,10 +103,23 @@ export class EfaClient {
     return { journeys: parseJourneys(data, this.key), messages };
   }
 
-  /** Does the answer hold a trip that has not left yet (when = the time asked for)? EFA also returns a trip or two from before that time. */
-  ahead(journeys, when) {
+  /** Does the answer hold a trip we can use: not left yet (when = the time asked for) and with no more transfers than allowed? */
+  usable(journeys, when, transfers = 0) {
     const from = new Date(when).getTime() - 2 * 60000;
-    return (journeys || []).some((j) => Date.parse(j.legs?.[0]?.dep) >= from);
+    return (journeys || []).some((j) => (j.legs || []).length <= transfers + 1 && Date.parse(j.legs?.[0]?.dep) >= from);
+  }
+
+  /** What an answer holds, in one short piece of text for the log: number of trips, first and last departure, how many are usable, transfers. */
+  describe(journeys, when, transfers = 0) {
+    const js = journeys || [];
+    if (!js.length) return 'keine Fahrten';
+    const at = new Date(when).getTime(), day = berlin(at).date;
+    const label = (ms) => { const b = berlin(ms); return `${b.date === day ? '' : `${weekday(ms)} `}${b.time}`; };
+    const deps = js.map((j) => Date.parse(j.legs?.[0]?.dep)).filter(Number.isFinite).sort((x, y) => x - y);
+    const changes = new Map();
+    for (const j of js) { const n = Math.max(0, (j.legs || []).length - 1); changes.set(n, (changes.get(n) || 0) + 1); }
+    const extra = js.filter((j) => j.additional).length;
+    return `${plural(js.length, 'Fahrt', 'Fahrten')} (${deps.length ? `${label(deps[0])} bis ${label(deps[deps.length - 1])}; ` : ''}${js.filter((j) => this.usable([j], when, transfers)).length} nutzbar; Umstiege ${[...changes].sort((x, y) => x[0] - y[0]).map(([n, c]) => `${n}×${c}`).join(' ')}${extra ? `; ${extra} Zusatzvorschläge` : ''})`;
   }
 
   /** Writes a log line, but for the same route only every NOTE_EVERY_MS. */
@@ -105,33 +131,60 @@ export class EfaClient {
     this.log(text);
   }
 
+  remember(map, route, value) { if (map.size >= 500) map.clear(); map.set(route, value); }
+
   /**
    * Connections from "when", including intermediate stops and remarks. transfers = at most this many transfers (0 = direct connections only).
    * from/to: the stops (only for the log).
    */
   async journeys({ fromId, toId, when, results = 5, transfers = 0, from, to }) {
-    const b = berlin(new Date(when).getTime());
-    const params = {
+    const at = new Date(when).getTime(), b = berlin(at);
+    const base = {
       type_origin: 'any', name_origin: this.raw(fromId), type_destination: 'any', name_destination: this.raw(toId),
       itdDate: b.date.replaceAll('-', ''), itdTime: b.time.replace(':', ''), itdTripDateTimeDepArr: 'dep',
       calcNumberOfTrips: results, maxChanges: transfers, useRealtime: 1,
     };
-    const first = await this.trips(params);
-    if (!transfers || this.ahead(first.journeys, when)) return first.journeys;
+    const route = `${fromId}>${toId}>${transfers}`;
+    const usable = (list) => this.usable(list, at, transfers);
+    const asked = new Set();
 
-    // EFA first calculates a few candidate trips and only then drops the ones with more transfers than allowed (maxChanges). When the network is in
-    // a bad state (closures) that can leave nothing, or only trips that have left already – and the answer differs from minute to minute.
-    // So we ask once more, this time for the trips with the fewest transfers; if that does not help either, the first answer stands.
-    const route = `${fromId}>${toId}`;
-    if (this.now() < (this.noLuck.get(route) ?? 0)) return first.journeys;
-    let second = { journeys: [] }, failed = '';
-    try { second = await this.trips({ ...params, routeType: 'LEASTINTERCHANGE' }); } catch (err) { failed = err.message; }
-    const found = this.ahead(second.journeys, when);
-    if (this.noLuck.size >= 500) this.noLuck.clear();
-    this.noLuck.set(route, found ? 0 : this.now() + SECOND_TRY_PAUSE_MS);
-    const said = first.messages.slice(0, 3).map((m) => `${m.type || '?'} ${m.code ?? ''} ${m.text || m.module || ''}`.replace(/\s+/g, ' ').trim()).join('; ').slice(0, 240);
-    this.note(route, `${this.name}: ${first.journeys.length ? 'nur schon abgefahrene Fahrten' : 'keine Fahrt'} mit höchstens ${transfers} Umstieg ${from?.name && to?.name ? `${from.name} → ${to.name}` : route}${said ? ` (Meldungen der Quelle: ${said})` : ''} – zweite Abfrage mit wenigen Umstiegen: ${failed ? `Fehler ${failed}` : found ? `${second.journeys.length} Fahrten` : 'auch nichts'}`);
-    return found ? second.journeys : first.journeys;
+    // A stronger query that brought trips a moment ago goes first; the plain one would only fail again and double the requests
+    const lucky = this.stronger.get(route);
+    if (lucky && this.now() < lucky.until) {
+      asked.add(lucky.key);
+      try {
+        const r = await this.trips({ ...base, ...lucky.extra });
+        if (usable(r.journeys)) return r.journeys;
+      } catch { /* the plain query decides */ }
+      this.stronger.delete(route);
+    }
+
+    const first = await this.trips(base);
+    if (usable(first.journeys)) return first.journeys;
+    if (this.now() < (this.noLuck.get(route) ?? 0)) return first.journeys;      // the stronger ones found nothing a moment ago
+
+    const tried = [`einfache Abfrage: ${this.describe(first.journeys, at, transfers)}`];
+    for (const v of STRONGER) {
+      if ((v.transfersOnly && !transfers) || asked.has(v.key)) continue;
+      let r;
+      try { r = await this.trips({ ...base, ...v.extra }); } catch (err) { tried.push(`${v.name}: Fehler ${err.message}`); continue; }
+      tried.push(`${v.name}: ${this.describe(r.journeys, at, transfers)}`);
+      if (!usable(r.journeys)) continue;
+      this.remember(this.stronger, route, { key: v.key, extra: v.extra, until: this.now() + STRONGER_KEEP_MS });
+      this.noLuck.delete(route);
+      this.note(route, `${this.name}: ${this.routeText(route, from, to, transfers)} – die einfache Abfrage hat nichts Abfahrbares, mit „${v.name}“ schon (${tried.join('; ')})`);
+      return r.journeys;
+    }
+    this.remember(this.noLuck, route, this.now() + NO_LUCK_MS);
+    if (first.journeys.length || transfers) {
+      const said = first.messages.filter((m) => m.code !== -10015).slice(0, 3).map((m) => `${m.type || '?'} ${m.code ?? ''} ${m.text || m.module || ''}`.replace(/\s+/g, ' ').trim()).join('; ').slice(0, 240);
+      this.note(route, `${this.name}: ${this.routeText(route, from, to, transfers)} – ab ${stampOf(at)} keine Fahrt, die noch fährt (${tried.join('; ')})${said ? ` (Meldungen der Quelle: ${said})` : ''}`);
+    }
+    return first.journeys;
+  }
+
+  routeText(route, from, to, transfers) {
+    return `${from?.name && to?.name ? `${from.name} → ${to.name}` : route} (${transfers ? `${plural(transfers, 'Umstieg', 'Umstiege')}` : 'direkt'})`;
   }
 
   /** Coordinates of a stop; EFA does not return lines here (empty list, map without connections). */
@@ -253,7 +306,7 @@ export function parseLeg(l, key) {
   };
 }
 
-/** Answer of XML_TRIP_REQUEST2 -> Journey[] (only trips with a line) */
+/** Answer of XML_TRIP_REQUEST2 -> Journey[] (only trips with a line). additional: EFA's own extra suggestion, not a trip that fits the search (only for the log). */
 export function parseJourneys(data, key = 'efa') {
-  return (data?.journeys || []).map((j) => ({ legs: (j.legs || []).map((l) => parseLeg(l, key)).filter(Boolean) })).filter((j) => j.legs.length);
+  return (data?.journeys || []).map((j) => ({ legs: (j.legs || []).map((l) => parseLeg(l, key)).filter(Boolean), ...(j.isAdditional ? { additional: true } : {}) })).filter((j) => j.legs.length);
 }
