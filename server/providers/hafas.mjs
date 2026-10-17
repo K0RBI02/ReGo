@@ -6,11 +6,12 @@ import { SourcePause, retryAfterSec, fmtPause } from './pause.mjs';
 // Normalised types – the rest of the backend only knows these:
 //   Stop   { id, name, lat, lon, products? }
 //   Leg    { line:{name,product}, direction, origin:Stop, destination:Stop,
-//            plannedDep, dep, depDelay (min.), plannedArr, arr, arrDelay (min.),
+//            plannedDep, dep, depDelay (min.), rt, plannedArr, arr, arrDelay (min.),
 //            plannedPlatform, platform (departure platform), plannedArrPlatform, arrPlatform (arrival platform),
 //            cancelled, tripId, stopovers:[Stop], remarks:[Remark] }
 //   Remark { type, code, text, summary, validFrom, validUntil, priority }
 //   Journey{ legs:Leg[] }
+// rt = the source has real-time data for the departure. Without it depDelay is 0 only because nothing is known, not because the trip is on time.
 export class ProviderError extends Error {
   constructor(message, { status = 0, kind = 'network' } = {}) { super(message); this.status = status; this.kind = kind; }
 }
@@ -104,7 +105,7 @@ export function normLeg(l) {
     line: { name: String(l.line?.name || '?').replace(/\s*\(.*$/, '').trim() || '?', product: l.line?.product || '' },
     direction: l.direction || '',
     origin: normStop(l.origin), destination: normStop(l.destination),
-    plannedDep: l.plannedDeparture || l.departure, dep: l.departure || l.plannedDeparture, depDelay: min(l.departureDelay),
+    plannedDep: l.plannedDeparture || l.departure, dep: l.departure || l.plannedDeparture, depDelay: min(l.departureDelay), rt: l.departureDelay != null,
     plannedArr: l.plannedArrival || l.arrival, arr: l.arrival || l.plannedArrival, arrDelay: min(l.arrivalDelay),
     plannedPlatform: l.plannedDeparturePlatform || l.departurePlatform || null,
     platform: l.departurePlatform || l.plannedDeparturePlatform || null,

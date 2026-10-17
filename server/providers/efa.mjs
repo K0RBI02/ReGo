@@ -197,6 +197,7 @@ export function parseLeg(l, key) {
     direction: t.destination?.name || '',
     origin: stopOf(key, o), destination: stopOf(key, d),
     plannedDep: o.departureTimePlanned || o.departureTimeBaseTimetable, dep: o.departureTimeEstimated || o.departureTimePlanned, depDelay: delayMin(o.departureTimePlanned, o.departureTimeEstimated),
+    rt: Boolean(o.departureTimeEstimated) || rt.some((x) => /^MONITORED$/i.test(String(x))),      // an estimated time or "monitored": otherwise the 0 minutes only mean "unknown"
     plannedArr: d.arrivalTimePlanned || d.arrivalTimeBaseTimetable, arr: d.arrivalTimeEstimated || d.arrivalTimePlanned, arrDelay: delayMin(d.arrivalTimePlanned, d.arrivalTimeEstimated),
     plannedPlatform: o.properties?.plannedPlatformName || o.properties?.platformName || null,
     platform: o.properties?.platformName || o.properties?.plannedPlatformName || null,

@@ -70,9 +70,27 @@ function appLinkFor(tour) {
   return null;
 }
 
-/** We only say "pünktlich" (on time) where the source can already know delays; for departures far away it says "planmäßig" (on schedule) */
-export const okWord = (leg, now) => (isFar(Date.parse(leg.dep), now) ? 'planmäßig' : 'pünktlich');
+/**
+ * How "all fine" is worded. We only say "pünktlich" (on time) where ReGo can know it: the source delivers real-time data for the trip and the departure
+ * is not far away. Otherwise it is "planmäßig" (on schedule). With a transfer every trip needs real-time data (pass them all).
+ *   plan        – the word is "planmäßig" (far away, or no real-time data)
+ *   unconfirmed – a departure that is near but has no real-time data: the source should know more here. The app shows it neutral, not as a green "all fine".
+ */
+export function okState(now, ...legs) {
+  const far = isFar(Date.parse(legs[0].dep), now);
+  const noRt = legs.some((l) => l && l.rt === false);
+  return { word: far || noRt ? 'planmäßig' : 'pünktlich', plan: far || noRt, unconfirmed: noRt && !far };
+}
+export const okWord = (leg, now) => okState(now, leg).word;
 const cap = (w) => w[0].toUpperCase() + w.slice(1);
+/** Texts of the "all fine" view (head, big word, sub line) and the flag for the neutral look. what = "RE 5 ab 07:05", subText = the normal sub line. */
+export function okView(st, what, subText) {
+  return {
+    head: `${st.unconfirmed ? 'Ohne Echtzeit' : cap(st.word)} · ${what}`, big: st.word,
+    sub: st.unconfirmed ? `${subText} · Verspätungen unbekannt` : subText,
+    ...(st.unconfirmed ? { noRt: true } : {}),
+  };
+}
 const sub = (leg, withPlatform = true) => `${leg.line.name} Richtung ${leg.direction}${withPlatform && leg.platform ? ` · Gleis ${leg.platform}` : ''}`;
 
 /**
@@ -106,12 +124,16 @@ export async function buildTour(tour, journeys, ctx) {
     period: tour.period || 'am', ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}),
     distanceKm: ctx.distanceKm ?? null,
     ...windowView(tour.schedule || { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00' }, now),
-    departures: legs.slice(0, 3).map((l) => ({
-      plannedTime: hhmm(l.plannedDep), expectedTime: hhmm(l.dep), lineId: registerLine(l.line),
-      plannedPlatform: l.plannedPlatform || '', expectedPlatform: l.platform || '', delayMin: l.depDelay,
-      ...(berlin(Date.parse(l.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
-      ...(isFar(Date.parse(l.dep), now) ? { far: true } : {}),      // far away: the app says "planmäßig" instead of "pünktlich"
-    })),
+    departures: legs.slice(0, 3).map((l) => {
+      const st = okState(now, l);
+      return {
+        plannedTime: hhmm(l.plannedDep), expectedTime: hhmm(l.dep), lineId: registerLine(l.line),
+        plannedPlatform: l.plannedPlatform || '', expectedPlatform: l.platform || '', delayMin: l.depDelay,
+        ...(berlin(Date.parse(l.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
+        ...(st.plan ? { far: true } : {}),               // the app says "planmäßig" instead of "pünktlich" (far away, or no real-time data; older apps only know this flag)
+        ...(st.unconfirmed ? { noRt: true } : {}),       // near, but no real-time data: newer apps show it neutral
+      };
+    }),
   };
   const incidents = [];
   const hint = ticketHintFor(tour);
@@ -158,10 +180,11 @@ export async function buildTour(tour, journeys, ctx) {
     if (platformChg) rows.push({ label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` });
     rows.push({ label: `Ankunft ${dest}`, sub: l.line.name, value: hhmm(l.arr), planned: l.arrDelay ? hhmm(l.plannedArr) : '' });
     const kmap = await buildMap(l, linesAt, { halo: isLate, registerLine });
+    const what = `${l.line.name} ab ${hhmm(l.dep)}`;
     out.departures[k].view = {
       kind: isLate ? 'delay' : 'ok',
-      head: `${isLate ? 'Verspätung' : cap(okWord(l, now))} · ${l.line.name} ab ${hhmm(l.dep)}`,
-      big: isLate ? `+${l.depDelay} Min.` : okWord(l, now), sub: sub(l, false), rows,
+      ...(isLate ? { head: `Verspätung · ${what}`, big: `+${l.depDelay} Min.`, sub: sub(l, false) } : okView(okState(now, l), what, sub(l, false))),
+      rows,
       alternative: thenCard(nxt),
       ticketHint: hint, map: kmap,
     };
@@ -255,7 +278,7 @@ export async function buildTour(tour, journeys, ctx) {
   if (!incidents.length) {
     const map = await buildMap(first, linesAt, { registerLine });
     out.view = {
-      kind: 'ok', head: `${cap(okWord(first, now))} · ${first.line.name} ab ${hhmm(first.dep)}`, big: okWord(first, now), sub: sub(first, false),
+      kind: 'ok', ...okView(okState(now, first), `${first.line.name} ab ${hhmm(first.dep)}`, sub(first, false)),
       rows: [
         { label: `Abfahrt ${first.origin.name}`, sub: sub(first), value: hhmm(first.dep), planned: '' },
         { label: `Ankunft ${dest}`, sub: first.line.name, value: hhmm(first.arr), planned: '' },

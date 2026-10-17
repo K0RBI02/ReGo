@@ -56,7 +56,7 @@ WantedBy=default.target
 
 ## Configuration
 
-All settings are optional environment variables; the add-on options map onto them (`provider` → `REGO_PROVIDER`, `fcm_key` → `REGO_FCM_KEY`, `invite_code` → `REGO_INVITE`). The main ones:
+All settings are optional environment variables; the add-on options map onto them (`provider` → `REGO_PROVIDER`, `fcm_key` → `REGO_FCM_KEY`, `invite_code` → `REGO_INVITE`, `contact` → `REGO_CONTACT`). The main ones:
 
 | Variable | Meaning |
 |---|---|
@@ -64,6 +64,7 @@ All settings are optional environment variables; the add-on options map onto the
 | `REGO_DATA` | Data directory. |
 | `REGO_PROVIDER` | `library` (default), `transport-rest` or `mock`, see below. |
 | `REGO_INVITE` | Invitation code: new devices need it, known devices keep working. Empty: open. |
+| `REGO_CONTACT` | Where testers send feedback: an email address or a web link. The app shows it in the settings; empty: the GitHub issue form. |
 | `REGO_FCM_KEY` | Firebase service-account JSON for instant push (or a file `fcm.json` in the data directory). |
 | `REGO_VERBOSE` | `1` logs source errors, slow requests and push activity. |
 | `REGO_CORS` | Additional allowed origin for the API, for working on the UI. |
@@ -93,9 +94,9 @@ JSON over plain http. Every path except `/api/health` and `/api/status` needs th
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/health` | Liveness check (used by the add-on watchdog). |
-| `GET /api/status` | Version, state of the sources, number of devices and push subscriptions; no personal data. The page `/status` shows the same. |
+| `GET /api/status` | Version, state of the sources, number of devices (also per app version) and push subscriptions; no personal data. The page `/status` shows the same. |
 | `GET /api/stations?q=` | Station search. |
-| `GET /api/state` | The complete state of the device: routes with departures, incidents, settings. |
+| `GET /api/state` | The complete state of the device: routes with departures, incidents, settings, and the feedback address (`contact`). The Android app adds `?app=<version>`; if that app is older than `APP_LATEST`, the answer also carries `app: {latest, url}` for the update hint. |
 | `POST /api/connections/search` | Looks for a connection with at most one transfer. |
 | `POST /api/tours`, `PATCH /api/tours/:id`, `DELETE /api/tours/:id` | Create, change or delete a route. |
 | `GET/PUT/DELETE /api/profile` | Read, replace (the app's undo) or delete the data of the device. |
@@ -127,6 +128,8 @@ An incident has a stable ID (a hash of the route and its identifying details): i
 
 **Commute window.** Every route has days and a departure window, for example 07:00–08:00. Before and during the window ReGo evaluates the trips in it. Outside it shows the next trains as usual, but without push. A departure more than 45 minutes away says "planmäßig" instead of "pünktlich", because the sources know few delays that far ahead.
 
+**"Pünktlich" needs real-time data.** Every trip carries a flag whether its source has real-time data for the departure (an estimated time, or the status "monitored"). A near departure without it is not reported as on time: the view says "planmäßig" and "Ohne Echtzeit … Verspätungen unbekannt", and the app shows it neutral instead of with a green check. With a transfer, both trips need the data.
+
 **Routes with one transfer.** They are created on the user's choice when there is no direct connection. The source only returns connections that still work in real time, so ReGo rates the transfer itself: for every departure it picks feeder, transfer station and connection anew and decides between ok, at risk and missed.
 
 **Shortcut hint.** If a route without transfer has replacement transport, ReGo also looks for a safe connection with one transfer that arrives at least five minutes earlier and shows it on the incident page. It is only a hint, there is no extra incident and no push.
@@ -144,7 +147,7 @@ How to set up instant push is described in the [README](README.md#instant-push-f
 
 ## Data and limits
 
-- Each device has one small profile file in the data directory. There are no tickets, names, e-mail addresses or accounts on the server; transfer codes and rate-limit counters live in memory only. Profiles of devices that have not been seen for 180 days are deleted, and there are at most 2000 profiles. More in [PRIVACY.md](PRIVACY.md).
+- Each device has one small profile file in the data directory. There are no tickets, names, e-mail addresses or accounts on the server; transfer codes and rate-limit counters live in memory only. The app also tells its version number with each state request; the last one is kept in the profile so that the status page can count app versions. Profiles of devices that have not been seen for 180 days are deleted, and there are at most 2000 profiles. More in [PRIVACY.md](PRIVACY.md).
 - For a server that is reachable from the internet (for example through Tailscale Funnel): rate limits per address and per device (stricter for searches, ten new devices per hour and address), the optional invitation code (wrong codes are slowed down) and a size limit for request bodies.
 
 ## Troubleshooting
@@ -175,4 +178,4 @@ scripts/    ui-smoke.mjs (screen test), probe.mjs (records real responses)
 
 - `npm test` runs all unit and API tests offline. `node scripts/ui-smoke.mjs` is the screen test: it starts ReGo with sample data, opens every screen in phone size and walks through the main flows; it needs Playwright (`npm i --no-save playwright && npx playwright install chromium`).
 - CI (GitHub Actions): `build.yml` runs both tests and then builds the add-on images; `apk.yml` builds the signed APK (see the [README](README.md#building-the-apk)).
-- Releasing: raise `version` in `package.json` and `rego/config.yaml` and add a heading `## <version> – <title>` at the top of `rego/CHANGELOG.md` (a test checks that all three agree), then push to `main`. A server-only change reaches the Pi through the add-on update; a change to `public/` or `android/` also needs the new APK.
+- Releasing: raise `version` in `package.json` and `rego/config.yaml` and add a heading `## <version> – <title>` at the top of `rego/CHANGELOG.md` (a test checks that all three agree), then push to `main`. A server-only change reaches the Pi through the add-on update; a change to `public/` or `android/` also needs the new APK, and then `APP_LATEST` in `server/config.mjs` is set to that release so that older apps get the update hint (a server-only release builds no APK, so it leaves `APP_LATEST` alone).

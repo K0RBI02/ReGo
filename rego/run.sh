@@ -8,6 +8,7 @@ export NODE_OPTIONS="--dns-result-order=ipv4first $NODE_OPTIONS"      # bahn.de 
 P=$(get provider); [ -n "$P" ] && export REGO_PROVIDER="$P"
 F=$(get fcm_key); [ -n "$F" ] && export REGO_FCM_KEY="$F"
 I=$(get invite_code); [ -n "$I" ] && export REGO_INVITE="$I"          # if set: new devices need this invitation code
+C=$(get contact); [ -n "$C" ] && export REGO_CONTACT="$C"             # where testers send feedback (email address or link), shown in the app
 
 # Network self-test: does the container reach bahn.de over IPv4 and over IPv6?
 cat > /tmp/nettest.mjs <<'JS'

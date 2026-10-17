@@ -334,6 +334,8 @@ Strecke hinzufügen</button>
 </sc-if>
 
 <a href="{{contactHref}}" style="display: block; padding: 12px 4px; min-height: 44px; box-sizing: border-box; border-top: 1.5px solid #ECECEC; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">Etwas hakt oder du hast eine Idee? <span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Rückmeldung senden</span>.</a>
+<sc-if value="{{hasContact}}" hint-placeholder-val="{{ false }}"><span style="display: block; padding: 0 4px 12px; font-size: 13px; font-weight: 600; line-height: 1.4; color: #4A4747; overflow-wrap: anywhere">{{contactNote}}</span></sc-if>
+<sc-if value="{{hasUpdate}}" hint-placeholder-val="{{ false }}"><a href="{{updateHref}}" style="display: block; padding: 12px 4px; min-height: 44px; box-sizing: border-box; border-top: 1.5px solid #ECECEC; font-size: 15px; font-weight: 600; line-height: 1.35; color: #4A4747">{{updateText}} <span style="color: #1C1A1A; font-weight: 700; text-decoration: underline">Herunterladen</span>.</a></sc-if>
 
 <div style="padding: 0 4px 4px; display: flex; flex-direction: column; gap: 0; font-size: 13px; font-weight: 600; line-height: 1.4; color: #4A4747">
 <span>{{versionLine}}</span>
@@ -449,6 +451,7 @@ class Component extends DCLogic {
       pick: () => { this.setState({ threshold: v }); window.REGO.actions.setThreshold(v).then(() => this.flash(window.REGO.pushActive() ? 'Push aktiv ab ' + v + ' Min.' : 'Gespeichert. Push ist aus (Schalter oben).', null), () => { this.setState({ threshold: window.REGO.settings.pushThresholdMin }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
     }));
     const pushOn = window.REGO.pushActive();
+    const fb = window.REGO.feedback(), upd = window.REGO.updateHint();
     const saving = !!this._saving;
     // Commute time: when creating with a return trip two cards (outward, return), otherwise one
     const both = !editing && st.trip === 'both', R = window.REGO;
@@ -485,7 +488,9 @@ class Component extends DCLogic {
         this._claiming = true; this.setState({ confirmClaim: false });
         window.REGO.actions.claimTransfer(code).then((n) => { this._claiming = false; this.setState({ claim: '', list: this._fromRego() }); this.flash(n + ' Strecke(n) übernommen', null); }, (e) => { this._claiming = false; this.setState({}); this.flash(e && e.message ? e.message : 'Nicht möglich', null); });
       },
-      hasContact: !!window.REGO.contact, contact: window.REGO.contact || '', contactHref: /@/.test(window.REGO.contact || '') ? 'mailto:' + window.REGO.contact : (window.REGO.contact || '#'),
+      // Feedback: a mail with subject and device info, a link, or the GitHub form. With a mail address the address is shown as well, because not every phone has a mail app set up.
+      contactHref: fb.href, hasContact: fb.mail, contactNote: fb.mail ? 'Öffnet sich kein Mail-Programm? Dann schreib an ' + fb.shown + '.' : '',
+      hasUpdate: !!upd, updateHref: upd ? upd.url : '#', updateText: upd ? 'Es gibt eine neuere App-Version (' + upd.latest + ').' : '',
       pushChips, routes, days, empty: st.list.length === 0,
       sheet: !!st.sheet, handyOpen: !!st.handyOpen, handyClosed: !st.handyOpen,
       toastTop: st.sheet ? 'rg-toast-top' : '',

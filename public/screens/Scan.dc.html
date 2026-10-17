@@ -143,7 +143,7 @@ Zurück</a>
 </div>
 <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px">
 <button type="button" onClick="{{allowCam}}" style="width: 100%; min-height: 60px; background: #1C1A1A; color: #fff; border: 0; border-radius: 999px; font-size: 18px; font-weight: 700">Kamera erlauben</button>
-<button type="button" onClick="{{showPhoto}}" style="min-height: 44px; border: 0; background: transparent; font-size: 15px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Lieber ein Foto oder Screenshot wählen</button>
+<button type="button" onClick="{{showPhoto}}" style="min-height: 44px; border: 0; background: transparent; font-size: 15px; font-weight: 700; text-decoration: underline; color: #1C1A1A">Lieber ein Bild wählen</button>
 </div>
 </div>
 </sc-if>
@@ -171,8 +171,9 @@ Zurück</a>
 
 <sc-if value="{{isPhoto}}" hint-placeholder-val="{{ false }}">
 <div style="margin: 14px 20px 0; background: #FDF3DC; border-radius: 32px; padding: 24px 22px; display: flex; flex-direction: column; gap: 14px">
-<span style="font-size: 22px; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em">Foto oder Screenshot</span>
-<span style="font-size: 16px; font-weight: 500; line-height: 1.35; color: #1C1A1A">Wähle ein Bild mit dem Barcode, zum Beispiel einen Screenshot aus der Bahn-App oder der Wallet. Das Bild wird nur auf diesem Gerät gespeichert.</span>
+<span style="font-size: 22px; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em">Bild mit Barcode</span>
+<span style="font-size: 16px; font-weight: 500; line-height: 1.35; color: #1C1A1A">Wähle ein Bild, auf dem der Barcode deines Tickets gut zu sehen ist. ReGo liest den Code daraus und zeichnet ihn neu. Das Bild bleibt auf diesem Gerät.</span>
+<span style="font-size: 14px; font-weight: 600; line-height: 1.35; color: #4A4747">Ob das Kontrollpersonal einen Code aus ReGo akzeptiert, entscheidet es selbst. Halte im Zweifel dein Original-Ticket bereit.</span>
 <button type="button" onClick="{{pickFile}}" style="min-height: 60px; background: #1C1A1A; color: #fff; border: 0; border-radius: 999px; font-size: 18px; font-weight: 700">Bild auswählen</button>
 </div>
 </sc-if>
@@ -296,14 +297,14 @@ class Component extends DCLogic {
         } catch (e) {
           this._errs++;
           window.RLOG && RLOG('Scan-Fehler ' + (e && e.message));
-          if (this._errs >= 5) { this._stopCam(); this.setState({ perm: false, camError: 'Das Lesen der Kamerabilder klappt auf diesem Handy nicht. Wähle bitte ein Foto oder einen Screenshot.' }); }
+          if (this._errs >= 5) { this._stopCam(); this.setState({ perm: false, camError: 'Das Lesen der Kamerabilder klappt auf diesem Handy nicht. Wähle bitte stattdessen ein Bild mit dem Barcode.' }); }
         }
         this._busy = false;
       }, 250);
     } catch (e) {
       this._stopCam();
       const msg = e && e.message === 'secure' ? 'Die Kamera geht nur über eine sichere Verbindung (https).'
-        : e && e.name === 'NotAllowedError' ? 'Kamera ist nicht erlaubt. Du kannst es in den Browser-Einstellungen freigeben.' : 'Die Kamera lässt sich gerade nicht starten.';
+        : e && e.name === 'NotAllowedError' ? (window.RegoNative ? 'Kamera ist nicht erlaubt. Du kannst es in den Android-Einstellungen unter Apps › ReGo › Berechtigungen freigeben.' : 'Kamera ist nicht erlaubt. Du kannst es in den Browser-Einstellungen freigeben.') : 'Die Kamera lässt sich gerade nicht starten.';
       window.RLOG && RLOG('Kamera-Fehler ' + (e && (e.name || e.message)));
       this.setState({ perm: false, camError: msg });
     }

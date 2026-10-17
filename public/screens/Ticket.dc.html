@@ -147,6 +147,7 @@ Zurück</a>
 </div>
 <button type="button" onClick="{{removeTicket}}" style="min-height: 44px; margin: 0 0 8px; border: 0; background: transparent; font-size: 14px; font-weight: 600; color: #4A4747; text-decoration: underline">Ticket entfernen</button>
 </div>
+<div style="margin: 10px 24px 0; font-size: 13px; font-weight: 600; line-height: 1.35; color: #4A4747">Ob ein Code aus ReGo bei der Kontrolle gilt, entscheidet das Kontrollpersonal. Halte im Zweifel dein Original-Ticket bereit.</div>
 </sc-if>
 
 <sc-if value="{{noCard}}" hint-placeholder-val="{{ false }}">
@@ -175,7 +176,7 @@ Zurück</a>
 <button type="button" onClick="{{pickImport}}" style="min-height: 44px; padding: 0 4px; border: 0; background: transparent; font-size: 14px; font-weight: 700; color: #4A4747; text-decoration: underline">Tickets wiederherstellen</button>
 <input type="file" id="rg-tfile" accept="application/json,.json" onChange="{{onImport}}" style="display: none">
 </div>
-<div style="margin: 0 20px; font-size: 13px; font-weight: 600; line-height: 1.35; color: #4A4747">Deine Tickets liegen nur auf diesem Gerät. Wer die Browserdaten löscht, verliert sie. Die Sicherungsdatei bleibt bei dir.</div>
+<div style="margin: 0 20px; font-size: 13px; font-weight: 600; line-height: 1.35; color: #4A4747">{{dataNote}}</div>
 
 </div>
 
@@ -226,6 +227,8 @@ class Component extends DCLogic {
     const missing = sel === 'dt' || sel === 'kt' ? slots.find((x) => x[0] === sel)[1] : '';
     return {
       toast: this.state.toast, tabs, extras, hasExtras: extras.length > 0,
+      // In the app the tickets live in the app's data, in a browser in the browser data
+      dataNote: window.RegoNative ? 'Deine Tickets liegen nur auf diesem Handy. Wer ReGo deinstalliert oder die App-Daten löscht, verliert sie. Die Sicherungsdatei bleibt bei dir.' : 'Deine Tickets liegen nur auf diesem Gerät. Wer die Browserdaten löscht, verliert sie. Die Sicherungsdatei bleibt bei dir.',
       hasCard: !!cur, noCard: !cur, emptyTitle: 'Noch kein ' + missing,
       name: cur ? cur.name : '', valid: cur ? 'Gültig bis ' + cur.validUntil : '', expired: !!(cur && T.actions.ticketExpired(cur)),
       doExport: () => { const n = T.actions.exportTickets(); this.flash(n ? n + ' Ticket(s) gesichert' : 'Keine Tickets zum Sichern'); },

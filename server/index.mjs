@@ -8,6 +8,7 @@ import { randomInt } from 'node:crypto';
 import { createNotifier } from './notifier.mjs';
 import { createGuard } from './guard.mjs';
 import { berlin } from './lib/time.mjs';
+import { cleanVersion, isNewer } from './lib/version.mjs';
 import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, toStop, DEVICE_RE } from './store/profile.mjs';
 
 // Security headers for all responses. 'unsafe-eval'/'unsafe-inline' are needed by the screen loader (dc-lite), nothing else third-party.
@@ -67,11 +68,21 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
   };
   async function statusNow() {
     let devices = 0, pushes = 0, withToken = 0;
-    try { for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) { devices++; try { const sub = (await store.load(f.slice(0, -5))).push; if (sub) { pushes++; if (sub.fcm) withToken++; } } catch { /* skip damaged file */ } } } catch { /* no profiles yet */ }
+    const apps = {};                                              // app version -> number of devices
+    try {
+      for (const f of await readdir(join(cfg.dataDir, 'profiles'))) if (f.endsWith('.json')) {
+        devices++;
+        try {
+          const prof = await store.load(f.slice(0, -5)), sub = prof.push, app = cleanVersion(prof.app);
+          if (sub) { pushes++; if (sub.fcm) withToken++; }
+          if (app) apps[app] = (apps[app] || 0) + 1;
+        } catch { /* skip damaged file */ }
+      }
+    } catch { /* no profiles yet */ }
     const p = service.providers;
     const sources = [...(p?.efas || []), p?.db, p?.oebb].filter(Boolean).map((c) => ({ name: c.name || c.key || '?', ok: c.healthy ? c.healthy() !== false : null }));
     // instantPush: does the server know a valid Firebase key? pushWithToken: how many push subscriptions have a Firebase token from the phone? Numbers only, nothing personal.
-    return { version: await version(), provider: cfg.provider, uptimeMin: Math.round((now() - startedAt) / 60000), devices, pushSubscriptions: pushes, pushWithToken: withToken, instantPush: !!(await fcmP).enabled, sources, time: new Date(now()).toISOString() };
+    return { version: await version(), provider: cfg.provider, uptimeMin: Math.round((now() - startedAt) / 60000), devices, apps, pushSubscriptions: pushes, pushWithToken: withToken, instantPush: !!(await fcmP).enabled, sources, time: new Date(now()).toISOString() };
   }
 
   async function api(req, res, url) {
@@ -86,7 +97,13 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
       try { return send(res, 200, { stations: await service.searchStations(url.searchParams.get('q')) }); }
       catch (e) { return send(res, 502, { error: 'Haltestellensuche gerade nicht erreichbar', detail: e.message }); }
     }
-    if (path === '/api/state' && m === 'GET') return send(res, 200, await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') }));
+    if (path === '/api/state' && m === 'GET') {
+      const app = cleanVersion(url.searchParams.get('app'));                // the Android app tells its version (the browser version and older apps do not)
+      if (app) store.noteApp(dev, app).catch(() => {});
+      const state = await service.getState(dev, { lat: url.searchParams.get('lat'), lon: url.searchParams.get('lon') });
+      // contact: where feedback goes (only for known devices, not on the public status page); app: only if this app is older than the newest one
+      return send(res, 200, { ...state, contact: cfg.contact || '', ...(app && cfg.appLatest && isNewer(cfg.appLatest, app) ? { app: { latest: cfg.appLatest, url: `${cfg.appReleaseUrl}${cfg.appLatest}` } } : {}) });
+    }
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
     if (path === '/api/connections/search' && m === 'POST') {            // preview for "Mit 1 Umstieg suchen": is there anything, and what does it look like?

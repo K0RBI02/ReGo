@@ -29,7 +29,11 @@ small{color:var(--mut)}
 <script>
 fetch('/api/status').then(function (r) { return r.json(); }).then(function (s) {
   var row = function (a, b) { return '<div class="row"><span>' + a + '</span><span>' + b + '</span></div>'; };
-  document.getElementById('info').innerHTML = row('Version', s.version) + row('Datenquelle', s.provider) + row('Läuft seit', s.uptimeMin + ' Min.') + row('Geräte', s.devices) + row('Push-Abos', s.pushSubscriptions + (s.pushSubscriptions ? ' (' + s.pushWithToken + ' mit Firebase-Kennung)' : '')) + row('Sofort-Push', s.instantPush ? '<span class="ok">an</span>' : '<small>aus, Nachfrage alle ~15 Min.</small>');
+  // App versions the devices reported (newest first): "0.7.2 ×3 · 0.7.1 ×1"
+  var num = function (v) { return String(v).split('.').map(Number); };
+  var newer = function (a, b) { var x = num(a), y = num(b); for (var i = 0; i < 3; i++) if (x[i] !== y[i]) return y[i] - x[i]; return 0; };
+  var apps = Object.keys(s.apps || {}).sort(newer).map(function (v) { return String(v).replace(/[^0-9.]/g, '') + ' ×' + (Number(s.apps[v]) || 0); });
+  document.getElementById('info').innerHTML = row('Version', s.version) + row('Datenquelle', s.provider) + row('Läuft seit', s.uptimeMin + ' Min.') + row('Geräte', s.devices) + row('App-Versionen', apps.length ? apps.join(' · ') : '<small>noch keine gemeldet</small>') + row('Push-Abos', s.pushSubscriptions + (s.pushSubscriptions ? ' (' + s.pushWithToken + ' mit Firebase-Kennung)' : '')) + row('Sofort-Push', s.instantPush ? '<span class="ok">an</span>' : '<small>aus, Nachfrage alle ~15 Min.</small>');
   document.getElementById('src').innerHTML = s.sources.length ? s.sources.map(function (q) { return row(q.name, q.ok === null ? '<small>unbekannt</small>' : q.ok ? '<span class="ok">erreichbar</span>' : '<span class="bad">pausiert</span>'); }).join('') : '<small>Keine Quellen (Demo-Modus)</small>';
 }).catch(function () { document.getElementById('info').textContent = 'Status nicht abrufbar.'; });
 </script>

@@ -903,6 +903,113 @@ await check('Faster with 1 transfer in the UI', async () => {
   }
 });
 
+// Without real-time data from the source the app must not say "pünktlich" with a green check: "planmäßig", "Ohne Echtzeit" and a neutral look.
+await check('No real-time data', async () => {
+  const prof = (await j('/api/profile')).tours;
+  const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
+  const mk = (t, min, rt) => ({ line: { name: 'S 1', product: 'suburban' }, direction: t.to.name, origin: t.from, destination: t.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, rt, plannedArr: iso(min + 40), arr: iso(min + 40), arrDelay: 0, plannedPlatform: '2', platform: '2', stopovers: [], remarks: [] });
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }); await c.addInitScript(initFor(), [DEV]);
+  await c.route('**/api/state**', async (route) => {
+    const res = await route.fetch(); const body = await res.json();
+    const mine = new Set(prof.map((t) => t.id));
+    let incidents = body.incidents.filter((i) => !mine.has(i.tourId)); const tours = [];
+    for (const x of body.tours) {
+      const t = prof.find((q) => q.id === x.id);
+      if (!t) { tours.push(x); continue; }
+      const r = await buildTour(t, [mk(t, 25, false), mk(t, 40, true), mk(t, 55, true)].map((l) => ({ legs: [l] })), { now: Date.now(), minDelay: 3, linesAt: async () => [], lines: body.lines });
+      tours.push({ ...x, ...r.tour }); incidents = [...incidents, ...r.incidents];
+    }
+    body.tours = tours; body.incidents = incidents;
+    await route.fulfill({ response: res, json: body });
+  });
+  const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+  try {
+    await pg.goto(base + '/'); await pg.waitForTimeout(1600);
+    const hero = await pg.evaluate(() => { const a = document.querySelector('#screen a.rg-in'); return { text: a.innerText.replace(/\s+/g, ' '), bg: getComputedStyle(a).backgroundColor }; });
+    if (!/Ohne Echtzeit/.test(hero.text) || !/planmäßig/.test(hero.text) || !/Verspätungen unbekannt/.test(hero.text) || /pünktlich/i.test(hero.text)) problems.push(`No real-time data: main card words it wrong (${hero.text.slice(0, 140)})`);
+    if (hero.bg !== 'rgb(212, 237, 246)') problems.push(`No real-time data: main card should be neutral blue, it is ${hero.bg}`);
+    const rows = await pg.locator('a.rg-dep').evaluateAll((els) => els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' '), icon: (e.querySelector('svg path') || {}).getAttribute ? e.querySelector('svg path').getAttribute('d') : '' })));
+    if (rows.length < 2) { problems.push(`No real-time data: ${rows.length} departure rows`); return; }
+    if (!/planmäßig/.test(rows[0].text) || /pünktlich/.test(rows[0].text) || rows[0].icon.startsWith('M9 25')) problems.push(`No real-time data: first row says "pünktlich" or keeps the check mark (${rows[0].text})`);
+    if (!/pünktlich/.test(rows[1].text) || !rows[1].icon.startsWith('M9 25')) problems.push(`No real-time data: monitored second row changed (${rows[1].text})`);
+    await pg.locator('a.rg-dep').nth(0).click(); await pg.waitForTimeout(1300);
+    const dt = await pg.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/Ohne Echtzeit/.test(dt)) problems.push('No real-time data: detail page does not say "Ohne Echtzeit"');
+    if (await pg.locator('#screen [style*="background: rgb(234, 246, 207)"]').count()) problems.push('No real-time data: detail page still shows the green "all fine" card');
+    if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('No real-time data: page scrolls sideways');
+  } finally { await c.close(); }
+});
+
+// Ticket notes: no hint to use screenshots; the card says that the inspection staff decides, the photo page says what ReGo does with the image
+await check('Ticket notes', async () => {
+  const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [DEV]);
+  await c.addInitScript(() => { try { localStorage.setItem('rego.tickets', JSON.stringify([{ id: 'dt', slot: 'dt', name: 'Deutschlandticket', validUntil: '31.12.2099', image: 'data:image/png;base64,iVBORw0KGgo=', original: '', payload: '', format: '' }])); } catch (e) {} });
+  const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+  try {
+    await pg.goto(base + '/Ticket'); await pg.waitForTimeout(1300);
+    let t = await pg.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/Kontrollpersonal/.test(t) || !/Original-Ticket/.test(t)) problems.push('Ticket notes: the card does not say that the inspection staff decides');
+    if (!/Browserdaten/.test(t)) problems.push('Ticket notes: storage note lacks the browser wording (outside the app)');
+    await pg.goto(base + '/Scan'); await pg.waitForTimeout(1300);
+    await pg.getByRole('button', { name: 'Aus Foto' }).click(); await pg.waitForTimeout(500);
+    t = await pg.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/Bild mit Barcode/.test(t) || !/zeichnet ihn neu/.test(t) || !/Kontrollpersonal/.test(t)) problems.push('Ticket notes: photo page does not explain what ReGo does with the image');
+    if (/Screenshot/i.test(t)) problems.push('Ticket notes: photo page still recommends screenshots');
+    if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Ticket notes: page scrolls sideways');
+  } finally { await c.close(); }
+});
+
+// Update hint (the app tells its version, the server says there is a newer one) and the way to give feedback (mail with the address visible)
+await check('Update hint and feedback', async () => {
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await c.addInitScript(initFor(), [DEV]);
+  await c.addInitScript(() => { window.RegoNative = { appVersion: () => '0.7.2' }; });
+  const urls = [];
+  await c.route('**/api/state**', async (route) => {
+    urls.push(route.request().url());
+    const res = await route.fetch(); const body = await res.json();
+    body.contact = 'beta@example.org'; body.app = { latest: '0.9.0', url: 'https://github.com/K0RBI02/ReGo/releases/tag/app-v0.9.0' };
+    await route.fulfill({ response: res, json: body });
+  });
+  const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+  const barText = () => pg.locator('#screen').getByText('Neue App-Version 0.9.0');
+  try {
+    await pg.goto(base + '/'); await pg.waitForTimeout(1600);
+    if (!urls.some((u) => /[?&]app=0\.7\.2(&|$)/.test(u))) problems.push('Update hint: the app does not send its version with the state request');
+    if (!(await barText().count())) { problems.push('Update hint: no bar on the main screen'); return; }
+    if (!(await pg.locator('#screen a[href="https://github.com/K0RBI02/ReGo/releases/tag/app-v0.9.0"]').count())) problems.push('Update hint: bar has no link to the release');
+    if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Update hint: main screen scrolls sideways');
+    await pg.getByRole('button', { name: 'Hinweis schließen' }).click(); await pg.waitForTimeout(400);
+    if (await barText().count()) problems.push('Update hint: bar stays after closing it');
+    await pg.goto(base + '/'); await pg.waitForTimeout(1500);
+    if (await barText().count()) problems.push('Update hint: a closed bar comes back after reloading');
+    // Settings: the update stays reachable there, the feedback is a prepared mail and the address can be read
+    await pg.goto(base + '/Strecken'); await pg.waitForTimeout(1300);
+    await pg.getByRole('button', { name: /Einstellungen/ }).first().click(); await pg.waitForTimeout(500);
+    const dlg = pg.getByRole('dialog', { name: 'Einstellungen' });
+    if (!(await dlg.getByText(/neuere App-Version \(0\.9\.0\)/).count())) problems.push('Update hint: settings do not mention the newer version');
+    const mail = await dlg.locator('a[href^="mailto:beta@example.org?subject="]').getAttribute('href').catch(() => '');
+    if (!mail) problems.push('Feedback: the link is not a mail to the configured address');
+    else if (!/body=.*App%200\.7\.2/.test(mail)) problems.push('Feedback: the prepared mail does not name the app version');
+    if (!(await dlg.getByText(/schreib an beta@example\.org/).count())) problems.push('Feedback: the address is not shown as text');
+    if (!/App 0\.7\.2 · Server /.test(await dlg.innerText())) problems.push('Settings: version line lacks the app version');
+  } finally { await c.close(); }
+});
+
+// Feedback without a configured address (older server or none set): the GitHub form stays as the way out
+await check('Feedback without address', async () => {
+  const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [DEV]);
+  const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+  try {
+    await pg.goto(base + '/Strecken'); await pg.waitForTimeout(1300);
+    await pg.getByRole('button', { name: /Einstellungen/ }).first().click(); await pg.waitForTimeout(500);
+    const dlg = pg.getByRole('dialog', { name: 'Einstellungen' });
+    if (!(await dlg.locator('a[href^="https://github.com/K0RBI02/ReGo/issues/new"]').count())) problems.push('Feedback without address: GitHub form is missing');
+    if (await dlg.getByText(/Öffnet sich kein Mail-Programm/).count()) problems.push('Feedback without address: mail hint shown although there is no address');
+    if (await dlg.getByText(/neuere App-Version/).count()) problems.push('Feedback without address: update line shown without a newer version');
+  } finally { await c.close(); }
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, commute time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without direct connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, transfer trip on time / at risk / missed, faster with 1 transfer on replacement transport).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, commute time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without direct connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, transfer trip on time / at risk / missed, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');

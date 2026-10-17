@@ -13,8 +13,8 @@ import { lineLabel, lineColor } from '../lib/lines.mjs';
 import { cleanStopName } from '../providers/hafas.mjs';
 import { classifyRemark, extractMinutes, extractSegment } from './classify.mjs';
 import { sampleStops, shortName, findStation, buildMap } from './map.mjs';
-import { buildTour, tidyName, localIso, validityLabel, ticketHintFor, appLinkFor, andList, times, sub, okWord, PLATFORM_HORIZON, CANCEL_HORIZON } from './state.mjs';
-import { windowView, isFar } from './window.mjs';
+import { buildTour, tidyName, localIso, validityLabel, ticketHintFor, appLinkFor, andList, times, sub, okWord, okState, okView, PLATFORM_HORIZON, CANCEL_HORIZON } from './state.mjs';
+import { windowView } from './window.mjs';
 
 export const MAX_WAIT_MIN = 30;        // planned wait at the transfer; above it we do not show the trip (unless there would be nothing else)
 export const TIGHT_MIN = 3;            // less buffer than this: the connection is at risk
@@ -252,7 +252,9 @@ export async function buildTransferTour(tour, journeys, ctx) {
   const jump = (e) => { const i = shown.indexOf(e); return i >= 0 ? { departure: i } : {}; };
   const chipsOf = (e) => (e.kind === 'transfer' ? `${e.a.line.name} › ${(e.shownB || e.plan).line.name}` : e.a.line.name);
   const delayOf = (e) => Math.max(e.a.depDelay || 0, e.kind === 'transfer' ? Math.round((e.aArr - t(e.a.plannedArr)) / MIN) : (e.a.arrDelay || 0));
-  const badgeOf = (e) => (e.state === 'tight' ? 'wackelt' : e.state === 'missed' ? 'verpasst' : e.a.depDelay >= minDelay ? `+${e.a.depDelay} Min.` : okWord(e.a, now));
+  // With a transfer both trips need real-time data before we say "pünktlich"
+  const stOf = (e) => okState(now, e.a, ...(e.kind === 'transfer' ? [e.shownB || e.plan] : []));
+  const badgeOf = (e) => (e.state === 'tight' ? 'wackelt' : e.state === 'missed' ? 'verpasst' : e.a.depDelay >= minDelay ? `+${e.a.depDelay} Min.` : stOf(e).word);
   const arrOf = (e) => (e.kind === 'transfer' ? e.finalArr : t(e.a.arr));
   const thenCard = (e, title = 'Danach') => (e ? { title, line1: `${chipsOf(e)} ab ${hhmm(e.a.dep)}`, line2: arrOf(e) ? `An ${dest} ${hhmm(arrOf(e))}` : 'Kein Anschluss gefunden', badge: badgeOf(e), ...jump(e) } : null);
   const afterCard = (alt) => (alt ? { title: 'Nächster Anschluss', line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : okWord(alt, now) } : null);
@@ -354,7 +356,8 @@ export async function buildTransferTour(tour, journeys, ctx) {
     if (e.kind === 'direct') {
       const l = e.a, isLate = l.depDelay >= minDelay;
       const rows = [row(`Abfahrt ${nm(l.origin)}`, sub(l), hhmm(l.dep), hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : ''), row(`Ankunft ${dest}`, l.line.name, hhmm(l.arr), l.arrDelay ? hhmm(l.plannedArr) : '')];
-      return { kind: isLate ? 'delay' : 'ok', head: `${isLate ? 'Verspätung' : okWord(l, now) === 'planmäßig' ? 'Planmäßig' : 'Pünktlich'} · ${l.line.name} ab ${hhmm(l.dep)}`, big: isLate ? `+${l.depDelay} Min.` : okWord(l, now), sub: sub(l, false), rows, alternative: thenCard(nxt), ticketHint: hint, map: await buildMap(l, linesAt, { halo: isLate, registerLine }) };
+      const what = `${l.line.name} ab ${hhmm(l.dep)}`;
+      return { kind: isLate ? 'delay' : 'ok', ...(isLate ? { head: `Verspätung · ${what}`, big: `+${l.depDelay} Min.`, sub: sub(l, false) } : okView(stOf(e), what, sub(l, false))), rows, alternative: thenCard(nxt), ticketHint: hint, map: await buildMap(l, linesAt, { halo: isLate, registerLine }) };
     }
     const { a, plan, next, state } = e;
     const viaName = nm(a.destination), delay = delayOf(e), bShown = e.shownB || plan;
@@ -380,8 +383,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
       return { kind: 'delay', head: `Verspätung · ${plan.line.name} ab ${hhmm(plan.dep)}`, big: `+${plan.depDelay} Min.`, sub: `Umstieg ${viaName} · Ankunft ${hhmm(plan.arr)}`,
         ...base, alternative: thenCard(nxt), map: transferMap(e, { halo: 'hub' }) };
     }
-    const word = okWord(a, now);
-    return { kind: 'ok', head: `${word === 'planmäßig' ? 'Planmäßig' : 'Pünktlich'} · ${chipsOf(e)} ab ${hhmm(a.dep)}`, big: word, sub: `Ankunft ${dest} ${hhmm(bShown.arr)} · 1 Umstieg`,
+    return { kind: 'ok', ...okView(stOf(e), `${chipsOf(e)} ab ${hhmm(a.dep)}`, `Ankunft ${dest} ${hhmm(bShown.arr)} · 1 Umstieg`),
       ...base, alternative: thenCard(nxt), map: transferMap(e) };
   }
 
@@ -392,7 +394,8 @@ export async function buildTransferTour(tour, journeys, ctx) {
       plannedTime: hhmm(a.plannedDep), expectedTime: hhmm(a.dep), lineId: registerLine(a.line),
       plannedPlatform: a.plannedPlatform || '', expectedPlatform: a.platform || '', delayMin: a.depDelay,
       ...(berlin(t(a.dep)).date !== berlin(now).date ? { nextDay: true } : {}),
-      ...(isFar(t(a.dep), now) ? { far: true } : {}),
+      ...(stOf(e).plan ? { far: true } : {}),                 // "planmäßig" instead of "pünktlich" (far away, or no real-time data; older apps only know this flag)
+      ...(stOf(e).unconfirmed ? { noRt: true } : {}),         // near, but no real-time data: newer apps show it neutral
       ...(e.kind === 'transfer' ? {
         lineIds: [registerLine(a.line), registerLine((e.shownB || e.plan).line)],
         arrTime: e.finalArr ? hhmm(e.finalArr) : '',

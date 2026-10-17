@@ -338,7 +338,7 @@ class Component extends DCLogic {
         big: m.kind === 'delay' || m.kind === 'tight' ? '+' + m.delayMin + ' Min.' : m.kind === 'platform' || m.kind === 'missed' ? (m.view && m.view.big) || '' : (m.delayMin ? '+' + m.delayMin + ' Min.' : '')
       };
     });
-    const kindKey = view.kind || 'ok';
+    const kindKey = view.noRt ? 'none' : (view.kind || 'ok');      // the source has no real-time data: neutral instead of green
     const K = T.theme.kinds[kindKey];
     const M = view.map || { stations: [], connections: [], disrupted: null, alternative: null, haloIndex: -1, hubIndex: -1 };
 

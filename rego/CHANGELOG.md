@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.8.0 – Ready for testers
+
+**Honest status**
+- **No "pünktlich" without real-time data:** If a departure is close but its source has no real-time data for it, ReGo no longer says "pünktlich". The main screen and the details page say "Ohne Echtzeit · … planmäßig · Verspätungen unbekannt", in a neutral light-blue look with a small "i" instead of the green check. A known delay is always shown. With a transfer both trips need real-time data. Far-away departures still just say "planmäßig". Older apps show the same words but keep the green look.
+
+**Feedback**
+- **Feedback address:** The new add-on option `contact` takes an email address or a link. The app shows it in the settings at "Rückmeldung senden": the mail comes with a subject and the app and server version, and the address is written out below it for phones without a mail app. Without the option the GitHub form opens as before. The address is only delivered to known devices, it is not on the public status page.
+
+**App version**
+- **Update hint:** The app tells the server its version with every request for the current state. If a newer app exists, the main screen shows a bar "Neue App-Version …" (it can be closed) and the settings a line with the download. The server notes the last version per device, and the status page shows how many devices use which version.
+- Apps older than 0.8.0 do not report a version and get no hint: install this one by hand once.
+
+**Tickets**
+- The ticket safe says that the control staff decides whether a code from ReGo counts (keep the original ticket ready), and the note about where tickets live names the app data. Adding a ticket from a picture is worded "Bild mit Barcode".
+
+**Privacy**
+- `PRIVACY.md` lists the app version, the feedback address and the update link.
+
+**API**
+- `GET /api/state` accepts `?app=<version>` and returns `contact` (a string, may be empty) and, if that app is older than the newest one, `app: {latest, url}`. `GET /api/status` carries `apps: {version: count}`.
+- Departures that are close but have no real-time data carry `noRt: true` (and `far: true`, so older apps say "planmäßig"); their views carry `noRt: true` too.
+
+**Rebuild**
+- Looks and server changed: install the new APK (`app-v0.8.0`) and update the add-on.
+
 ## 0.7.4 – Gentler on the sources
 
 **Timetable sources**

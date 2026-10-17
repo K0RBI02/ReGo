@@ -30,7 +30,7 @@ const withoutLegacy = ({ pushWindow, ...rest }) => rest;
 export class ProfileStore {
   constructor(dir, now = () => Date.now(), { maxProfiles = 2000 } = {}) {
     this.dir = join(dir, 'profiles'); this.now = now; this.locks = new Map(); this.maxProfiles = maxProfiles;
-    this.known = null; this.seenAt = new Map();
+    this.known = null; this.seenAt = new Map(); this.appAt = new Map();
   }
 
   file(device) {
@@ -108,6 +108,18 @@ export class ProfileStore {
     if (this.seenAt.size > 5000) this.seenAt.delete(this.seenAt.keys().next().value);
     try { await stat(this.file(device)); } catch { return; }
     await this.update(device, (p) => { p.lastSeen = t; return p; });
+  }
+
+  /**
+   * Remember which app version a device runs (it tells with every state request), so the status page can count versions during a test phase.
+   * Does not create a profile; writes only when the version changed (at most one extra read per device and server run).
+   */
+  async noteApp(device, app) {
+    if (!app || this.appAt.get(device) === app) return;
+    try { await stat(this.file(device)); } catch { return; }         // no profile yet: try again with the next request
+    this.appAt.set(device, app);
+    if (this.appAt.size > 5000) this.appAt.delete(this.appAt.keys().next().value);
+    if ((await this.load(device)).app !== app) await this.update(device, (p) => { p.app = app; return p; });
   }
 
   /** Delete profiles that have not been seen for `days` days (and leftovers: half-written files, files set aside). Returns the number of deleted profiles. */

@@ -29,6 +29,9 @@
   // Route without a departure: the server delivers an exact view; an older server (or an old intermediate state) does not, then this one applies – never "pünktlich"
   const NONE_VIEW = { kind: 'none', head: 'Nächste Abfahrt', big: 'Keine', sub: 'Keine Abfahrten gefunden.', rows: [], alternative: null, ticketHint: null, map: null };
 
+  // Version of the Android app (only known inside the app); the browser version has none
+  const nativeApp = () => { try { return window.RegoNative && window.RegoNative.appVersion ? String(window.RegoNative.appVersion()) : ''; } catch (e) { return ''; } };
+
   const R = window.REGO = {
     schemaVersion: 1, theme: THEME, lines: linesProxy({}), tours: [], incidents: [],
     tickets: LS.get('rego.tickets', []), walletOffers: [],
@@ -36,7 +39,7 @@
     settings: { pushThresholdMin: 5, delayGraceMin: 10 },
     clock: nowParts(), stations: [], deviceId: device,
     invite: { needed: false, wrong: false },          // the server demands an invitation code (new devices)
-    info: { app: '', server: '' },
+    info: { app: nativeApp(), server: '' },
   };
   let stationCache = LS.get('rego.stations', []);     // [{id,name,region,lat,lon}]
   R.stations = stationCache;
@@ -63,15 +66,30 @@
   };
   /** Versions for the line in the settings (under "Strecken"): app (only known in the app) and server (public status request) */
   R.loadInfo = async function () {
-    let app = '';
-    try { app = window.RegoNative && window.RegoNative.appVersion ? String(window.RegoNative.appVersion()) : ''; } catch (e) {}
-    R.info.app = app;
+    R.info.app = nativeApp();
     try { const s = await api('/status'); R.info.server = String(s.version || ''); } catch (e) {}
     return R.info;
   };
 
   R.version = 'Beta';
-  R.contact = 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent('Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\nGerät: ' + (window.RegoNative ? 'Android-App' : 'Browser'));   // Contact address for feedback (mail or link); empty = notice without an address
+  // Where feedback goes: the server delivers the address it is configured with (email or link). Without one, the GitHub issue form is the way out.
+  // The address is kept on the device: it is needed most when the server is not reachable.
+  R.contact = String(LS.get('rego.contact', '') || '');
+  R.feedback = function () {
+    const body = 'Was ist passiert bzw. was wünschst du dir?\n\n\n\n---\n' + (R.info.app ? 'App ' + R.info.app : window.RegoNative ? 'Android-App' : 'Browser') + ' · Server ' + (R.info.server || '?');
+    const c = R.contact;
+    if (/^[^\s@]+@[^\s@]+$/.test(c)) return { href: 'mailto:' + c + '?subject=' + encodeURIComponent('ReGo Rückmeldung') + '&body=' + encodeURIComponent(body), shown: c, mail: true };
+    if (/^https?:\/\//i.test(c)) return { href: c, shown: c.replace(/^https?:\/\//i, '').replace(/\/$/, ''), mail: false };
+    return { href: 'https://github.com/K0RBI02/ReGo/issues/new?body=' + encodeURIComponent(body), shown: '', mail: false };
+  };
+
+  // Update hint: the server says which app version is the newest if this one is older. Shown as a bar on the main screen (can be closed for that version) and in the settings.
+  const vnum = (v) => String(v).split('.').map((x) => parseInt(x, 10) || 0);
+  const newer = (a, b) => { const x = vnum(a), y = vnum(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+  R.app = null;                                                  // { latest, url } from the last state
+  R.updateHint = () => (R.app && R.info.app && newer(R.app.latest, R.info.app) ? R.app : null);
+  R.updateBar = () => { const u = R.updateHint(); return u && LS.get('rego.updateSeen', '') !== u.latest ? u : null; };
+  R.dismissUpdate = () => { if (R.app) LS.set('rego.updateSeen', R.app.latest); };
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
@@ -144,6 +162,8 @@
       return o;
     });
     R.incidents = state.incidents || [];
+    if (typeof state.contact === 'string') { R.contact = state.contact; LS.set('rego.contact', state.contact); }      // an older server does not send it: keep what we had
+    R.app = state.app && /^\d+\.\d+\.\d+$/.test(String(state.app.latest)) ? { latest: String(state.app.latest), url: /^https:\/\//.test(String(state.app.url)) ? String(state.app.url) : 'https://github.com/K0RBI02/ReGo/releases' } : null;
     R.lines = linesProxy(state.lines || {}); R.settings = Object.assign({}, R.settings, state.settings || {});
     R.connection = { status, loading: false, lastSync };
   }
@@ -160,9 +180,10 @@
   async function refreshOnce() {
     R.clock = nowParts();
     try {
-      let q = '';
-      if (R.position) q = `?lat=${R.position.lat}&lon=${R.position.lon}`;
-      const state = await api(`/state${q}`);
+      const qs = [];
+      if (R.position) qs.push(`lat=${R.position.lat}`, `lon=${R.position.lon}`);
+      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(R.info.app)) qs.push(`app=${R.info.app}`);       // the server notes the app version (update hint, status page); a query parameter because of the allowed request headers (CORS)
+      const state = await api(`/state${qs.length ? '?' + qs.join('&') : ''}`);
       const t = nowParts().now;
       if (state.connection && state.connection.status === 'error') {
         const cached = readCache();
@@ -225,7 +246,7 @@
       R.tickets = R.tickets.filter((x) => x.id !== id && !(t.slot && x.slot === t.slot));
       const before = R.tickets.slice();
       R.tickets.push({ id, slot: t.slot || null, name: t.name, validUntil: t.validUntil, image: t.image, original: t.original || '', payload: t.payload || '', format: t.format || '' });
-      if (!LS.set('rego.tickets', R.tickets)) { R.tickets = before; throw new Error('Das Ticket konnte nicht gespeichert werden: Speicher voll oder gesperrt. Entferne ein altes Ticket oder gib dem Browser Speicherplatz.'); }
+      if (!LS.set('rego.tickets', R.tickets)) { R.tickets = before; throw new Error('Das Ticket konnte nicht gespeichert werden: Speicher voll oder gesperrt. Entferne ein altes Ticket oder schaffe Speicherplatz auf dem Gerät.'); }
     },
     /** Back up tickets as a file (stays on the device) and read them in again */
     exportTickets() {
