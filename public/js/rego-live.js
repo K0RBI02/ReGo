@@ -93,7 +93,7 @@
   R.banner = function () {
     const c = R.connection; let st = c.status;
     try { if (navigator.onLine === false) st = 'offline'; } catch (e) {}
-    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Keine aktuellen Daten' : 'Offline-Modus', offlineSince: c.lastSync, loading: !!c.loading };
+    return { offline: st === 'offline' || st === 'error', bannerLabel: st === 'error' ? 'Server offline' : 'Offline-Modus', offlineSince: c.lastSync, loading: !!c.loading };
   };
   R.isVisible = function (inc) {
     const now = new Date(`${R.clock.date}T${R.clock.now}`).getTime();
@@ -308,7 +308,7 @@
   // The track shows eight hours: 4 to 12 for the outward trip, 12 to 20 for the return trip (so the handles stay well apart even with a gap of one hour
   // and every step is easy to hit on a phone). If the period lies outside, the track grows long enough to fit it.
   const W = {
-    step: 15,                                          // minutes per step on the slider; more exact times are typed into the time fields
+    step: 30,                                          // minutes per step on the slider (half an hour); more exact times are typed into the time fields
     gap: 10,                                           // the shortest a period may be (as on the server)
     day: 24 * 60 - 1,
     out: { from: '07:00', until: '08:00' }, back: { from: '16:30', until: '17:30' },
@@ -366,7 +366,7 @@
         // Each slider reacts only up to the middle between the two handles
         fromClip: 'clip-path: inset(0 ' + at(1 - (frac(w, f) + frac(w, u)) / 2) + ' 0 0)', untilClip: 'clip-path: inset(0 0 0 ' + at((frac(w, f) + frac(w, u)) / 2) + ')',
         ticks, hasTicks: ticks.length > 0, ticksStyle: 'position: relative; height: 16px; margin-bottom: 4px',
-        // Slider: the handles cannot overtake each other; they snap to quarter hours, at least 10 minutes apart
+        // Slider: the handles cannot overtake each other; they snap to half hours, at least 10 minutes apart
         setFromRange: (e) => { const t = target(e); if (!t) return; const raw = +t.value; if (!isFinite(raw)) return; const top = w.lo + Math.floor((u - W.gap - w.lo) / W.step) * W.step; const nf = clampN(raw, w.lo, Math.max(w.lo, top)); if (+t.value !== nf) t.value = String(nf); keep(nf, u); },
         setUntilRange: (e) => { const t = target(e); if (!t) return; const raw = +t.value; if (!isFinite(raw)) return; const bottom = w.lo + Math.ceil((f + W.gap - w.lo) / W.step) * W.step; const nu = clampN(raw, Math.min(w.hi, bottom), w.hi); if (+t.value !== nu) t.value = String(nu); keep(f, nu); },
         // Typing a time: moves the other end along if it is in the way (the length stays)

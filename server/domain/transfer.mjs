@@ -102,7 +102,7 @@ const hasReplacement = (leg, now) => (leg.remarks || []).some((r) => classifyRem
  * If a trip has replacement transport and therefore arrives later, there is sometimes a connection with one transfer that is earlier at the destination.
  * The one with the earliest arrival among the safe ones is chosen: connection with at least TIGHT_MIN minutes of buffer, nothing cancelled,
  * no replacement transport on the two trips, still reachable (not before now) and at most 30 min after the trip with replacement transport.
- * The gain must be at least SHORTCUT_MIN_SAVING minutes. Plain direct trips in the list do not count (the incident names those as "Nächste Verbindung", next connection).
+ * The gain must be at least SHORTCUT_MIN_SAVING minutes. Plain direct trips in the list do not count (the incident already shows those as "Ohne Ersatzverkehr", without replacement transport).
  * @param journeys connections with at most one transfer
  * @param o        { now, depart (ms: departure of the trip with replacement transport), arrive (ms: its arrival with replacement transport) }
  * @returns card for the incident { title, line1, line2, line3, badge, saved, via } or null
@@ -270,8 +270,9 @@ export async function buildTransferTour(tour, journeys, ctx) {
   const row = (label, sub2, value, planned = '', extra = {}) => ({ label, sub: sub2, value, planned, ...extra });
   const rowsA = (e, arrSub) => {
     const a = e.a, viaName = nm(a.destination);
-    const rows = [row(`Abfahrt ${nm(a.origin)}`, sub(a), hhmm(a.dep), hhmm(a.plannedDep) !== hhmm(a.dep) ? hhmm(a.plannedDep) : '')];
-    if (platformChanged(a)) rows.push(row('Gleiswechsel', `jetzt Gleis ${a.platform}, sonst Gleis ${a.plannedPlatform}`, `Gl. ${a.platform}`, `Gl. ${a.plannedPlatform}`));
+    const rows = [];
+    if (platformChanged(a)) rows.push(row('Gleiswechsel', `jetzt Gleis ${a.platform}, sonst Gleis ${a.plannedPlatform}`, `Gl. ${a.platform}`, `Gl. ${a.plannedPlatform}`));      // before the departure it belongs to
+    rows.push(row(`Abfahrt ${nm(a.origin)}`, sub(a), hhmm(a.dep), hhmm(a.plannedDep) !== hhmm(a.dep) ? hhmm(a.plannedDep) : ''));
     rows.push(row(`Ankunft ${viaName}`, arrSub || `${a.line.name}${a.arrPlatform ? ` · Gleis ${a.arrPlatform}` : ''}`, hhmm(e.aArr), hhmm(e.aArr) !== hhmm(a.plannedArr) ? hhmm(a.plannedArr) : ''));
     return rows;
   };
@@ -280,13 +281,15 @@ export async function buildTransferTour(tour, journeys, ctx) {
     if (e.state === 'missed') {
       const n = e.next;
       if (!n) return [row(`Abfahrt ${viaName}`, e.cancelledB ? `${plan.line.name} · fällt aus` : `${plan.line.name} · schon weg`, e.cancelledB ? 'entfällt' : 'verpasst', hhmm(plan.plannedDep))];
-      const rows = [row(`Abfahrt ${viaName}`, sub(n), hhmm(n.dep), hhmm(plan.plannedDep), { plannedLabel: 'statt' })];
+      const rows = [];
       if (platformChanged(n)) rows.push(row('Gleiswechsel', `jetzt Gleis ${n.platform}, sonst Gleis ${n.plannedPlatform}`, `Gl. ${n.platform}`, `Gl. ${n.plannedPlatform}`));
+      rows.push(row(`Abfahrt ${viaName}`, sub(n), hhmm(n.dep), hhmm(plan.plannedDep), { plannedLabel: 'statt' }));
       rows.push(row(`Ankunft ${dest}`, n.line.name, hhmm(n.arr), hhmm(plan.plannedArr), { plannedLabel: 'statt' }));
       return rows;
     }
-    const rows = [row(`Abfahrt ${viaName}`, sub(plan), hhmm(plan.dep), hhmm(plan.plannedDep) !== hhmm(plan.dep) ? hhmm(plan.plannedDep) : '')];
+    const rows = [];
     if (platformChanged(plan)) rows.push(row('Gleiswechsel', `jetzt Gleis ${plan.platform}, sonst Gleis ${plan.plannedPlatform}`, `Gl. ${plan.platform}`, `Gl. ${plan.plannedPlatform}`));
+    rows.push(row(`Abfahrt ${viaName}`, sub(plan), hhmm(plan.dep), hhmm(plan.plannedDep) !== hhmm(plan.dep) ? hhmm(plan.plannedDep) : ''));
     rows.push(row(`Ankunft ${dest}`, plan.line.name, hhmm(plan.arr), plan.arrDelay ? hhmm(plan.plannedArr) : ''));
     return rows;
   };
@@ -424,9 +427,9 @@ export async function buildTransferTour(tour, journeys, ctx) {
       summary: `${many ? 'Fahrten' : 'Fahrt'} um ${andList(times(group.map((l) => hhmm(l.plannedDep))))} ${many ? 'fallen' : 'fällt'} aus`,
       view: {
         kind: 'cancelled', head: `Ausfall · ${c.line.name} ab ${hhmm(c.plannedDep)}`, big: 'Fällt aus',
-        sub: alt ? `Nächste Fahrt ${chipsOf(alt)} ab ${hhmm(alt.a.dep)}` : 'Keine weitere Fahrt in den nächsten Stunden',
+        sub: alt ? `Stattdessen: ${chipsOf(alt)} ab ${hhmm(alt.a.dep)}` : 'Keine weitere Fahrt in den nächsten Stunden',
         rows: [row(`Abfahrt ${nm(c.origin)}`, sub(c), 'entfällt', hhmm(c.plannedDep)), row(`Ankunft ${nm(c.destination)}`, c.line.name, 'entfällt', hhmm(c.plannedArr))],
-        alternative: alt ? { ...thenCard(alt, 'Nächste Verbindung') } : null, ticketHint: hint,
+        alternative: alt ? { ...thenCard(alt, 'Stattdessen') } : null, ticketHint: hint,
         map: await buildMap(c, linesAt, { segment: [c.origin.name, c.destination.name], registerLine }),
       },
     });
@@ -479,8 +482,8 @@ export async function buildTransferTour(tour, journeys, ctx) {
         summary: r.summary || (kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'),
         view: {
           kind, head: `${kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${label}`,
-          big: delay ? `+${delay} Min.` : 'Hinweis', sub: `${leg.line.name} ${where}${suffix}`,
-          rows: sections.flatMap((s) => s.rows || []), sections, alternative: alt ? thenCard(alt) : null, ticketHint: hint,
+          big: delay ? `+${delay} Min.` : 'Hinweis', sub: kind === 'replacement' ? `Statt ${leg.line.name} fährt Ersatzverkehr · ${where}${suffix}` : `${leg.line.name} ${where}${suffix}`,
+          rows: sections.flatMap((s) => s.rows || []), sections, alternative: alt ? thenCard(alt, kind === 'replacement' ? 'Ohne Ersatzverkehr' : 'Danach') : null, ticketHint: hint,
           map: transferMap(e, { segment: seg }),
         },
       });

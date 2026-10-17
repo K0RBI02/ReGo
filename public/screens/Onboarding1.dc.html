@@ -75,14 +75,8 @@ a:active,button:active{transform:scale(.97)}
 </div>
 </div>
 
-<div style="margin: 10px 24px 0; padding: 4px; background: #fff; border-radius: 999px; display: flex; gap: 4px">
-<sc-for list="{{tripOpts}}" as="o" hint-placeholder-count="2">
-<button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button>
-</sc-for>
-</div>
-
 <div style="margin: 10px 24px 0; display: flex; flex-direction: column; gap: 8px">
-<sc-for list="{{wins}}" as="w" hint-placeholder-count="2">
+<sc-for list="{{wins}}" as="w" hint-placeholder-count="1">
 <div class="rg-win {{w.tone}}" style="{{w.cardStyle}}">
 <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px">
 <span style="font-size: 13px; font-weight: 600; color: #4A4747">{{w.title}}</span>
@@ -112,7 +106,7 @@ a:active,button:active{transform:scale(.97)}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { from: '', to: '', trip: 'both', focus: '', out: window.REGO.win.fresh('out'), back: window.REGO.win.fresh('back') }; }
+  constructor(props) { super(props); this.state = { from: '', to: '', focus: '', out: window.REGO.win.fresh('out') }; }
   renderVals() {
     const T = window.REGO, st = this.state;
     const val = (e) => (e && e.target ? e.target.value : '');
@@ -123,18 +117,12 @@ class Component extends DCLogic {
       pick: () => this.setState({ [st.focus]: q.name, focus: '' })
     })) : [];
     const typed = (st.from.trim() !== '' && !okFrom) || (st.to.trim() !== '' && !okTo);
-    window.REGO_pending = ok ? { from: st.from, to: st.to, trip: st.trip, time: st.out.from, until: st.out.until, backTime: st.back.from, backUntil: st.back.until } : null;
-    // Commute time: when you set off (with round trip also for the return trip)
-    const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: st.trip === 'both' ? 'Hinweg · Abfahrt' : 'Abfahrt', tone: 'w', compact: true })]
-      .concat(st.trip === 'both' ? [T.win.view(st.back, (w) => this.setState({ back: w }), { title: 'Rückweg · Abfahrt', tone: 'w', compact: true })] : []);
+    window.REGO_pending = ok ? { from: st.from, to: st.to, trip: 'one', time: st.out.from, until: st.out.until } : null;
+    // Travel time window: from when to when you set off (the return trip is added later through "Strecke hinzufügen")
+    const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: 'Dein Reisezeitfenster', tone: 'w', compact: true })];
     return {
       wins, from: st.from, to: st.to, sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
       setFrom: (e) => this.setState({ from: val(e), focus: 'from' }), setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
-      tripOpts: [['one', 'Nur Hinweg'], ['both', 'Hin und zurück']].map((o) => ({
-        label: o[1], on: st.trip === o[0],
-        style: 'flex: 1; min-height: 46px; border: 0; border-radius: 999px; font-size: 16px; font-weight: 700; ' + (st.trip === o[0] ? 'background: #1C1A1A; color: #fff' : 'background: transparent; color: #1C1A1A'),
-        pick: () => this.setState({ trip: o[0] })
-      })),
       hint: ok ? 'Du kannst alles später\nim Menü ändern.'.replace('\n', ' ') : (typed ? 'Bitte wähle eine\nHaltestelle aus.'.replace('\n', ' ') : 'Ohne Strecke kann ReGo nichts zeigen.'),
       next: ok ? 'Onboarding2.dc.html' : '#', notReady: !ok,
       ctaStyle: 'width: 180px; min-height: 64px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; ' + (ok ? 'background: #1C1A1A; color: #fff' : 'background: rgba(28,26,26,0.25); color: rgba(255,255,255,0.8)')

@@ -29,7 +29,7 @@ test('Cancellation: one incident per line, with all cancelled trips and the next
   assert.equal(i.kind, 'cancelled'); assert.equal(i.count, 2); assert.equal(i.lineName, 'RE 5'); assert.equal(i.severity, 3);
   assert.equal(i.summary, 'Fahrten um 07:20 und 07:40 fallen aus');
   assert.equal(i.view.kind, 'cancelled'); assert.equal(i.view.big, 'Fällt aus');
-  assert.match(i.view.sub, /Nächste Fahrt RE 5 ab 08:00 · Gleis 7/);
+  assert.match(i.view.sub, /Stattdessen: RE 5 ab 08:00 · Gleis 7/);
   assert.deepEqual(i.view.rows.map((x) => x.value), ['entfällt', 'entfällt']);
   assert.equal(i.view.alternative.line1, 'RE 5 ab 08:00 · Gleis 7');
   // the route's departures only show what really runs
@@ -98,7 +98,7 @@ test('Replacement transport and construction: the date appears only once in the 
   const r = await buildTour(tour, J(leg(at('07:20'), { remarks: [remark] }), leg(at('08:20'))), ctx());
   const i = r.incidents.find((x) => x.kind === 'replacement');
   assert.match(i.view.head, /bis Sa 17\.10\./); assert.doesNotMatch(i.view.sub, /bis|\d\d\.\d\d\./);
-  assert.equal(i.view.sub, 'RE 5 München Hbf → Salzburg Hbf');
+  assert.equal(i.view.sub, 'Statt RE 5 fährt Ersatzverkehr · München Hbf → Salzburg Hbf');
 });
 
 test('Colors: every incident kind has a color that dark mode knows; server and app agree', async () => {

@@ -141,7 +141,7 @@ test('Replacement transport on the feeder: the connection stays reachable, the i
   assert.equal(r.incidents.length, 1);
   const i = r.incidents[0];
   assert.equal(i.kind, 'replacement'); assert.equal(i.lineName, 'S1'); assert.equal(i.delayMin, 4);
-  assert.equal(i.view.sub, 'S1 Moosach → München Hbf · Anschluss bleibt erreichbar');
+  assert.equal(i.view.sub, 'Statt S1 fährt Ersatzverkehr · Moosach → München Hbf · Anschluss bleibt erreichbar');
   assert.ok(i.view.map.disrupted && i.view.map.disrupted.to === i.view.map.hubIndex);        // the disrupted section ends at the transfer station
   // if the extra time is no longer enough: connection at risk/missed (bus 25 min later)
   const longRemark = { ...bus, text: bus.text.replace('ca. 4 Minuten', 'ca. 25 Minuten') };

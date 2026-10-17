@@ -134,7 +134,6 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <path d="{{t0.d}}" fill="none" stroke="url(#tg0)" stroke-width="7" stroke-linecap="round"></path>
 <path d="{{t1.d}}" fill="none" stroke="url(#tg1)" stroke-width="7" stroke-linecap="round"></path>
 <path d="{{t2.d}}" fill="none" stroke="url(#tg2)" stroke-width="7" stroke-linecap="round"></path>
-<path d="{{xHaloD}}" fill="{{haloFill}}" stroke="#1C1A1A" stroke-width="2" stroke-dasharray="4 4"></path>
 <path d="{{leg1D}}" fill="none" stroke="{{leg1C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{leg2D}}" fill="none" stroke="{{leg2C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{mainD}}" fill="none" stroke="#0B6B3F" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -142,9 +141,9 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <path d="{{skipD}}" fill="#8C8C8C"></path>
 <path d="{{connD}}" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round"></path>
 <path d="{{altD}}" fill="none" stroke="#8ED3E8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
-<path d="{{haloD}}" fill="#FDE3CF" stroke="#1C1A1A" stroke-width="2" stroke-dasharray="4 4"></path>
 <path d="{{smallD}}" fill="#fff" stroke="#1C1A1A" stroke-width="3.5"></path>
 <path d="{{bigD}}" fill="#fff" stroke="#1C1A1A" stroke-width="4.5"></path>
+<path d="{{hotD}}" fill="{{hotFill}}" stroke="#1C1A1A" stroke-width="4.5"></path>
 </svg>
 <span style="{{l0.s}}">{{l0.t}}</span>
 <span style="{{l1.s}}">{{l1.t}}</span>
@@ -192,7 +191,7 @@ Zurück</a>
 <span style="{{bigStyle}}">{{big}}</span>
 <span style="font-size: 15px; font-weight: 600; line-height: 1.3">{{sub}}</span>
 </div>
-<svg width="56" height="56" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{icon1}}" fill="#fff"></path><path d="{{icon2}}" stroke-width="3"></path></svg>
+<svg width="72" height="72" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="{{icon1}}" fill="#fff"></path><path d="{{icon2}}" stroke-width="3"></path></svg>
 </div>
 
 <sc-if value="{{plainRows}}" hint-placeholder-val="{{ true }}">
@@ -228,7 +227,7 @@ Zurück</a>
 <span style="font-size: 17px; font-weight: 700; line-height: 1.2">{{s.title}}</span>
 <span style="font-size: 15px; font-weight: 600">{{s.text}}</span>
 </div>
-<span style="font-size: 30px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{s.minutes}}</span>
+<span style="font-size: 36px; font-weight: 700; letter-spacing: -0.04em; white-space: nowrap">{{s.minutes}}</span>
 </div>
 </sc-if>
 </sc-for>
@@ -372,7 +371,7 @@ class Component extends DCLogic {
       return d;
     };
 
-    let mainD = '', disD = '', haloD = '', xHaloD = '', leg1D = '', leg2D = '', skipD = '', connD = '';
+    let mainD = '', disD = '', leg1D = '', leg2D = '', skipD = '', connD = '';
     let pDep = none, pArr = none, pX = none;
     const skipLabels = [];
     if (n > 1) {
@@ -392,7 +391,8 @@ class Component extends DCLogic {
         if (b < n - 1) mainD += pl(seg(b, n - 1));
       } else mainD = pl(seg(0, n - 1));
     }
-    if (M.haloIndex >= 0 && st[M.haloIndex]) { if (X) xHaloD = circ([st[M.haloIndex].x, Y], 23); else haloD = circ([st[M.haloIndex].x, Y], 21); }
+    // The spot the message is about (transfer, platform change): a larger dot in the color of the message, without a dashed ring
+    const hot = M.haloIndex >= 0 && st[M.haloIndex] ? M.haloIndex : -1;
     if (X && st[M.hubIndex]) {
       const pill = (bg, fg) => 'white-space: nowrap; background: ' + bg + '; color: ' + fg + '; border: 2px solid #1C1A1A; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1';
       const hx = st[M.hubIndex].x, tr = X.transfer || {}, tm = X.times || {}, label = tr.label || '';
@@ -417,17 +417,18 @@ class Component extends DCLogic {
       mapLabel: X && st[M.hubIndex] ? 'Schematische Netzkarte: ' + st[0].name + ', Umstieg in ' + st[M.hubIndex].name + ', weiter nach ' + st[n - 1].name : 'Schematische Netzkarte',
       more,
       mapBg: kindKey === 'ok' ? '#DCEFB8' : '#EEF1F2',
-      mainD, disD, haloD, altD, chip,
-      xHaloD, haloFill: kindKey === 'missed' ? '#F9D6D2' : '#FDE3CF', skipD, connD, skipLabels, pDep, pArr, pX,
+      mainD, disD, altD, chip,
+      hotFill: K.bg, skipD, connD, skipLabels, pDep, pArr, pX,
       leg1D, leg1C: X ? (T.lines[X.legs[0].lineId] || {}).color || '#5B5B58' : '#5B5B58',
       leg2D, leg2C: X ? (T.lines[X.legs[1].lineId] || {}).color || '#5B5B58' : '#5B5B58',
-      smallD: st.filter((q) => !q.big).map((q) => circ([q.x, Y], 8)).join(''),
-      bigD: st.filter((q) => q.big).map((q) => circ([q.x, Y], 11)).join('')
+      smallD: st.filter((q, i) => !q.big && i !== hot).map((q) => circ([q.x, Y], 8)).join(''),
+      bigD: st.filter((q, i) => q.big && i !== hot).map((q) => circ([q.x, Y], 11)).join(''),
+      hotD: hot >= 0 ? circ([st[hot].x, Y], 14) : ''
     };
     for (let i = 0; i < 7; i++) {
       const q = st[i];
       const room = q ? Math.round(Math.max(40, Math.min(150, (W - q.x - 20) * 1.41))) + 'px' : '0px';      // long names end with "…" instead of running over the edge
-      out['l' + i] = q ? { t: q.name, s: 'position: absolute; left: ' + (q.x + 6) + 'px; top: ' + (Y - 24) + 'px; transform-origin: 0 50%; transform: rotate(-45deg); white-space: nowrap; max-width: ' + room + '; overflow: hidden; text-overflow: ellipsis; font-size: ' + (q.big ? 15 : 14) + 'px; font-weight: 700; line-height: 1.15' } : none;
+      out['l' + i] = q ? { t: q.name, s: 'position: absolute; left: ' + (q.x + (i === hot ? 9 : 6)) + 'px; top: ' + (Y - 24) + 'px; transform-origin: 0 50%; transform: rotate(-45deg); white-space: nowrap; max-width: ' + room + '; overflow: hidden; text-overflow: ellipsis; font-size: ' + (q.big ? 15 : 14) + 'px; font-weight: 700; line-height: 1.15' } : none;
       out['b' + i] = { x: 0, y: 0, w: 0, h: 0 };
       out['c' + i] = none;
     }
@@ -463,8 +464,8 @@ class Component extends DCLogic {
     };
     out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px';
     out.head = view.head; out.big = view.big; out.sub = view.sub;
-    // Big line at most 48 px, but such that the check mark next to it stays (room = width − 2 × 20 − 2 × 20 − 56 − 8)
-    out.bigStyle = 'font-size: ' + Math.max(34, Math.min(48, Math.floor((W - 144) / (0.5 * Math.max(1, String(view.big || '').length))))) + 'px; line-height: 1.04; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap';
+    // Big line at most 48 px, but such that the icon next to it stays (room = width − 2 × 20 − 2 × 20 − 72 − 8; one character is up to 0.55 em wide). 8 px of air above and below, because this line is the most important one on the card.
+    out.bigStyle = 'font-size: ' + Math.max(34, Math.min(48, Math.floor((W - 160) / (0.55 * Math.max(1, String(view.big || '').length))))) + 'px; line-height: 1.04; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap; margin: 8px 0';
     out.icon1 = K.icon[0]; out.icon2 = K.icon[1];
     out.rows = (view.rows || []).map((r) => Object.assign({}, r, { planned: r.planned ? (r.plannedLabel || 'geplant') + ' ' + r.planned : '' }));
     // Trip with a transfer: first trip, transfer card, second trip (the server delivers the sections; without them the simple list stays)

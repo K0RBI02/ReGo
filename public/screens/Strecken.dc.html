@@ -171,9 +171,8 @@ Zurück</a>
 </span>
 </span>
 </div>
-<div style="width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px 8px 0">
-<button type="button" role="switch" aria-checked="{{r.on}}" aria-label="{{r.label}}" onClick="{{r.toggle}}" style="{{r.switchStyle}}"><span style="{{r.knobStyle}}"></span></button>
-<span style="font-size: 14px; font-weight: 700">{{r.state}}</span>
+<div style="width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 22px 12px 8px 0">
+<button type="button" role="switch" aria-checked="{{r.on}}" aria-label="{{r.label}}" onClick="{{r.toggle}}" style="{{r.switchStyle}}"><span style="{{r.stateStyle}}">{{r.state}}</span><span style="{{r.knobStyle}}"></span></button>
 </div>
 </div>
 </sc-for>
@@ -289,15 +288,17 @@ Strecke hinzufügen</button>
 <sc-if value="{{sheet}}" hint-placeholder-val="{{ false }}">
 <div class="rg-scrim" onClick="{{closeSheet}}" aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 40; background: rgba(0, 0, 0, 0.38)"></div>
 <div class="rg-sheet" role="dialog" aria-modal="true" aria-label="Einstellungen" tabindex="-1" data-sheet onKeydown="{{sheetKey}}" style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 90%; overflow-y: auto; box-sizing: border-box; background: #fff; color: #1C1A1A; border-top: 1.5px solid #E8E8E8; border-radius: 32px 32px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.12); padding: 0 20px 20px; display: flex; flex-direction: column; outline: none">
+<div onPointerDown="{{sheetGrab}}" style="touch-action: none">
 <div style="display: flex; justify-content: center; padding: 10px 0 4px"><span style="width: 40px; height: 5px; border-radius: 3px; background: #D9D9D9"></span></div>
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 8px">
 <h2 style="margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em">Einstellungen</h2>
 <button type="button" data-sheet-close aria-label="Schließen" onClick="{{closeSheet}}" style="flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 50%; background: #F3F3F3; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
+</div>
 
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border-top: 1.5px solid #ECECEC">
 <span style="font-size: 17px; font-weight: 700">Push-Meldungen</span>
-<button type="button" role="switch" aria-checked="{{pushOn}}" aria-label="Push-Meldungen" onClick="{{togglePush}}" style="{{pushStyle}}"><span style="{{pushKnob}}"></span></button>
+<button type="button" role="switch" aria-checked="{{pushOn}}" aria-label="Push-Meldungen" onClick="{{togglePush}}" style="{{pushStyle}}"><span style="{{pushText}}">{{pushState}}</span><span style="{{pushKnob}}"></span></button>
 </div>
 <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 0 14px; border-top: 1.5px solid #ECECEC">
 <span style="font-size: 17px; font-weight: 700">Push ab Verspätung von</span>
@@ -399,6 +400,38 @@ class Component extends DCLogic {
     else { this._pushed = false; try { if (location.hash) history.replaceState(null, '', location.pathname); } catch (e) {} }
     const o = document.querySelector('#screen [data-sheet-open]'); if (o) o.focus({ preventScroll: true });
   }
+  // The settings sheet can be pulled down with the finger at the handle or the title row (a second way to close, next to the cross): it follows the finger,
+  // past a third of its height or with a quick swipe it slides away, otherwise it snaps back.
+  grabSheet(e) {
+    try {
+      if (!e || (e.button != null && e.button > 0)) return;
+      const t = e.target;
+      if (t && t.closest && t.closest('button')) return;      // the cross stays an ordinary button
+      const sheet = t && t.closest ? t.closest('[data-sheet]') : null;
+      if (!sheet) return;
+      const scrim = sheet.previousElementSibling, y0 = e.clientY, t0 = Date.now(), h = sheet.offsetHeight || 400;
+      let dy = 0, done = false;
+      sheet.style.animation = 'none'; sheet.style.transition = 'none';      // the opening animation would hold the transform
+      if (scrim && scrim.style) { scrim.style.animation = 'none'; scrim.style.transition = 'none'; }
+      const move = (m) => {
+        if (done) return;
+        dy = Math.max(0, m.clientY - y0);
+        sheet.style.animation = 'none'; sheet.style.transition = 'none';      // a redraw of the page in between would bring the animation back
+        sheet.style.transform = 'translateY(' + dy + 'px)';
+        if (scrim && scrim.style) { scrim.style.animation = 'none'; scrim.style.opacity = String(Math.max(0, 1 - dy / h)); }
+      };
+      const end = () => {
+        if (done) return;
+        done = true;
+        document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end);
+        const gone = dy > h * 0.3 || (dy > 24 && Date.now() - t0 < 280);
+        sheet.style.transition = 'transform .2s ' + (gone ? 'ease-in' : 'ease-out'); sheet.style.transform = gone ? 'translateY(100%)' : '';
+        if (scrim && scrim.style) { scrim.style.transition = 'opacity .2s'; scrim.style.opacity = gone ? '0' : ''; }
+        if (gone) setTimeout(() => this.closeSheet(), 190);
+      };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+    } catch (err) {}
+  }
   onHash(h) {
     const want = /^#einstellungen\b/.test(h || '');
     if (want === !!this.state.sheet || this.state.adding) return;
@@ -414,6 +447,10 @@ class Component extends DCLogic {
     const st = this.state;
     const names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     const chipCss = (c) => 'min-width: 36px; height: 34px; padding: 0 10px; border-radius: 17px; background: ' + c + '; color: #fff; display: inline-grid; place-items: center; font-size: 15px; font-weight: 700; box-sizing: border-box';
+    // Switch: the state sits inside the switch, on the larger free area next to the knob (on: text left, knob right; off: knob left, text right)
+    const sw = (on) => 'flex: none; width: 84px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; flex-direction: ' + (on ? 'row' : 'row-reverse') + '; align-items: center; background: ' + (on ? '#1C1A1A' : '#DCDCDC') + '; color: ' + (on ? '#fff' : '#4A4747');
+    const swText = 'flex: 1; text-align: center; font-size: 14px; font-weight: 700; line-height: 1; pointer-events: none';
+    const swKnob = 'flex: none; width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff';
     const routes = st.list.map((d, i) => ({
       when: d.when, name: d.name, note: d.on ? d.note || '' : d.noteOff || '',
       noteStyle: (d.on ? d.note : d.noteOff) ? 'font-size: 14px; font-weight: 600; line-height: 1.3; color: #4A4747' : 'display: none',
@@ -423,8 +460,7 @@ class Component extends DCLogic {
       label: 'Warnungen für ' + d.name,
       removeLabel: d.name + ' entfernen', editLabel: d.name + ' ändern',
       edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, err: '', errCode: '', xroute: null, out: window.REGO.win.of(t.schedule.departAfter, t.schedule.departUntil), days: names.map((n) => t.schedule.days.includes(n)) }); },
-      switchStyle: 'width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (d.on ? 'flex-end' : 'flex-start') + '; background: ' + (d.on ? '#1C1A1A' : '#DCDCDC'),
-      knobStyle: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
+      switchStyle: sw(d.on), stateStyle: swText, knobStyle: swKnob,
       toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
       remove: () => { this.setState({ list: st.list.filter((x, j) => j !== i) }); this.flash('Strecke entfernt', st.list); window.REGO.actions.removeTour(d.id).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
     }));
@@ -457,9 +493,8 @@ class Component extends DCLogic {
     const both = !editing && st.trip === 'both', R = window.REGO;
     const wins = [R.win.view(st.out, (w) => this.setState({ out: w }), { title: both ? 'Hinweg · Abfahrt zwischen' : 'Abfahrt zwischen', tone: 'w' })]
       .concat(both ? [R.win.view(st.back, (w) => this.setState({ back: w }), { title: 'Rückweg · Abfahrt zwischen', tone: 'o' })] : []);
-    const sw = (on) => 'flex: none; width: 72px; height: 44px; border: 0; border-radius: 22px; padding: 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: ' + (on ? 'flex-end' : 'flex-start') + '; background: ' + (on ? '#1C1A1A' : '#DCDCDC');
     return {
-      pushOn, pushStyle: sw(pushOn), pushKnob: 'width: 36px; height: 36px; border-radius: 50%; display: block; background: #fff',
+      pushOn, pushStyle: sw(pushOn), pushText: swText, pushState: pushOn ? 'An' : 'Aus', pushKnob: swKnob,
       togglePush: () => {
         if (this._pushBusy) return; this._pushBusy = true;
         const R = window.REGO, on = R.pushActive(), done = () => { this._pushBusy = false; this.setState({}); };
@@ -494,7 +529,7 @@ class Component extends DCLogic {
       pushChips, routes, days, empty: st.list.length === 0,
       sheet: !!st.sheet, handyOpen: !!st.handyOpen, handyClosed: !st.handyOpen,
       toastTop: st.sheet ? 'rg-toast-top' : '',
-      openSheet: () => this.openSheet(), closeSheet: () => this.closeSheet(),
+      openSheet: () => this.openSheet(), closeSheet: () => this.closeSheet(), sheetGrab: (e) => this.grabSheet(e),
       toggleHandy: () => this.setState({ handyOpen: !st.handyOpen }),
       sheetKey: (e) => { if (e && e.key === 'Escape') { e.stopPropagation(); this.closeSheet(); } },
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,

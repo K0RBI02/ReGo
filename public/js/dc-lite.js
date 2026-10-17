@@ -1,8 +1,8 @@
 /* dc-lite – a small runtime that runs the ReGo screens (*.dc.html from the design) unchanged in the browser.
- * Supports exactly what the screens use: {{path}}, <sc-if value>, <sc-for list as>, onClick/onInput,
+ * Supports exactly what the screens use: {{path}}, <sc-if value>, <sc-for list as>, onClick/onInput/onPointerDown (see EVENTS),
  * class Component extends DCLogic { constructor, state, setState, renderVals }. */
 (function () {
-  const EVENTS = ['onclick', 'oninput', 'onchange', 'onkeydown', 'onfocus', 'onblur'];
+  const EVENTS = ['onclick', 'oninput', 'onchange', 'onkeydown', 'onfocus', 'onblur', 'onpointerdown'];
   const HOLE = /\{\{\s*([^}]*?)\s*\}\}/g;
 
   class DCLogic {

@@ -158,12 +158,12 @@ export async function buildTour(tour, journeys, ctx) {
       title: `${c.line.name} ${c.origin.name} → ${c.destination.name}`, summary,
       view: {
         kind: 'cancelled', head: `Ausfall · ${c.line.name} ab ${hhmm(c.plannedDep)}`, big: 'Fällt aus',
-        sub: alt ? `Nächste Fahrt ${altLine1}` : 'Keine weitere Fahrt in den nächsten Stunden',
+        sub: alt ? `Stattdessen: ${altLine1}` : 'Keine weitere Fahrt in den nächsten Stunden',
         rows: [
           { label: `Abfahrt ${c.origin.name}`, sub: sub(c), value: 'entfällt', planned: hhmm(c.plannedDep) },
           { label: `Ankunft ${dest}`, sub: c.line.name, value: 'entfällt', planned: hhmm(c.plannedArr) },
         ],
-        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : okWord(alt, now), ...jump(alt) } : null,
+        alternative: alt ? { title: `Stattdessen · ${productName(alt.line.product)}`, line1: altLine1, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.depDelay >= minDelay ? `+${alt.depDelay} Min.` : okWord(alt, now), ...jump(alt) } : null,
         ticketHint: hint, map,
       },
     });
@@ -177,8 +177,9 @@ export async function buildTour(tour, journeys, ctx) {
   for (let k = 0; k < out.departures.length; k++) {
     const l = legs[k], nxt = after(l), isLate = l.depDelay >= minDelay;
     const platformChg = l.plannedPlatform && l.platform && l.plannedPlatform !== l.platform;
-    const rows = [{ label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' }];
-    if (platformChg) rows.push({ label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` });
+    const rows = [];
+    if (platformChg) rows.push({ label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` });      // before the departure it belongs to
+    rows.push({ label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' });
     rows.push({ label: `Ankunft ${dest}`, sub: l.line.name, value: hhmm(l.arr), planned: l.arrDelay ? hhmm(l.plannedArr) : '' });
     const kmap = await buildMap(l, linesAt, { halo: isLate, registerLine });
     const what = `${l.line.name} ab ${hhmm(l.dep)}`;
@@ -219,12 +220,12 @@ export async function buildTour(tour, journeys, ctx) {
       summary: r.summary || (kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'),
       view: {
         kind, head: `${kind === 'replacement' ? 'Ersatzverkehr' : 'Baustelle'} · ${label}`,
-        big: delay ? `+${delay} Min.` : 'Hinweis', sub: `${leg.line.name} ${leg.origin.name} → ${leg.destination.name}`,
+        big: delay ? `+${delay} Min.` : 'Hinweis', sub: kind === 'replacement' ? `Statt ${leg.line.name} fährt Ersatzverkehr · ${leg.origin.name} → ${leg.destination.name}` : `${leg.line.name} ${leg.origin.name} → ${leg.destination.name}`,
         rows: [
           { label: `Abfahrt ${leg.origin.name}`, sub: sub(leg), value: hhmm(leg.dep), planned: hhmm(leg.plannedDep) !== hhmm(leg.dep) ? hhmm(leg.plannedDep) : '' },
           { label: `Ankunft ${dest}`, sub: `${leg.line.name} · ${r.summary || 'Hinweis'}`, value: arrExpected, planned: delay ? arrPlanned : '' },
         ],
-        alternative: alt ? { title: `Nächste Verbindung · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : okWord(alt, now), ...jump(alt) } : null,
+        alternative: alt ? { title: `${kind === 'replacement' ? 'Ohne Ersatzverkehr' : 'Nächste Verbindung'} · ${productName(alt.line.product)}`, line1: `${alt.line.name} ab ${hhmm(alt.dep)}${alt.platform ? ` · Gleis ${alt.platform}` : ''}`, line2: `An ${dest} ${hhmm(alt.arr)}`, badge: alt.arrDelay ? `+${alt.arrDelay} Min.` : okWord(alt, now), ...jump(alt) } : null,
         ...(shortcut ? { shortcut } : {}),
         ticketHint: hint, map,
       },
@@ -239,8 +240,9 @@ export async function buildTour(tour, journeys, ctx) {
     const reason = late.remarks.find((r) => classifyRemark(r) === 'other')?.summary;
     const summary = platformChanged ? `Gleiswechsel Gl. ${late.plannedPlatform} → Gl. ${late.platform}` : reason || `${late.depDelay} Min. später`;
     const until = Date.parse(late.dep);
-    const rows = [{ label: `Abfahrt ${late.origin.name}`, sub: sub(late), value: hhmm(late.dep), planned: hhmm(late.plannedDep) }];
+    const rows = [];
     if (platformChanged) rows.push({ label: 'Gleiswechsel', sub: `jetzt Gleis ${late.platform}, sonst Gleis ${late.plannedPlatform}`, value: `Gl. ${late.platform}`, planned: `Gl. ${late.plannedPlatform}` });
+    rows.push({ label: `Abfahrt ${late.origin.name}`, sub: sub(late), value: hhmm(late.dep), planned: hhmm(late.plannedDep) });
     rows.push({ label: `Ankunft ${dest}`, sub: late.line.name, value: hhmm(late.arr), planned: hhmm(late.plannedArr) });
     const map = await buildMap(late, linesAt, { halo: true, registerLine });
     incidents.push({
@@ -262,8 +264,8 @@ export async function buildTour(tour, journeys, ctx) {
     if (l === late || !(l.plannedPlatform && l.platform && l.plannedPlatform !== l.platform) || Date.parse(l.dep) > now + PLATFORM_HORIZON) continue;
     platforms++;
     const rows = [
-      { label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' },
       { label: 'Gleiswechsel', sub: `jetzt Gleis ${l.platform}, sonst Gleis ${l.plannedPlatform}`, value: `Gl. ${l.platform}`, planned: `Gl. ${l.plannedPlatform}` },
+      { label: `Abfahrt ${l.origin.name}`, sub: sub(l), value: hhmm(l.dep), planned: hhmm(l.plannedDep) !== hhmm(l.dep) ? hhmm(l.plannedDep) : '' },
       { label: `Ankunft ${dest}`, sub: l.line.name, value: hhmm(l.arr), planned: l.arrDelay ? hhmm(l.plannedArr) : '' },
     ];
     const map = await buildMap(l, linesAt, { registerLine });

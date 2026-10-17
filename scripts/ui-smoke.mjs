@@ -83,7 +83,7 @@ await check('Double tap', async () => {
   if (!outward || outward.schedule.departUntil !== '06:30') problems.push(`Double tap: outward trip does not have the typed commute time 05:30–06:30 (${outward ? outward.schedule.departAfter + '–' + outward.schedule.departUntil : 'missing'})`);
 });
 
-// Commute time (0.7.2): two sliders per direction (outward 04–12, return 12–20, in quarter hours), also operable by keyboard and with typed times.
+// Commute time (0.7.2): two sliders per direction (outward 04–12, return 12–20, in half hours since 0.8.5), also operable by keyboard and with typed times.
 // The handles do not overtake each other (at least 10 minutes apart); when changing a route the commute time is saved and shown in the list.
 await check('Commute time', async () => {
   const slider = (name) => page.getByRole('slider', { name });
@@ -93,31 +93,31 @@ await check('Commute time', async () => {
   const expect = async (label, got, want) => { const g = await got; if (g !== want) problems.push(`Commute time: ${label}: "${g}" instead of "${want}"`); };
   await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
   await page.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await page.waitForTimeout(400);
-  await expect('sliders in the new form (min/max/step/value)', dims(), '240/720/15/420 240/720/15/480 720/1200/15/990 720/1200/15/1050');
+  await expect('sliders in the new form (min/max/step/value)', dims(), '240/720/30/420 240/720/30/480 720/1200/30/990 720/1200/30/1050');
   await expect('times in the new form', Promise.all([0, 1, 2, 3].map(read)).then((a) => a.join(' ')), '07:00 08:00 16:30 17:30');
-  // Keyboard: two quarter hours earlier; it goes no further than shortly before the end
+  // Keyboard: two half hours earlier; it goes no further than shortly before the end
   await press(slider('Hinweg: Früheste Abfahrt'), 'ArrowLeft', 2);
-  await expect('earliest departure after pressing ← twice', read(0), '06:30');
+  await expect('earliest departure after pressing ← twice', read(0), '06:00');
   await press(slider('Hinweg: Früheste Abfahrt'), 'ArrowRight', 30);
-  await expect('earliest departure at the limit', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '07:45 08:00');
+  await expect('earliest departure at the limit', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '07:30 08:00');
   await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowLeft', 30);
   await expect('latest departure does not pass the start', read(1), '08:00');
-  await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowRight', 4);
-  await expect('latest departure after pressing → four times', read(1), '09:00');
+  await press(slider('Hinweg: Späteste Abfahrt'), 'ArrowRight', 2);
+  await expect('latest departure after pressing → twice', read(1), '09:00');
   // Typing a time: if the start lies beyond the end, the end moves along (the length stays); an end after 12:00 widens the slider
   await page.locator('input[type=time]').nth(0).fill('10:00');
-  await expect('a start beyond the end moves the end along', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '10:00 11:15');
+  await expect('a start beyond the end moves the end along', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '10:00 11:30');
   await page.locator('input[type=time]').nth(1).fill('13:00');
-  await expect('sliders after typing the end 13:00', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/780/15/600 240/780/15/780');
+  await expect('sliders after typing the end 13:00', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/780/30/600 240/780/30/780');
   await page.locator('input[type=time]').nth(1).fill('09:00');
   await expect('an end before the start moves the start along', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '06:00 09:00');
-  await expect('sliders return to 04–12 after shortening', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/720/15/360 240/720/15/540');
-  // Return trip: own range from 12:00, a quarter hour earlier
+  await expect('sliders return to 04–12 after shortening', dims().then((d) => d.split(' ').slice(0, 2).join(' ')), '240/720/30/360 240/720/30/540');
+  // Return trip: own range from 12:00, a half hour earlier
   await press(slider('Rückweg: Früheste Abfahrt'), 'ArrowLeft', 1);
-  await expect('return trip earliest departure', read(2), '16:15');
+  await expect('return trip earliest departure', read(2), '16:00');
   if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Commute time: form scrolls sideways');
   await page.getByRole('button', { name: 'Abbrechen' }).click(); await page.waitForTimeout(400);
-  // Change route (own route with its own time so the order of the list does not matter): one card; end a quarter hour later, save, server and list have it
+  // Change route (own route with its own time so the order of the list does not matter): one card; end a half hour later, save, server and list have it
   const ing = (await j('/api/stations?q=Ingolstadt')).stations[0];
   const mine = (await j('/api/tours', 'POST', { from: mu, to: ing, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '05:00', departUntil: '06:00' } })).tours[0];
   try {
@@ -126,12 +126,12 @@ await check('Commute time', async () => {
     if ((await page.locator('input[type=range]').count()) !== 2) problems.push('Commute time: changing a route does not show exactly two sliders');
     await expect('times when changing', Promise.all([read(0), read(1)]).then((a) => a.join(' ')), '05:00 06:00');
     await press(slider('Späteste Abfahrt'), 'ArrowRight', 1);
-    await expect('latest departure when changing', read(1), '06:15');
+    await expect('latest departure when changing', read(1), '06:30');
     await page.getByRole('button', { name: 'Speichern' }).click(); await page.waitForTimeout(900);
     const sch = (await j('/api/profile')).tours.find((t) => t.id === mine.id).schedule;
-    if (sch.departAfter !== '05:00' || sch.departUntil !== '06:15') problems.push(`Commute time: saved ${sch.departAfter}–${sch.departUntil} instead of 05:00–06:15`);
+    if (sch.departAfter !== '05:00' || sch.departUntil !== '06:30') problems.push(`Commute time: saved ${sch.departAfter}–${sch.departUntil} instead of 05:00–06:30`);
     const list = await page.evaluate(() => document.querySelector('#screen').innerText);
-    if (!list.includes('Mo–Fr · 05:00–06:15')) problems.push('Commute time: route list does not show "Mo–Fr · 05:00–06:15"');
+    if (!list.includes('Mo–Fr · 05:00–06:30')) problems.push('Commute time: route list does not show "Mo–Fr · 05:00–06:30"');
   } finally { await fetch(base + '/api/tours/' + mine.id, { method: 'DELETE', headers: H }); }
 });
 
@@ -590,14 +590,14 @@ await check('Cancellation in the UI', async () => {
     let t = await page.evaluate(() => document.querySelector('#screen').innerText);
     if (!/Fällt aus/.test(t)) problems.push('Cancellation: main screen does not show "Fällt aus"');
     if (!(await beside(page, '#screen a.rg-in'))) problems.push('Cancellation: check mark slips below "Fällt aus" on the main screen');
-    if (!/Ausfall · S ?1 ab/.test(t) || !/Nächste Fahrt/.test(t)) problems.push('Cancellation: main screen does not name the cancelled trip or the next trip');
+    if (!/Ausfall · S ?1 ab/.test(t) || !/Stattdessen/.test(t)) problems.push('Cancellation: main screen does not name the cancelled trip or the next trip');
     await page.goto(base + '/Meldungen'); await page.waitForTimeout(1400);
     t = await page.evaluate(() => document.querySelector('#screen').innerText);
     if (!/Ausfall/.test(t)) problems.push('Cancellation: no card under "Meldungen"');
     if (!/Fahrten um \d\d:\d\d und \d\d:\d\d fallen aus/.test(t)) problems.push('Cancellation: card under "Meldungen" does not name the cancelled trips');
     await page.locator('a[href^="Detail.dc.html#"]').filter({ hasText: 'Ausfall' }).first().click(); await page.waitForTimeout(1400);
     t = await page.evaluate(() => document.querySelector('#screen').innerText);
-    if (!/entfällt/.test(t) || !/Nächste Fahrt/.test(t)) problems.push('Cancellation: route page does not show "entfällt" or the next trip');
+    if (!/entfällt/.test(t) || !/Stattdessen/.test(t)) problems.push('Cancellation: route page does not show "entfällt" or the next trip');
     if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Cancellation: route page scrolls sideways');
   } finally { await page.unroute('**/api/state**'); }
 });
@@ -639,7 +639,7 @@ await check('Hero line and "Danach"', async () => {
         // Page of the first departure: "Danach" is a link to the second, there to the third; the third has no link any more (fourth trip without detail page)
         await pg.locator('a.rg-dep').nth(0).click(); await pg.waitForTimeout(1200);
         const danach = () => pg.locator('a[href^="Detail.dc.html#"]').filter({ hasText: 'Danach' });
-        if (!(await beside(pg, null, '#screen svg[width="56"]'))) problems.push('Detail page: check mark slips below the hero line');
+        if (!(await beside(pg, null, '#screen svg[width="72"]'))) problems.push('Detail page: check mark slips below the hero line');
         if ((await danach().count()) !== 1) { problems.push('Danach: on the page of the first departure "Danach" is not a link'); continue; }
         await danach().click(); await pg.waitForTimeout(1200);
         if (!/\.1-m$/.test(pg.url()) && !/\.1-m/.test(await pg.evaluate(() => location.hash))) problems.push(`Danach: leads to ${pg.url()} instead of the second departure`);

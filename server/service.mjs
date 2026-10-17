@@ -38,7 +38,7 @@ export function createService({ config, store, now = () => Date.now(), providers
   const XFER_RESULTS = 8;                                      // connections with a transfer: request a few more so that enough remain per feeder after merging
   const IDLE_TTL_SEC = config.ttl.idle ?? 600;                 // background check (push): a route that cannot push at the moment is refreshed only this often
   const KEEP_GOOD_SEC = config.keepGoodSec ?? 600;             // an answer without any trip right after a good one: the good one counts for this long
-  const BANNER_AFTER_SEC = config.staleBannerSec ?? 300;       // "Keine aktuellen Daten" only when a route shows data at least this old
+  const BANNER_AFTER_SEC = config.staleBannerSec ?? 300;       // "Server offline" only when a route shows data at least this old
 
   // A source can answer with nothing although it showed trips a moment ago: EFA first calculates a few candidate trips and only then drops the ones
   // with too many transfers, so on a day of closures its answers differ from minute to minute. For KEEP_GOOD_SEC the trips of the last good answer
@@ -201,7 +201,7 @@ export function createService({ config, store, now = () => Date.now(), providers
           DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         journeys = r.value; hadData = true;
         // Older data from the cache: the route says so itself. The banner over all screens only comes when the data is really old
-        // (a refresh that failed once leaves data that is a minute old, which is no reason to say "Keine aktuellen Daten")
+        // (a refresh that failed once leaves data that is a minute old, which is no reason to say "Server offline")
         if (r.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r.at); if (t - r.at > BANNER_AFTER_SEC * 1000) served++; }
       } catch (err) {
         failed++; stale = true; tourStale = true; staleNote = noteOf(err);
@@ -230,7 +230,7 @@ export function createService({ config, store, now = () => Date.now(), providers
     return {
       schemaVersion: SCHEMA_VERSION,
       clock: { date: b.date, now: b.time },
-      // "error" (the app says "Keine aktuellen Daten") when nothing could be loaded or data that is really old (BANNER_AFTER_SEC) is shown as if it were
+      // "error" (the app says "Server offline") when nothing could be loaded or data that is really old (BANNER_AFTER_SEC) is shown as if it were
       // current. Routes without any data (e.g. one source is closed) say so themselves; they do not put the banner on top of the routes that are fine.
       connection: { status: allFailed || served ? 'error' : 'ok', loading: false, lastSync: hhmm(stale ? oldest : t) },
       settings: profile.settings,

@@ -276,7 +276,7 @@ test('Run-through: a source asks for a day of peace – no request for hours, th
       assert.equal(d.stale, true); assert.equal(d.view.big, 'Keine Daten');
       assert.equal(d.view.sub, 'MoBY lässt gerade keine Abfragen zu. ReGo fragt später wieder an.');       // the reason, not "the source does not answer"
     }
-    assert.equal(s.connection.status, 'ok');                                 // two dead routes do not turn the whole screen into "Keine aktuellen Daten"
+    assert.equal(s.connection.status, 'ok');                                 // two dead routes do not turn the whole screen into "Server offline"
     assert.ok(moby >= 1 && moby <= 2); const first = moby;
     assert.equal(lines.filter((l) => /moby: zu viele Anfragen \(HTTP 429, Retry-After 86400 s, „This endpoint is not an open data endpoint\. Please contact the portal owner“\) – Pause 24 Std\./.test(l)).length, 1);
     assert.equal(lines.filter((l) => /Abruf fehlgeschlagen/.test(l)).length, 0);      // not a line per route and minute

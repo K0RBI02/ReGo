@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.5 – Calmer screens
+
+**Main screen**
+- The "Stand" time next to the app name is gone. When you are offline, the bar at the top already shows it.
+- The hint about a new app version is now a bar at the very top, like the offline bar, instead of a pill under the title.
+- The big line (for example "+6 Min.") has more air above and below. With "planmäßig" the icon now stays next to the text instead of slipping below it.
+- "Strecke hinzufügen" on the empty main screen opens the form right away.
+- The bar for old data now says "Server offline" instead of "Keine aktuellen Daten".
+
+**Detail page**
+- The icon and the minutes of a transfer are bigger, and the big line has more air as well.
+- On the map, the spot a message is about (transfer, platform change) is a larger filled dot in the color of the message instead of a dashed ring.
+- A platform change now comes before the departure it belongs to.
+- A cancellation says "Stattdessen: …" for the next trip, so it no longer looks like the cancelled one. With replacement transport the text says "Statt RE 5 fährt Ersatzverkehr …", and the alternative is called "Ohne Ersatzverkehr".
+
+**Routes**
+- The state sits inside the switch ("An" / "Aus"), on the larger area, and the switch moved up a little. The same goes for the push switch in the settings.
+- The settings sheet can also be pulled down with the finger (at the handle or the title); the cross stays.
+- The commute time sliders move in half hours (before: quarter hours). Exact times are still typed into the time fields.
+
+**Setup**
+- Step 1 asks for one "Dein Reisezeitfenster" and creates the outward route; the return trip is added later through "Strecke hinzufügen".
+- Step 2 offers "Deutschlandticket", "KlimaTicket" and "Anderes Ticket". A tap opens "Ticket hinzufügen" with the type already chosen; after saving, the setup goes on with step 3.
+- Step 3 has only the big "Los geht's" button.
+
+**Rebuild**
+- Looks and server changed: install the new APK (`app-v0.8.5`) and update the add-on.
+
 ## 0.8.4 – Connections during closures
 
 **Routes with a transfer**

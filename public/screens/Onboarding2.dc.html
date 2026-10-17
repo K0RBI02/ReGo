@@ -47,7 +47,7 @@ a:active,button:active{transform:scale(.97)}
 
 <div style="margin: 14px 24px 0; display: flex; flex-direction: column; gap: 8px">
 <sc-for list="{{options}}" as="o" hint-placeholder-count="3">
-<button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button>
+<a href="{{o.href}}" style="{{o.style}}">{{o.label}}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M9 5l7 7-7 7"></path></svg></a>
 </sc-for>
 </div>
 
@@ -59,13 +59,12 @@ a:active,button:active{transform:scale(.97)}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { sel: 0 }; }
+  constructor(props) { super(props); this.state = {}; }
   renderVals() {
-    const labels = ['Deutschlandticket', 'KlimaTicket', 'Später hinzufügen'];
-    const options = labels.map((l, i) => ({
-      label: l, on: this.state.sel === i,
-      style: 'min-height: 54px; border: 0; border-radius: 27px; font-size: 18px; font-weight: 700; text-align: left; padding: 0 22px; ' + (this.state.sel === i ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
-      pick: () => this.setState({ sel: i })
+    // One tap opens "Ticket hinzufügen" right away (type already chosen). After saving, the setup goes on with step 3; "Zurück" leads back here.
+    const options = [['dt', 'Deutschlandticket'], ['kt', 'KlimaTicket'], ['other', 'Anderes Ticket']].map((o) => ({
+      label: o[1], href: 'Scan.dc.html#einrichtung-' + o[0],
+      style: 'min-height: 54px; border: 0; border-radius: 27px; font-size: 18px; font-weight: 700; padding: 0 18px 0 22px; display: flex; align-items: center; justify-content: space-between; background: #fff; color: #1C1A1A'
     }));
     return { options };
   }

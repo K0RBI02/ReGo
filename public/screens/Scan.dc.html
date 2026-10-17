@@ -117,12 +117,14 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 </sc-if>
 
 <header style="padding: 16px 12px 0 20px; display: flex; align-items: center; justify-content: space-between">
-<a href="Ticket.dc.html" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
+<a href="{{backHref}}" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
 Zurück</a>
+<sc-if value="{{showMenu}}" hint-placeholder-val="{{ true }}">
 <a href="Strecken.dc.html" aria-label="Menü" style="width: 52px; height: 52px; display: grid; place-items: center">
 <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#1C1A1A" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 9h22M5 16h22M5 23h22"></path></svg>
 </a>
+</sc-if>
 </header>
 
 <h1 style="margin: 12px 20px 0; font-size: 44px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em">Ticket<br>hinzufügen</h1>
@@ -208,7 +210,11 @@ Zurück</a>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { mode: 'scan', perm: false, camHint: 'Barcode in den Rahmen halten', camError: '', found: null, type: 'dt', name: 'Deutschlandticket', valid: '', info: '', diag: '', last: '' };
+    // Opened from the setup (step 2 "Dein Ticket") with #einrichtung-<dt|kt|other>: the type is already chosen, "Zurück" leads back into the setup,
+    // and after saving the setup goes on with step 3.
+    const m = /^#einrichtung(?:-(dt|kt|other))?$/.exec(location.hash || ''), type = m && m[1] ? m[1] : 'dt';
+    this.setup = !!m;
+    this.state = { mode: 'scan', perm: false, camHint: 'Barcode in den Rahmen halten', camError: '', found: null, type, name: type === 'kt' ? 'KlimaTicket' : type === 'other' ? '' : 'Deutschlandticket', valid: '', info: '', diag: '', last: '' };
     this.state.diag = 'Stand ' + ((window.RegoCode && window.RegoCode.build) || '?') + ' · Eigener Leser: QR, Aztec';
   }
   onDestroy() { window.RLOG && RLOG('Scan onDestroy'); this._stopCam(); }
@@ -346,6 +352,7 @@ class Component extends DCLogic {
     const val = (e) => (e && e.target ? e.target.value : '');
     const found = !!st.found;
     return {
+      backHref: this.setup ? 'Onboarding2.dc.html' : 'Ticket.dc.html', showMenu: !this.setup,
       noFound: !found, hasFound: found, foundImg: found ? (st.found.code || st.found.image) : '', info: st.info, hasInfo: !!(found && st.info),
       isScan: m === 'scan', isWallet: m === 'photo', isPhoto: m === 'photo' && !found,
       askCam: m === 'scan' && !st.perm && !st.camError && !found, showCam: m === 'scan' && st.perm && !found,
@@ -366,7 +373,7 @@ class Component extends DCLogic {
         const [y, mo, d] = st.valid.split('-');
         try { window.REGO.actions.saveTicket({ slot: st.type === 'other' ? null : st.type, name: st.name.trim(), validUntil: d + '.' + mo + '.' + y, image: st.found.code || st.found.image, original: st.found.code ? st.found.image : '', payload: st.found.raw, format: st.found.fmt }); }
         catch (e) { this.setState({ info: e.message }); return; }
-        window.REGO.navigate('/Ticket#neu');
+        window.REGO.navigate(this.setup ? '/Onboarding3' : '/Ticket#neu');
       }
     };
   }
