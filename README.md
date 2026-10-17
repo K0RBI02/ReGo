@@ -23,7 +23,7 @@ The interface is German; labels in quotes are shown as in the app.
 
 - Portrait only, fixed text size: the interface does not follow Android’s font size, otherwise parts would shift.
 - Shortcuts: long-press the app icon for “Ticket anzeigen”, “Meldungen” and “Neue Strecke”.
-- Routes with one transfer: if two stops have no direct connection, “Neue Strecke” offers “Mit 1 Umstieg suchen”. Such a route shows the transfer on the main screen and raises an alert (also as push) when the connection is at risk or missed.
+- Routes with transfers: if two stops have no direct connection, “Neue Strecke” looks for one by itself as soon as both stops are chosen and shows what it found before you save (“Gefunden · 1 Umstieg”). ReGo uses one transfer and goes up to two (“Gefunden · 2 Umstiege”) only if there is nothing with one, for example during construction. If even two do not work, it says so and creates nothing. Such a route shows the transfers on the main screen and raises an alert (also as push) when a connection is at risk or missed.
 - Notification channels (Android settings → Apps → ReGo → Notifications): “Verspätungen” (delays), “Ausfälle und Ersatzverkehr” (cancellations and replacement transport), “Baustellen” (construction) and “Gleiswechsel” (platform changes, quiet). Each can be made louder, quieter or switched off.
 - Settings (bottom of “Strecken”): push on/off, delay threshold, test notification, “Neues Handy?”, feedback link and version.
 - Invitation code: if the server has one set (add-on option `invite_code`), the app asks for it once on a new device.
