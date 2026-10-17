@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased – A second source
+## 0.8.2 – A second source
 
 **Timetable sources**
 - If an association does not answer (MoBY: HTTP 429 for a day, but also timeouts, server errors and refusals), ÖBB and then Deutsche Bahn show the trips of its routes. The routes keep running; the stops are matched by name and position. ReGo does not guess: a stop without stored coordinates, a bus stop that has a station next to it, or a name that does not fit stays dark and says which source is closed, as in 0.8.1. Buses and trams are usually not in the railway data.
