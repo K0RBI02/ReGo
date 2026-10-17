@@ -212,6 +212,35 @@
     if (cached) R.connection.status = 'offline';
   };
 
+  /**
+   * The look at a pair of stops as soon as both are chosen (new route form, setup step 1): direct connection, one with 1 transfer, nothing, or no source answers.
+   * One controller per form. set(from, to, delay) starts the look when the pair is complete and new (a typed name waits a moment, a picked one does not),
+   * again(from, to) looks once more, view() says what to show (null = nothing to show), reset() forgets it. A result for an older pair is dropped.
+   * onChange is called when a look has finished; the form also redraws by itself when it changes its own state.
+   */
+  R.makeProbe = function (onChange) {
+    let key = '', res = null, timer = null, cap = null;
+    const keyOf = (from, to) => { const a = String(from || '').trim(), b = String(to || '').trim(); return R.isStation(a) && R.isStation(b) && norm(a) !== norm(b) ? a + '|' + b : ''; };
+    const finish = (k, a, b, r) => { if (k !== key) return; clearTimeout(cap); res = Object.assign({ from: a, to: b }, r); try { onChange && onChange(); } catch (e) {} };
+    const start = (a, b, k, delay, refused) => {
+      clearTimeout(timer); clearTimeout(cap); key = k; res = { kind: 'busy', from: a, to: b };
+      timer = setTimeout(() => R.actions.probe({ from: a, to: b, refused }).then((r) => finish(k, a, b, r), (e) => finish(k, a, b, { kind: 'sorry', message: e && e.message })), delay);
+      cap = setTimeout(() => { if (k === key && res && res.kind === 'busy') finish(k, a, b, { kind: 'sorry' }); }, 15000 + delay);    // never wait forever: the form must stay usable
+    };
+    return {
+      set(from, to, delay = 0) {
+        const k = keyOf(from, to);
+        if (k === key) return;
+        if (!k) { clearTimeout(timer); clearTimeout(cap); key = ''; res = null; return; }
+        start(String(from).trim(), String(to).trim(), k, delay);
+      },
+      /** Look once more after the server has refused the pair ("no direct connection"): then it is certain that there is none, even if an older server cannot say so itself */
+      again(from, to) { const k = keyOf(from, to); if (k) start(String(from).trim(), String(to).trim(), k, 0, true); },
+      view() { return res && res.kind !== 'unknown' ? res : null; },
+      reset() { clearTimeout(timer); clearTimeout(cap); key = ''; res = null; },
+    };
+  };
+
   /* --- Changes (route menu) --- */
   const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
   let adding = null;
@@ -236,6 +265,19 @@
       if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
       const pt = (s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
       return api('/connections/search', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b) }) });
+    },
+    /**
+     * A look at two chosen stops: { kind: 'direct' } | { kind: 'transfer', route } | { kind: 'none' } | { kind: 'sorry' } (no source answers).
+     * { kind: 'unknown' } comes from an older server that cannot tell whether there is a direct connection: the screens then show nothing and saving works as before.
+     * refused: the server has already said that there is no direct connection, so an older server's answer counts as "no direct connection" too.
+     */
+    async probe({ from, to, refused }) {
+      const r = await R.actions.searchTransfer({ from, to });
+      if (r.direct === undefined && !refused) return { kind: 'unknown' };
+      if (r.direct === true) return { kind: 'direct' };
+      if (r.found === true && r.route) return { kind: 'transfer', route: r.route };
+      if (r.found === false) return { kind: 'none' };
+      return { kind: 'sorry' };
     },
     async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },
     async updateTour(id, { days, time, until }) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ schedule: { days, departAfter: time, ...(until ? { departUntil: until } : {}) } }) }); await R.refresh(); },

@@ -219,6 +219,8 @@ Strecke hinzufügen</button>
 </sc-if>
 </div>
 </sc-if>
+<sc-if value="{{probeBusy}}" hint-placeholder-val="{{ false }}"><div role="status" style="min-height: 44px; box-sizing: border-box; display: flex; align-items: center; padding: 0 4px; font-size: 15px; font-weight: 600; color: #4A4747">Sucht Verbindungen …</div></sc-if>
+<sc-if value="{{probeDirect}}" hint-placeholder-val="{{ false }}"><div role="status" style="min-height: 44px; box-sizing: border-box; display: flex; align-items: center; background: #EAF6CF; color: #1C1A1A; border-radius: 20px; padding: 0 16px; font-size: 15px; font-weight: 700">Direktverbindung gefunden</div></sc-if>
 <sc-if value="{{hasSaveErr}}" hint-placeholder-val="{{ false }}"><div role="alert" style="background: #F9D6D2; color: #1C1A1A; border-radius: 20px; padding: 12px 16px 14px; font-size: 15px; font-weight: 600; line-height: 1.35"><span>{{saveErr}}</span></div></sc-if>
 <sc-if value="{{hasXroute}}" hint-placeholder-val="{{ false }}">
 <div class="rg-in" role="status" style="background: #EAF6CF; color: #1C1A1A; border-radius: 24px; padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 10px">
@@ -358,8 +360,11 @@ class Component extends DCLogic {
       list: this._fromRego(),
       adding: wantAdd, sheet: wantSheet, handyOpen: false, editId: '', editName: '', from: '', to: '', out: window.REGO.win.fresh('out'), threshold: window.REGO.settings.pushThresholdMin,
       days: [true, true, true, true, true, false, false],
-      toast: '', prev: null, focus: '', err: '', errCode: '', xroute: null, xbusy: false
+      toast: '', prev: null, focus: ''
     };
+    // The look at the chosen stops (direct connection / 1 transfer / nothing) starts by itself as soon as both are chosen.
+    // After a refusal when saving, the form jumps to the top to show what the look says.
+    this._probe = window.REGO.makeProbe(() => { this.setState({}); if (this._top) { this._top = false; const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0; } });
     window.REGO.loadInfo().then(() => this.setState({}), () => {});       // version line
   }
   _fromRego() {
@@ -376,25 +381,7 @@ class Component extends DCLogic {
       return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ' + zeit, name: t.name, chips, on: t.active, note: why || xnote, noteOff: xnote };
     });
   }
-  // No direct connection: search with 1 transfer. Result: found = preview, nothing found = "not reachable", the source does not answer = "Sorry" (never a wrong "no").
-  _findTransfer(a, b) {
-    const same = () => this.state.from.trim() === a && this.state.to.trim() === b;      // changed in the meantime: the result no longer applies
-    const done = (p) => {
-      this._saving = false;
-      if (!same()) { this.setState({ xbusy: false }); return; }
-      this.setState(Object.assign({ xbusy: false }, p));
-      const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0;      // the preview and the notice are at the top of the form
-    };
-    this._saving = true; this.setState({ xbusy: true });
-    window.REGO.actions.searchTransfer({ from: a, to: b }).then(
-      (r) => {
-        if (r && r.found === true && r.route) done({ xroute: r.route, err: '', errCode: '' });
-        else if (r && r.found === false) done({ xroute: null, err: a + ' → ' + b + ': Mit weniger als 2 Umstiegen nicht erreichbar.', errCode: 'no-connection' });
-        else done({ err: 'Sorry, gerade antwortet keine Quelle. Tipp gleich noch einmal auf „Speichern“.', errCode: 'retry' });
-      },
-      (e) => done({ err: e && e.message ? e.message : 'Keine Verbindung', errCode: 'retry' })
-    );
-  }
+  onDestroy() { this._probe.reset(); }
   onData() { this.setState({ list: this._fromRego(), threshold: window.REGO.settings.pushThresholdMin }); }
   // Settings sheet (push, new phone, feedback, version). The router calls onHash when only the anchor changes, without rebuilding the page.
   openSheet() {
@@ -467,7 +454,7 @@ class Component extends DCLogic {
       on: d.on, state: d.on ? 'An' : 'Aus',
       label: 'Warnungen für ' + d.name,
       removeLabel: d.name + ' entfernen', editLabel: d.name + ' ändern',
-      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this.setState({ adding: true, editId: d.id, editName: t.name, err: '', errCode: '', xroute: null, out: window.REGO.win.of(t.schedule.departAfter, t.schedule.departUntil), days: names.map((n) => t.schedule.days.includes(n)) }); },
+      edit: () => { const t = window.REGO.tours.find((x) => x.id === d.id); if (!t) return; this._probe.reset(); this.setState({ adding: true, editId: d.id, editName: t.name, out: window.REGO.win.of(t.schedule.departAfter, t.schedule.departUntil), days: names.map((n) => t.schedule.days.includes(n)) }); },
       switchStyle: sw(d.on), stateStyle: swText, knobStyle: swKnob,
       toggle: () => { this.setState({ list: st.list.map((x, j) => j === i ? Object.assign({}, x, { on: !x.on }) : x) }); window.REGO.actions.setActive(d.id, !d.on).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); },
       remove: () => { this.setState({ list: st.list.filter((x, j) => j !== i) }); this.flash('Strecke entfernt', st.list); window.REGO.actions.removeTour(d.id).catch(() => { this.setState({ list: this._fromRego() }); this.flash('Nicht gespeichert – keine Verbindung', null); }); }
@@ -481,9 +468,11 @@ class Component extends DCLogic {
     const T = window.REGO;
     const editing = !!st.editId;
     const valid = editing || T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
-    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => this.setState({ [st.focus]: q.name, focus: '', err: '', errCode: '', xroute: null }) })) : [];
-    // Preview "Mit 1 Umstieg": the two trips and the transfer row in between
-    const xr = st.xroute, xrows = [];
+    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => { this._probe.set(st.focus === 'from' ? q.name : st.from, st.focus === 'to' ? q.name : st.to); this.setState({ [st.focus]: q.name, focus: '' }); } })) : [];
+    // The look at the stops (see _probe): busy / direct / transfer (preview: the two trips and the transfer row in between) / none / sorry
+    const pr = this._probe.view(), kind = pr ? pr.kind : '';
+    const waitFind = kind === 'busy' || kind === 'none';                  // saving waits for the look, and makes no sense when nothing can be reached
+    const xr = kind === 'transfer' ? pr.route : null, xrows = [];
     if (xr) (xr.legs || []).forEach((l, k) => {
       if (k === 1) xrows.push({ isXfer: true, text: 'Umstieg ' + (xr.via || '') + (xr.wait != null ? ' · ' + xr.wait + ' Min.' : '') });
       xrows.push({ isLeg: true, line: l.line, title: l.title, times: l.times, chipStyle: chipCss(l.color) });
@@ -512,8 +501,8 @@ class Component extends DCLogic {
       sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
       daysWork: () => this.setState({ days: [true, true, true, true, true, false, false] }),
       daysAll: () => this.setState({ days: [true, true, true, true, true, true, true] }),
-      saveBlocked: !valid || saving, saveLabel: saving ? (st.xbusy ? 'Sucht …' : 'Speichert …') : 'Speichern',
-      saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid && !saving ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
+      saveBlocked: !valid || saving || waitFind, saveLabel: saving ? 'Speichert …' : kind === 'busy' ? 'Sucht …' : 'Speichern',
+      saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid && !saving && !waitFind ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
       hasCode: !!st.code, code: st.code || '', claim: st.claim || '', setClaim: (e) => this.setState({ claim: val(e), confirmClaim: false }),
       claimWarn: !!st.confirmClaim && st.list.length > 0, claimLabel: st.confirmClaim ? 'Ja, ersetzen' : 'Übernehmen',
       claimWarnText: 'Achtung: Deine ' + st.list.length + ' vorhandenen Strecken werden durch die vom alten Handy ersetzt.',
@@ -537,15 +526,17 @@ class Component extends DCLogic {
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
       formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
       from: st.from, to: st.to, wins,
-      setFrom: (e) => this.setState({ from: val(e), focus: 'from', err: '', errCode: '', xroute: null }),
-      setTo: (e) => this.setState({ to: val(e), focus: 'to', err: '', errCode: '', xroute: null }),
-      hasSaveErr: !!st.err, saveErr: st.err,
-      // Found (only needed with a transfer) = preview; saving then creates the route with the transfer
+      setFrom: (e) => { const v = val(e); this._probe.set(v, st.to, 600); this.setState({ from: v, focus: 'from' }); },
+      setTo: (e) => { const v = val(e); this._probe.set(st.from, v, 600); this.setState({ to: v, focus: 'to' }); },
+      probeBusy: kind === 'busy', probeDirect: kind === 'direct',
+      hasSaveErr: kind === 'none' || kind === 'sorry',
+      saveErr: kind === 'none' ? pr.from + ' → ' + pr.to + ': Mit weniger als 2 Umstiegen nicht erreichbar.' : kind === 'sorry' ? (pr.message || 'Sorry, gerade antwortet keine Quelle. Beim Speichern versuche ich es noch einmal.') : '',
+      // Found with a transfer = preview; saving then creates the route with the transfer
       hasXroute: !!xr, xrows, xrouteHead: xr && (xr.legs || []).length > 1 ? 'Gefunden · 1 Umstieg' : 'Gefunden · ohne Umstieg', xrouteDur: xr ? xr.duration || '' : '',
-      openAdd: () => this.setState({ adding: true, editId: '', focus: '', err: '', errCode: '', xroute: null, xbusy: false, from: '', to: '', out: window.REGO.win.fresh('out'), days: [true, true, true, true, true, false, false] }),
-      cancelAdd: () => this.setState({ adding: false, editId: '', err: '', errCode: '', xroute: null, xbusy: false }),
+      openAdd: () => { this._probe.reset(); this.setState({ adding: true, editId: '', focus: '', from: '', to: '', out: window.REGO.win.fresh('out'), days: [true, true, true, true, true, false, false] }); },
+      cancelAdd: () => { this._probe.reset(); this.setState({ adding: false, editId: '' }); },
       saveAdd: () => {
-        if (!valid || this._saving) return;                       // already on its way: a second tap must not create anything twice
+        if (!valid || this._saving || waitFind) return;           // already on its way (or the look at the stops is still running): a second tap must not create anything twice
         const sel = names.filter((n, i) => st.days[i]);
         if (!sel.length) { this.flash('Bitte mindestens einen Tag wählen', null); return; }
         const end = () => { this._saving = false; };
@@ -558,14 +549,12 @@ class Component extends DCLogic {
           return;
         }
         const from = st.from.trim(), to = st.to.trim();
-        window.REGO.actions.addTour({ from, to, days: sel, time: st.out.from, until: st.out.until, transfers: st.xroute ? 1 : 0 }).then(
-          () => { end(); this.setState({ adding: false, xroute: null, err: '', errCode: '', list: this._fromRego() }); this.flash('Strecke gespeichert', null); },
+        window.REGO.actions.addTour({ from, to, days: sel, time: st.out.from, until: st.out.until, transfers: kind === 'transfer' ? 1 : 0 }).then(
+          () => { end(); this._probe.reset(); this.setState({ adding: false, list: this._fromRego() }); this.flash('Strecke gespeichert', null); },
           (e) => {
-            // No direct connection: ReGo searches with 1 transfer by itself (no button needed). Found = preview at the top of the form, a second tap on "Speichern" creates the route with the transfer.
-            if (e && e.status === 422 && e.code === 'no-direct') { this._findTransfer(from, to); return; }
             end();
-            // No connection: the route is not created. The reason is shown in the form, which jumps to the top for that.
-            if (e && e.status === 422) { this.setState({ err: e.message, errCode: e.code || '', xroute: e.code === 'no-connection' ? null : this.state.xroute }); const sc = document.querySelector('#screen .rg-dockpad'); if (sc) sc.scrollTop = 0; return; }
+            // The connection is the reason (422): ReGo looks again, and the form shows what is true now (preview with a transfer, "not reachable" or "Sorry") at the top.
+            if (e && e.status === 422) { this._top = true; this._probe.again(from, to); this.setState({}); return; }
             this.setState({}); this.flash(e && e.message ? e.message : 'Nicht gespeichert', null);
           }
         );

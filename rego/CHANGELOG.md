@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.7 – Search while you enter
+
+**New routes and setup**
+- The search starts by itself as soon as both stops are chosen. There is no need to tap "Speichern" first to find out whether the route works. While ReGo searches, the form says "Sucht Verbindungen …" and "Speichern" waits ("Sucht …"). In the meantime you can set the activity time.
+- The result shows up at the top of the form: "Direktverbindung gefunden", or the connection with one transfer as a preview (one tap on "Speichern" creates the route with that transfer), or "A → B: Mit weniger als 2 Umstiegen nicht erreichbar." (then "Speichern" stays blocked). If the sources do not answer, the form says "Sorry, gerade antwortet keine Quelle." and "Speichern" still works; ReGo looks again when you save.
+- Setup step 1 does the same: the result stands next to "Weiter". "Weiter" waits for the search and stays blocked when nothing can be reached. A connection with one transfer is saved at the end of the setup, as before.
+
+**API**
+- `POST /api/connections/search` now also says whether there is a direct connection (`direct`: true, false or null if the source does not know). Only without a direct connection it looks for one with a transfer. If the source is on pause, it answers 503 with the code `source-paused`.
+
+**Rebuild**
+- Looks and server changed: install the new APK (`app-v0.8.7`) and update the add-on. The new app also works with an older server (it then looks when you tap "Speichern", as in 0.8.6), and older apps keep working with the new server.
+
 ## 0.8.6 – One activity time
 
 **New routes and setup**

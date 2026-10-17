@@ -98,7 +98,7 @@ JSON over plain http. Every path except `/api/health` and `/api/status` needs th
 | `GET /api/status` | Version, state of the sources (`ok`, and `pausedSec` while a source is left alone), number of devices (also per app version) and push subscriptions; no personal data. The page `/status` shows the same. |
 | `GET /api/stations?q=` | Station search. |
 | `GET /api/state` | The complete state of the device: routes with departures, incidents, settings, and the feedback address (`contact`). The Android app adds `?app=<version>`; if that app is older than `APP_LATEST`, the answer also carries `app: {latest, url}` for the update hint. |
-| `POST /api/connections/search` | Looks for a connection with at most one transfer. `found` is `true`, `false` or `null` (unknown); 503 with `code: "source-paused"` if the source for this route has put ReGo on pause. |
+| `POST /api/connections/search` | Looks at a pair of stops (the app calls it as soon as both are chosen). `direct` says whether there is a direct connection (`true`, `false` or `null` for unknown); with one, `found` is `true` and nothing else is looked up. Otherwise it looks for a connection with one transfer: `found` is `true` (with a sample `route`), `false` or `null` (unknown); 503 with `code: "source-paused"` if the source for this route has put ReGo on pause. |
 | `POST /api/tours`, `PATCH /api/tours/:id`, `DELETE /api/tours/:id` | Create, change or delete a route. |
 | `GET/PUT/DELETE /api/profile` | Read, replace (the app's undo) or delete the data of the device. |
 | `PUT /api/settings` | Push threshold (3, 5 or 10 minutes). |

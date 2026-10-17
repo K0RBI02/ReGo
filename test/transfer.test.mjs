@@ -241,23 +241,26 @@ async function appOn(dir, cfg = {}, extra = {}) {
 const hdr = (dev) => ({ 'x-device': dev, 'content-type': 'application/json' });
 const poster = (base, h) => async (p, b) => { const r = await fetch(`${base}${p}`, { method: 'POST', headers: h, body: JSON.stringify(b) }); return { status: r.status, body: await r.json() }; };
 
-test('Search with 1 transfer: preview, direct connection, nothing found, source does not answer', async () => {
+test('Look at a pair of stops: direct connection, preview with 1 transfer, nothing found, source does not answer', async () => {
   const { server, base, service } = await appOn(await tmp(), {}, { now: () => NOW });
   const post = poster(base, hdr('umstiegssuche123456'));
   try {
     let r = await post('/api/connections/search', { from: FS, to: SZ });
-    assert.equal(r.status, 200); assert.equal(r.body.found, true); assert.equal(r.body.transfers, 1);
+    assert.equal(r.status, 200); assert.equal(r.body.direct, false); assert.equal(r.body.found, true); assert.equal(r.body.transfers, 1);
     assert.equal(r.body.route.via, 'München Hbf'); assert.equal(r.body.route.legs.length, 2); assert.equal(typeof r.body.route.wait, 'number');
     assert.deepEqual(r.body.route.legs.map((l) => l.line), ['S1', 'RE 5']);
     assert.deepEqual(r.body.route.legs.map((l) => l.title), ['Freising → München Hbf', 'München Hbf → Salzburg Hbf']);
     assert.match(r.body.route.legs[0].times, /^ab \d\d:\d\d · an \d\d:\d\d$/); assert.match(r.body.route.duration, /Std\./);
-    r = await post('/api/connections/search', { from: MH, to: FS });                      // exists directly: one trip, no transfer
-    assert.equal(r.body.found, true); assert.equal(r.body.route.legs.length, 1); assert.equal(r.body.route.via, undefined);
+    r = await post('/api/connections/search', { from: MH, to: FS });                      // exists directly: nothing more is looked up
+    assert.equal(r.body.direct, true); assert.equal(r.body.found, true); assert.equal(r.body.transfers, 0); assert.equal(r.body.route, undefined);
     r = await post('/api/connections/search', { from: PA, to: WI });                      // in the sample data there is nothing in between
-    assert.equal(r.status, 200); assert.equal(r.body.found, false); assert.equal(r.body.route, undefined);
+    assert.equal(r.status, 200); assert.equal(r.body.direct, false); assert.equal(r.body.found, false); assert.equal(r.body.route, undefined);
     const orig = service.searchTransfer; service.searchTransfer = async () => ({ found: null });
-    r = await post('/api/connections/search', { from: FS, to: SZ }); assert.equal(r.status, 200); assert.equal(r.body.found, null);   // "don't know right now"
+    r = await post('/api/connections/search', { from: FS, to: SZ }); assert.equal(r.status, 200); assert.equal(r.body.found, null); assert.equal(r.body.direct, false);   // "don't know right now"
     service.searchTransfer = orig;
+    const origDirect = service.hasDirect; service.hasDirect = async () => null;               // the direct check gets no answer either
+    r = await post('/api/connections/search', { from: PA, to: WI }); assert.equal(r.status, 200); assert.equal(r.body.direct, null); assert.equal(r.body.found, false);
+    service.hasDirect = origDirect;
     assert.equal((await post('/api/connections/search', { from: FS, to: FS })).status, 400);
     assert.equal((await post('/api/connections/search', {})).status, 400);
     assert.equal((await fetch(`${base}/api/connections/search`, { headers: hdr('umstiegssuche123456') })).status, 404);   // POST only

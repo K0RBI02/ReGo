@@ -107,13 +107,16 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     }
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
-    if (path === '/api/connections/search' && m === 'POST') {            // preview for a route without a direct connection (the app asks by itself): is there anything with 1 transfer, and what does it look like?
+    if (path === '/api/connections/search' && m === 'POST') {            // a pair of stops, looked at as soon as the app has both: direct connection, or one with 1 transfer (with a sample), or nothing
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                           // checks start and destination (400), stores nothing
-      const r = await service.searchTransfer(toStop(b.from), toStop(b.to));
+      const [a, c] = [toStop(b.from), toStop(b.to)];
+      const direct = await service.hasDirect(a, c);                       // same question and same cache as when the route is created: the answer here is the one saving gets
+      if (direct === true) return send(res, 200, { direct: true, found: true, transfers: 0 });
+      const r = await service.searchTransfer(a, c);
       // A source that has put ReGo on pause is not "try again in a moment": say which one and that it takes a while (the form shows this text)
       if (r.found === null && r.paused) throw Object.assign(new ValidationError(`Sorry, ${r.paused} lässt gerade keine Abfragen zu. Die Suche geht für diese Strecke später wieder.`, 503), { extra: { code: 'source-paused' } });
-      return send(res, 200, { found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
+      return send(res, 200, { direct, found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
     }
     if (path === '/api/tours' && m === 'POST') {
       const b = await readBody(req);

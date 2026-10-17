@@ -147,7 +147,7 @@
       R.lastAddError = '';
       const route = { from: p.from, to: p.to, days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], time: p.time || '07:00', until: p.until };
       try {
-        try { await R.actions.addTour(route); } catch (e) {
+        try { await R.actions.addTour({ ...route, transfers: p.transfers ? 1 : 0 }); } catch (e) {
           if (!(e && e.status === 422 && e.code === 'no-direct')) throw e;
           // No direct connection: look for one with a transfer, like the "Neue Strecke" form does. Nobody confirms a preview during the setup, so a connection that is found is saved right away.
           const r = await R.actions.searchTransfer({ from: p.from, to: p.to });

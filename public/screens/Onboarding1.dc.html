@@ -106,7 +106,12 @@ a:active,button:active{transform:scale(.97)}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { from: '', to: '', focus: '', out: window.REGO.win.fresh('out') }; }
+  constructor(props) {
+    super(props);
+    this.state = { from: '', to: '', focus: '', out: window.REGO.win.fresh('out') };
+    this._probe = window.REGO.makeProbe(() => this.setState({}));          // the look at the chosen stops starts by itself as soon as both are chosen
+  }
+  onDestroy() { this._probe.reset(); }
   renderVals() {
     const T = window.REGO, st = this.state;
     const val = (e) => (e && e.target ? e.target.value : '');
@@ -114,18 +119,28 @@ class Component extends DCLogic {
     const ok = okFrom && okTo && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
     const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({
       name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland',
-      pick: () => this.setState({ [st.focus]: q.name, focus: '' })
+      pick: () => { this._probe.set(st.focus === 'from' ? q.name : st.from, st.focus === 'to' ? q.name : st.to); this.setState({ [st.focus]: q.name, focus: '' }); }
     })) : [];
     const typed = (st.from.trim() !== '' && !okFrom) || (st.to.trim() !== '' && !okTo);
-    window.REGO_pending = ok ? { from: st.from, to: st.to, trip: 'one', time: st.out.from, until: st.out.until } : null;
+    // The look at the stops: direct / with 1 transfer / nothing / no source answers. "Weiter" waits for it and stops at "nothing".
+    const pr = ok ? this._probe.view() : null, kind = pr ? pr.kind : '';
+    const ready = ok && kind !== 'busy' && kind !== 'none';
+    window.REGO_pending = ok ? { from: st.from, to: st.to, transfers: kind === 'transfer', time: st.out.from, until: st.out.until } : null;
     // Activity time: when ReGo is active for this route (the return trip is added later through "Strecke hinzufügen")
     const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: 'Aktivitätszeit', tone: 'w', compact: true })];
     return {
       wins, from: st.from, to: st.to, sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
-      setFrom: (e) => this.setState({ from: val(e), focus: 'from' }), setTo: (e) => this.setState({ to: val(e), focus: 'to' }),
-      hint: ok ? 'Du kannst alles später\nim Menü ändern.'.replace('\n', ' ') : (typed ? 'Bitte wähle eine\nHaltestelle aus.'.replace('\n', ' ') : 'Ohne Strecke kann ReGo nichts zeigen.'),
-      next: ok ? 'Onboarding2.dc.html' : '#', notReady: !ok,
-      ctaStyle: 'width: 180px; min-height: 64px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; ' + (ok ? 'background: #1C1A1A; color: #fff' : 'background: rgba(28,26,26,0.25); color: rgba(255,255,255,0.8)')
+      setFrom: (e) => { const v = val(e); this._probe.set(v, st.to, 600); this.setState({ from: v, focus: 'from' }); },
+      setTo: (e) => { const v = val(e); this._probe.set(st.from, v, 600); this.setState({ to: v, focus: 'to' }); },
+      hint: !ok ? (typed ? 'Bitte wähle eine Haltestelle aus.' : 'Ohne Strecke kann ReGo nichts zeigen.')
+        : kind === 'busy' ? 'Sucht Verbindungen\u00a0…'
+        : kind === 'direct' ? 'Direktverbindung gefunden.'
+        : kind === 'transfer' ? 'Gefunden: 1 Umstieg' + (pr.route && pr.route.via ? ' in ' + pr.route.via : '') + '.'
+        : kind === 'none' ? 'Mit weniger als 2 Umstiegen nicht erreichbar.'
+        : kind === 'sorry' ? 'Sorry, gerade antwortet keine Quelle.'
+        : 'Du kannst alles später im Menü ändern.',
+      next: ready ? 'Onboarding2.dc.html' : '#', notReady: !ready,
+      ctaStyle: 'width: 180px; min-height: 64px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; ' + (ready ? 'background: #1C1A1A; color: #fff' : 'background: rgba(28,26,26,0.25); color: rgba(255,255,255,0.8)')
     };
   }
 }
