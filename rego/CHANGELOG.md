@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.8 – Up to two transfers
+
+**Routes with transfers**
+- When nothing is left with one transfer – typically because a closure forces another change, like Freising → München-Neuperlach Süd – ReGo now looks for connections with up to two transfers. The order stays the same: direct first, then one transfer, and only if there is nothing with at most one transfer, up to two.
+- This works when you create a route and for routes that already exist. A route asks for two transfers only while no usable connection with at most one is left, and goes back to one as soon as there is one again.
+- Creating shows the preview "Gefunden · 2 Umstiege" with three trips and both transfers. Setup step 1 says "Gefunden: 2 Umstiege in A › B". The route list says "2 Umstiege · meist A › B".
+- The main screen shows the three lines in a row of their own ("S1 › S4 › U5") and a line like "2 Umstiege · 4 und 6 Min.". If one of the two transfers gets tight or is missed, that is what the line says. The detail page lists the three trips with a transfer card between each, and the map shows three lines and both transfer stops.
+- "Mit weniger als 3 Umstiegen nicht erreichbar" replaces the old text with 2, but only when the server really looked that far (an older server still says 2).
+- ReGo only knows what the source knows. A closure that is not in the data cannot be found, and then the route still says "Keine Verbindung". The check for two transfers is simpler than the one for a single transfer: it takes the trips the source suggests and rates every transfer on its own.
+
+**API**
+- `POST /api/connections/search` can answer with `transfers: 2`: the sample route then has three `legs` and `changes: [{via, wait}, …]`. The new field `maxTransfers` says how far the search goes.
+- A route with two transfers keeps `transfers: 1` in the profile. In the state it has `changes` (number of transfers), `via` as "A › B", three `lineIds`, a `transfer` line per departure and a map with three `legs` and `changes[]`.
+- Creating a route with a transfer is refused with `no-connection` only if not even two transfers work.
+
+**Map**
+- Stop names with the place in front ("München, Moosach") are shortened to the stop ("Moosach").
+
+**Rebuild**
+- Looks and server changed: install the new APK (`app-v0.8.8`) and update the add-on. The new app also works with an older server, and older apps keep working with the new server (they show a route with two transfers with its three lines, but the map is a plain line).
+
 ## 0.8.7 – Search while you enter
 
 **New routes and setup**

@@ -136,6 +136,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <path d="{{t2.d}}" fill="none" stroke="url(#tg2)" stroke-width="7" stroke-linecap="round"></path>
 <path d="{{leg1D}}" fill="none" stroke="{{leg1C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{leg2D}}" fill="none" stroke="{{leg2C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="{{leg3D}}" fill="none" stroke="{{leg3C}}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{mainD}}" fill="none" stroke="#0B6B3F" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
 <path d="{{disD}}" fill="none" stroke="#8C8C8C" stroke-width="8" stroke-linecap="round" stroke-dasharray="0.1 11"></path>
 <path d="{{skipD}}" fill="#8C8C8C"></path>
@@ -167,6 +168,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <span style="{{pDep.s}}">{{pDep.t}}</span>
 <span style="{{pArr.s}}">{{pArr.t}}</span>
 <span style="{{pX.s}}">{{pX.t}}</span>
+<span style="{{pX2.s}}">{{pX2.t}}</span>
 <div class="rg-in" style="{{route.s}}"><span style="{{route.cs}}">
 <sc-for list="{{route.chips}}" as="c" hint-placeholder-count="2">
 <sc-if value="{{c.isChev}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" aria-hidden="true"><path d="M1.5 1.5L6.5 6l-5 4.5"></path></svg></sc-if>
@@ -294,7 +296,8 @@ Zurück</a>
 /* All content comes from window.REGO (rego-data.js):
    Hash  #<incidentId|tourId>-<m|l>   (m = from the main screen, l = from "Meldungen")
    incident.view.map = { stations[], hubIndex, disrupted{from,to}|null, alternative{label,fromIndex,toIndex}|null,
-                         haloIndex, connections[{stationIndex,lineId,dir:'down'|'right'}] } */
+                         haloIndex, connections[{stationIndex,lineId,dir:'down'|'right'}],
+                         legs[{lineId,from,to}] (2 trips with a transfer, 3 with two), transfer{label,state}, changes[{stationIndex,label,state}] } */
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -349,13 +352,14 @@ class Component extends DCLogic {
     // Width of the card = width of the app (narrow phones, tablets): otherwise the label is cut off on the right
     const W = Math.max(280, (document.getElementById('app') || {}).clientWidth || 390);
     const x0 = 36, x1 = W - (n >= 6 ? 98 : 120);
-    // Trip with a transfer: two lines in their colors, the transfer stop, omissions ("+5" = 5 stops not shown) and time pills
-    const X = M.legs && M.legs.length === 2 ? M : null;
+    // Trip with a transfer: two lines in their colors (three with two transfers), the transfer stops, omissions ("+5" = 5 stops not shown) and time pills
+    const X = M.legs && M.legs.length >= 2 && M.legs.length <= 3 ? M : null;
+    const hubIdx = X ? X.legs.slice(0, -1).map((l) => l.to) : [];            // where one changes: the end of every trip but the last
     const skipOf = (i) => (X && (X.skips || []).find((k) => k.after === i)) || null;
     const wt = (i) => (skipOf(i) ? 2 : 1);                    // an omission gets double width so that the "+5" has room between the dots
     let wsum = 0; for (let i = 0; i < n - 1; i++) wsum += wt(i);
     let acc = 0;
-    const st = M.stations.map((s, i) => { const x = n > 1 ? x0 + (x1 - x0) * acc / wsum : x0; acc += wt(i); return Object.assign({}, s, { x, big: i === 0 || i === n - 1 || i === M.hubIndex }); });
+    const st = M.stations.map((s, i) => { const x = n > 1 ? x0 + (x1 - x0) * acc / wsum : x0; acc += wt(i); return Object.assign({}, s, { x, big: i === 0 || i === n - 1 || i === M.hubIndex || hubIdx.includes(i) }); });
     const seg = (a, b) => [[st[a].x, Y], [st[b].x, Y]];
     const inDis = (i) => !!M.disrupted && i >= M.disrupted.from && i + 1 <= M.disrupted.to;       // section i → i+1 is under replacement transport
     const gapHalf = (len) => Math.min(22.6, Math.max(8, len / 2 - 16));
@@ -371,12 +375,13 @@ class Component extends DCLogic {
       return d;
     };
 
-    let mainD = '', disD = '', leg1D = '', leg2D = '', skipD = '', connD = '';
-    let pDep = none, pArr = none, pX = none;
+    let mainD = '', disD = '', leg1D = '', leg2D = '', leg3D = '', skipD = '', connD = '';
+    let pDep = none, pArr = none, pX = none, pX2 = none;
     const skipLabels = [];
     if (n > 1) {
       if (X) {
         leg1D = legPath(X.legs[0].from, X.legs[0].to); leg2D = legPath(X.legs[1].from, X.legs[1].to);
+        if (X.legs[2]) leg3D = legPath(X.legs[2].from, X.legs[2].to);
         if (M.disrupted) disD = pl(seg(M.disrupted.from, M.disrupted.to));
         for (const k of X.skips || []) {
           if (inDis(k.after) || !st[k.after + 1]) continue;
@@ -393,15 +398,41 @@ class Component extends DCLogic {
     }
     // The spot the message is about (transfer, platform change): a larger dot in the color of the message, without a dashed ring
     const hot = M.haloIndex >= 0 && st[M.haloIndex] ? M.haloIndex : -1;
-    if (X && st[M.hubIndex]) {
+    const hubs = hubIdx.filter((h) => st[h]);
+    if (X && hubs.length) {
       const pill = (bg, fg) => 'white-space: nowrap; background: ' + bg + '; color: ' + fg + '; border: 2px solid #1C1A1A; border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; line-height: 1';
-      const hx = st[M.hubIndex].x, tr = X.transfer || {}, tm = X.times || {}, label = tr.label || '';
-      const half = label.length * 3.8 + 14, px = Math.min(W - 12 - half, Math.max(12 + half, hx));      // the transfer pill stays in view, the line to the stop stays vertical
-      connD = 'M' + hx + ' ' + (Y + 13.3) + 'L' + hx + ' 286';
-      const warn = tr.state === 'missed' ? '#F9D6D2' : tr.state === 'tight' ? '#FDE3CF' : '';
-      if (label) pX = { t: label, s: 'position: absolute; left: ' + px + 'px; top: 286px; transform: translateX(-50%); ' + (warn ? pill(warn, '#1C1A1A') : pill('#1C1A1A', '#fff')) };
+      const tm = X.times || {};
+      // Label and state of every transfer; with two transfers the platform is left out so that both pills fit next to each other
+      const place = (hx, tr, label) => { const half = label.length * 3.8 + 14; return { hx, tr, label, half, px: Math.min(W - 12 - half, Math.max(12 + half, hx)) }; };      // the transfer pill stays in view, the line to the stop stays vertical
+      let items = hubs.map((h, k) => {
+        const tr = (X.changes && X.changes[k]) || (k === 0 ? X.transfer : null) || {};
+        return place(st[h].x, tr, hubs.length > 1 ? (tr.label || '').replace(/ · Gleis .*$/, '') : tr.label || '');
+      });
+      // Two pills that do not fit next to each other on a narrow phone get the short words ("6 Min.", "nur noch 2 Min.", "verpasst")
+      if (items.length === 2 && (items[0].half + items[1].half) * 2 + 8 > W - 24) items = items.map((it) => place(it.hx, it.tr, it.label.replace(/^Umstieg nur noch /, 'nur noch ').replace(/^Umstieg /, '').replace(/^Anschluss /, '')));
+      if (items.length === 2) {                                   // next to each other: push apart if they would touch
+        const [p, q] = items, need = p.half + q.half + 8 - (q.px - p.px);
+        if (need > 0) {
+          let a = p.px - need / 2, b = q.px + need / 2;
+          const lo = 12 + p.half, hi = W - 12 - q.half;
+          if (a < lo) { b += lo - a; a = lo; }
+          if (b > hi) { a -= b - hi; b = hi; }
+          p.px = Math.max(lo, a); q.px = Math.min(hi, b);
+        }
+      }
+      connD = items.map((it) => 'M' + it.hx + ' ' + (Y + 13.3) + 'L' + it.hx + ' 286').join('');
+      const tag = (it) => {
+        const warn = it.tr.state === 'missed' ? '#F9D6D2' : it.tr.state === 'tight' ? '#FDE3CF' : '';
+        return it.label ? { t: it.label, s: 'position: absolute; left: ' + it.px + 'px; top: 286px; transform: translateX(-50%); ' + (warn ? pill(warn, '#1C1A1A') : pill('#1C1A1A', '#fff')) } : none;
+      };
+      pX = tag(items[0]); if (items[1]) pX2 = tag(items[1]);
       if (tm.dep) pDep = { t: tm.dep, s: 'position: absolute; left: ' + (x0 - 16) + 'px; top: 248px; ' + (tm.depLate ? pill('#FDE3CF', '#1C1A1A') : pill('#1C1A1A', '#fff')) };
-      if (tm.arr) pArr = { t: tm.arr, s: 'position: absolute; right: ' + Math.max(8, W - st[n - 1].x - 34) + 'px; top: 248px; ' + (tm.arrLate ? pill('#FDE3CF', '#1C1A1A') : pill('#1C1A1A', '#fff')) };
+      if (tm.arr) {
+        // With two transfers the line down from the last transfer stop must not run behind the arrival time: the time moves to the right of that line
+        const arrW = tm.arr.length * 7.6 + 28, arrRight = Math.max(8, W - st[n - 1].x - 34), lastHub = items.length > 1 ? items[items.length - 1].hx : -1;
+        const arrLeft = lastHub >= 0 && W - arrRight - arrW < lastHub + 14 ? Math.min(W - 8 - arrW, lastHub + 14) : -1;
+        pArr = { t: tm.arr, s: 'position: absolute; ' + (arrLeft >= 0 ? 'left: ' + arrLeft : 'right: ' + arrRight) + 'px; top: 248px; ' + (tm.arrLate ? pill('#FDE3CF', '#1C1A1A') : pill('#1C1A1A', '#fff')) };
+      }
     }
 
     let altD = '', chip = none;
@@ -414,13 +445,14 @@ class Component extends DCLogic {
     const mapH = X ? 360 : 338;
     const out = {
       svgW: W, svgVb: '0 0 ' + W + ' ' + mapH, mapH,
-      mapLabel: X && st[M.hubIndex] ? 'Schematische Netzkarte: ' + st[0].name + ', Umstieg in ' + st[M.hubIndex].name + ', weiter nach ' + st[n - 1].name : 'Schematische Netzkarte',
+      mapLabel: X && hubs.length ? 'Schematische Netzkarte: ' + st[0].name + hubs.map((h) => ', Umstieg in ' + st[h].name).join('') + ', weiter nach ' + st[n - 1].name : 'Schematische Netzkarte',
       more,
       mapBg: kindKey === 'ok' ? '#DCEFB8' : '#EEF1F2',
       mainD, disD, altD, chip,
-      hotFill: K.bg, skipD, connD, skipLabels, pDep, pArr, pX,
+      hotFill: K.bg, skipD, connD, skipLabels, pDep, pArr, pX, pX2,
       leg1D, leg1C: X ? (T.lines[X.legs[0].lineId] || {}).color || '#5B5B58' : '#5B5B58',
       leg2D, leg2C: X ? (T.lines[X.legs[1].lineId] || {}).color || '#5B5B58' : '#5B5B58',
+      leg3D, leg3C: X && X.legs[2] ? (T.lines[X.legs[2].lineId] || {}).color || '#5B5B58' : '#5B5B58',
       smallD: st.filter((q, i) => !q.big && i !== hot).map((q) => circ([q.x, Y], 8)).join(''),
       bigD: st.filter((q, i) => q.big && i !== hot).map((q) => circ([q.x, Y], 11)).join(''),
       hotD: hot >= 0 ? circ([st[hot].x, Y], 14) : ''

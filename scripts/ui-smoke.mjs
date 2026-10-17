@@ -9,6 +9,7 @@ import { config } from '../server/config.mjs';
 import { addTours } from '../server/store/profile.mjs';
 import { buildTour } from '../server/domain/state.mjs';
 import { buildTransferTour, shortcutFor } from '../server/domain/transfer.mjs';
+import { buildChainTour } from '../server/domain/chain.mjs';
 import { berlin, weekday, toMin } from '../server/lib/time.mjs';
 import { readFileSync } from 'node:fs';
 
@@ -357,7 +358,7 @@ await check('Create without connection', async () => {
   await page.getByRole('button', { name: /Strecke hinzufügen/ }).click();
   await suggest(0, 'Passau'); await suggest(1, 'Wien');
   await page.waitForTimeout(1500);                                                                          // the look starts by itself
-  const alert = page.getByRole('alert').filter({ hasText: 'Mit weniger als 2 Umstiegen nicht erreichbar' });
+  const alert = page.getByRole('alert').filter({ hasText: 'Mit weniger als 3 Umstiegen nicht erreichbar' });
   if (!(await alert.count())) problems.push('Create without connection: no explanation in the form');
   if (await page.getByRole('button', { name: /Umstieg suchen/ }).count()) problems.push('Create without connection: there is still a button for the search with 1 transfer');
   if (!(await page.getByRole('button', { name: 'Abbrechen' }).count())) problems.push('Create without connection: form was closed');
@@ -579,7 +580,7 @@ await check('Onboarding without a direct connection', async () => {
   if (/keine Direktverbindung|nicht erreichbar|Sorry/.test(r.t)) problems.push('Onboarding without a direct connection: the main page shows an error although the route was found');
   // Passau → Wien: nothing to find → nothing created, the main page names the reason
   r = await run('smokeonb2123456789abcdefg', 'Passau Hbf', 'Wien Hbf', 'Passau', 'Wien');
-  if (!/Mit weniger als 2 Umstiegen nicht erreichbar/.test(r.t)) problems.push(`Onboarding without a connection: page does not name the reason (${r.t.replace(/\s+/g, ' ').slice(0, 120)})`);
+  if (!/Mit weniger als 3 Umstiegen nicht erreichbar/.test(r.t)) problems.push(`Onboarding without a connection: page does not name the reason (${r.t.replace(/\s+/g, ' ').slice(0, 120)})`);
   if (r.tours.length !== 0) problems.push(`Onboarding without a connection: ${r.tours.length} route(s) created`);
 });
 
@@ -750,7 +751,7 @@ await check('Create with transfer', async () => {
     // 4) Nothing to find even with a transfer (Passau → Wien does not exist in the sample data): honest sentence, no preview, nothing created
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
     await suggestOn(p, 0, 'Passau'); await suggestOn(p, 1, 'Wien'); await p.waitForTimeout(1500);
-    if (!(await p.getByRole('alert').filter({ hasText: 'Mit weniger als 2 Umstiegen nicht erreichbar' }).count())) problems.push('Create with transfer (Passau → Wien): no explanation "Mit weniger als 2 Umstiegen nicht erreichbar"');
+    if (!(await p.getByRole('alert').filter({ hasText: 'Mit weniger als 3 Umstiegen nicht erreichbar' }).count())) problems.push('Create with transfer (Passau → Wien): no explanation "Mit weniger als 3 Umstiegen nicht erreichbar"');
     if (await card().count()) problems.push('Create with transfer (Passau → Wien): preview although nothing was found');
     if ((await jx(XD, '/api/profile')).tours.length !== 1) problems.push('Create with transfer (Passau → Wien): something was created despite the missing connection');
     // 5) The source does not answer (search without result): "Sorry" instead of a wrong "no", "Speichern" is not blocked; the next tap looks again
@@ -868,7 +869,7 @@ await check('Setup step 1 looks by itself', async () => {
     if ((await next().getAttribute('aria-disabled')) !== 'false') problems.push('Setup step 1: "Weiter" stays blocked although a connection was found');
     if (await sideways(p)) problems.push('Setup step 1: page scrolls sideways');
     await suggestOn(p, 0, 'Passau'); await suggestOn(p, 1, 'Wien'); await p.waitForTimeout(2500);
-    if (!/Mit weniger als 2 Umstiegen nicht erreichbar/.test(await text()) || (await next().getAttribute('aria-disabled')) !== 'true') problems.push('Setup step 1: nothing reachable does not stop "Weiter"');
+    if (!/Mit weniger als 3 Umstiegen nicht erreichbar/.test(await text()) || (await next().getAttribute('aria-disabled')) !== 'true') problems.push('Setup step 1: nothing reachable does not stop "Weiter"');
     await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(2500);
     await next().click(); await p.waitForTimeout(800); await next().click(); await p.waitForTimeout(800);
     await p.getByRole('link', { name: "Los geht's" }).click(); await p.waitForTimeout(3500);
@@ -955,6 +956,165 @@ await check('Transfer trip in the UI', async () => {
       } else if (await cards.count()) problems.push(`${tag}: incident despite an on-time connection`);
       if (await sideways(pg)) problems.push(`${tag}: "Meldungen" scrolls sideways`);
       if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: "Meldungen" poorly readable: ${bad.slice(0, 4).join(', ')}`); }
+    } finally { await c.close(); }
+  }
+});
+
+// ---------- New in 0.8.8: up to two transfers (the fallback when nothing is left with one) ----------
+// Creating: Freising → Neuperlach Süd needs two transfers in the sample data. Preview with three trips and both transfers, route list, setup step 1;
+// an older server (no "maxTransfers") keeps the old wording.
+await check('Create with two transfers', async () => {
+  const TD = 'smokexfer5123456789abcdefg';
+  const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [TD]);
+  const p = await c.newPage(); p.setDefaultTimeout(8000); watch(p);
+  const card = () => p.getByRole('status').filter({ hasText: 'Gefunden · 2 Umstiege' });
+  try {
+    await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
+    await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Neuperl'); await p.waitForTimeout(2500);
+    if (!(await card().count())) { problems.push(`Create with two transfers: no preview "Gefunden · 2 Umstiege" (${(await p.evaluate(() => document.querySelector('#screen').innerText)).replace(/\s+/g, ' ').slice(0, 200)})`); return; }
+    const t = await card().innerText();
+    if (!/S ?1/.test(t) || !/S ?4/.test(t) || !/U ?5/.test(t)) problems.push(`Create with two transfers: preview does not name the three lines (${t.replace(/\s+/g, ' ').slice(0, 160)})`);
+    if (!/Umstieg München Hbf · \d+ Min\./.test(t) || !/Umstieg München Ost · \d+ Min\./.test(t)) problems.push(`Create with two transfers: preview does not name both transfers (${t.replace(/\s+/g, ' ').slice(0, 200)})`);
+    if (!/Mit 1 Umstieg gibt es nichts/.test(t) || !/die Umstiege/.test(t)) problems.push(`Create with two transfers: preview does not say why there are two (${t.replace(/\s+/g, ' ').slice(-140)})`);
+    if (await sideways(p)) problems.push('Create with two transfers: page scrolls sideways (preview)');
+    if ((await jx(TD, '/api/profile')).tours.length) problems.push('Create with two transfers: route was created before the preview was confirmed');
+    await p.locator('button').filter({ hasText: /^Speichern$/ }).click(); await p.waitForTimeout(2500);
+    const tours = (await jx(TD, '/api/profile')).tours;
+    if (tours.length !== 1 || tours[0].transfers !== 1) problems.push(`Create with two transfers: ${tours.length} route(s) with transfer ${tours.map((x) => x.transfers).join('/')} instead of 1 × 1`);
+    await p.goto(base + '/Strecken'); await p.waitForTimeout(1800);
+    const list = await p.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/2 Umstiege · meist München Hbf › München Ost/.test(list)) problems.push(`Create with two transfers: route list does not name "2 Umstiege · meist München Hbf › München Ost" (${list.replace(/\s+/g, ' ').slice(0, 200)})`);
+    if (await sideways(p)) problems.push('Create with two transfers: route list scrolls sideways');
+  } finally { await c.close(); }
+  // Dark mode: the green preview with three trips stays readable
+  const dk = await browser.newContext({ ...NEW_CTX, colorScheme: 'dark' }); await dk.addInitScript(initFor(), ['smokexfer6123456789abcdefg']);
+  try {
+    const dp = await dk.newPage(); dp.setDefaultTimeout(8000); watch(dp);
+    await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1000);
+    await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+    await suggestOn(dp, 0, 'Freis'); await suggestOn(dp, 1, 'Neuperl'); await dp.waitForTimeout(2500);
+    if (!(await dp.getByRole('status').filter({ hasText: 'Gefunden · 2 Umstiege' }).count())) problems.push('Create with two transfers (dark): no preview');
+    const bad = await lowContrast(dp, '[role=status]');
+    if (bad.length) problems.push(`Create with two transfers (dark): preview poorly readable: ${bad.slice(0, 4).join(', ')}`);
+  } finally { await dk.close(); }
+  // An older server says nothing about how far it looked: "weniger als 2 Umstiegen" as before (nothing to find: Passau → Wien)
+  expect422 = true;
+  const oc = await browser.newContext(NEW_CTX); await oc.addInitScript(initFor(), ['smokexfer7123456789abcdefg']);
+  try {
+    const op = await oc.newPage(); op.setDefaultTimeout(8000); watch(op);
+    await op.route('**/api/connections/search', async (route) => { const res = await route.fetch(); const b = await res.json(); delete b.maxTransfers; await route.fulfill({ response: res, json: b }); });
+    await op.goto(base + '/Strecken'); await op.waitForTimeout(1000);
+    await op.getByRole('button', { name: /Strecke hinzufügen/ }).click();
+    await suggestOn(op, 0, 'Passau'); await suggestOn(op, 1, 'Wien'); await op.waitForTimeout(2000);
+    if (!(await op.getByRole('alert').filter({ hasText: 'Mit weniger als 2 Umstiegen nicht erreichbar' }).count())) problems.push('Create with two transfers (older server): the notice does not say "weniger als 2 Umstiegen"');
+  } finally { expect422 = false; await oc.close(); }
+  // Setup step 1 names both transfers and creates the route in one go
+  const SD = 'smokexfer8123456789abcdefg';
+  const sc = await browser.newContext(NEW_CTX);
+  await sc.addInitScript(([d]) => { try { localStorage.setItem('rego.device', JSON.stringify(d)); localStorage.setItem('rego.splashSeen', '1'); } catch (e) {} }, [SD]);
+  try {
+    const sp = await sc.newPage(); sp.setDefaultTimeout(8000); watch(sp);
+    const text = () => sp.evaluate(() => document.body.innerText);
+    await sp.goto(base + '/Onboarding1'); await sp.waitForTimeout(1500);
+    await suggestOn(sp, 0, 'Freis'); await suggestOn(sp, 1, 'Neuperl'); await sp.waitForTimeout(2500);
+    if (!/Gefunden: 2 Umstiege in München Hbf › München Ost/.test(await text())) problems.push(`Setup step 1 (two transfers): the transfers are not named (${(await text()).replace(/\s+/g, ' ').slice(-140)})`);
+    if (await sideways(sp)) problems.push('Setup step 1 (two transfers): page scrolls sideways');
+    const next = () => sp.getByRole('link', { name: 'Weiter' });
+    await next().click(); await sp.waitForTimeout(800); await next().click(); await sp.waitForTimeout(800);
+    await sp.getByRole('link', { name: "Los geht's" }).click(); await sp.waitForTimeout(3500);
+    const tours = (await jx(SD, '/api/profile')).tours;
+    if (tours.length !== 1 || tours[0].transfers !== 1) problems.push(`Setup step 1 (two transfers): ${tours.length} route(s) with transfer ${tours.map((x) => x.transfers).join('/')} instead of 1 × 1`);
+  } finally { await sc.close(); }
+});
+
+// The state of a route with two transfers comes from the real build (buildChainTour) and is slipped to the page, with times from now on.
+// Three situations: on time, the first transfer at risk (S1 +4 min), the second one missed (U3 +8 min). Main page (three lines in a row of their own),
+// departure page (three trips, map with both transfers), dark mode, narrow phone.
+await check('Two transfers in the UI', async () => {
+  const XD5 = 'smokexfer9123456789abcdefg';
+  const ns = (await j('/api/stations?q=Neuperlach')).stations[0];
+  const made = await jx(XD5, '/api/tours', 'POST', { from: st, to: ns, transfers: 1 });
+  const tour = (made.tours || [])[0];
+  if (!tour) { problems.push(`Two transfers: route could not be created (${made.error || 'no answer'})`); return; }
+  const MO = { id: '8000902', name: 'Moosach' }, OD = { id: '8000262', name: 'Odeonsplatz' };
+  const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
+  const leg = (name, product, from, to, min, mins, o = {}) => {
+    const d = o.late || 0;
+    return { line: { name, product }, direction: to.name, origin: from, destination: to, plannedDep: iso(min), dep: iso(min + d), depDelay: d, plannedArr: iso(min + mins), arr: iso(min + mins + d), arrDelay: d,
+      plannedPlatform: '1', platform: '1', plannedArrPlatform: '2', arrPlatform: '2', stopovers: o.stopovers || [from, to], remarks: [], cancelled: false };
+  };
+  // Freising → Moosach (S1), Moosach → Odeonsplatz (U3), Odeonsplatz → Neuperlach Süd (U5); six minutes at every transfer
+  const J = (m, o1 = {}, o2 = {}) => ({ legs: [leg('S1', 'suburban', tour.from, MO, m, 27, { stopovers: [tour.from, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MO], ...o1 }), leg('U3', 'subway', MO, OD, m + 33, 14, o2), leg('U5', 'subway', OD, tour.to, m + 53, 18)] });
+  const scen = [
+    { name: 'on time', state: 'ok', hero: /pünktlich/, detail: [/Umstieg/], js: () => [J(10), J(30), J(50)] },
+    { name: 'first at risk', state: 'tight', hero: /\+4 Min/, detail: [/Anschluss wackelt/], card: /Anschluss wackelt/, js: () => [J(10, { late: 4 }), J(30), J(50)] },
+    { name: 'second missed', state: 'missed', hero: /Verpasst/, detail: [/Anschluss verpasst/], card: /Anschluss verpasst/, js: () => [J(10, {}, { late: 8 }), J(30), J(50)] },
+  ];
+  for (const sc of scen) for (const [w, h, dark] of [[390, 844, false], [320, 568, false], [390, 844, true]]) {
+    const tag = `Two transfers ${sc.name} (${w} px${dark ? ', dark' : ''})`;
+    where = tag;
+    const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, colorScheme: dark ? 'dark' : 'light' });
+    await c.addInitScript(initFor(), [XD5]);
+    let built = null;
+    await c.route('**/api/state**', async (route) => {
+      const res = await route.fetch(); const body = await res.json();
+      built = await buildChainTour(tour, sc.js(), { now: Date.now(), minDelay: 3, linesAt: async () => [], lines: body.lines });
+      body.tours = body.tours.map((x) => (x.id === tour.id ? { ...x, ...built.tour } : x));
+      body.incidents = built.incidents;
+      await route.fulfill({ response: res, json: body });
+    });
+    const pg = await c.newPage(); pg.setDefaultTimeout(8000); watch(pg);
+    const text = () => pg.evaluate(() => document.querySelector('#screen').innerText);
+    try {
+      await pg.goto(base + '/'); await pg.waitForTimeout(1800);
+      if (!built) { problems.push(`${tag}: state was not injected`); continue; }
+      const states = built.tour.departures.map((d) => d.transfer && d.transfer.state);
+      if (states[0] !== sc.state) problems.push(`${tag}: first departure has the state ${states[0]} instead of ${sc.state}`);
+      const hero = await pg.locator('#screen a.rg-in').first().innerText();
+      if (!sc.hero.test(hero)) problems.push(`${tag}: big card does not show ${sc.hero} (${hero.replace(/\s+/g, ' ').slice(0, 80)})`);
+      const rows = pg.locator('a.rg-xdep');
+      if ((await rows.count()) !== 3) { problems.push(`${tag}: ${await rows.count()} instead of 3 transfer rows`); continue; }
+      for (let i = 0; i < 3; i++) {
+        const rt = await rows.nth(i).innerText();
+        if (!/S ?1/.test(rt) || !/U ?3/.test(rt) || !/U ?5/.test(rt)) problems.push(`${tag}: row ${i + 1} does not show all three lines (${rt.replace(/\s+/g, ' ')})`);
+        if (!rt.includes(built.tour.departures[i].transfer.text)) problems.push(`${tag}: row ${i + 1} does not name "${built.tour.departures[i].transfer.text}" (${rt.replace(/\s+/g, ' ')})`);
+      }
+      // the three lines sit in a row below the time and stay inside the screen; the time, the status and the platform stay on the first row
+      const geo = await rows.first().evaluate((a) => {
+        const kids = [...a.children].map((e) => e.getBoundingClientRect());
+        const tm = kids[0], chips = kids[1], status = kids[2], plat = kids[3], xf = kids[kids.length - 1];
+        return { chipsBelow: chips.top >= tm.bottom - 2, chipsInside: chips.right <= innerWidth + 0.5 && chips.left >= 0, statusRow: Math.abs(status.top - tm.top) < tm.height, platInside: plat.right <= innerWidth + 0.5, xferBelow: xf.top >= chips.bottom - 2, xferInside: xf.right <= innerWidth + 0.5 };
+      });
+      for (const [k, v] of Object.entries(geo)) if (!v) problems.push(`${tag}: row layout ${k} is wrong`);
+      if (await sideways(pg)) problems.push(`${tag}: main page scrolls sideways`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: main page poorly readable: ${bad.slice(0, 4).join(', ')}`); }
+      // Departure page: three trips with a transfer card between each, map with both transfers
+      await rows.first().click(); await pg.waitForTimeout(1600);
+      const dt = await text();
+      for (const re of sc.detail) if (!re.test(dt)) problems.push(`${tag}: departure page does not show ${re}`);
+      if (!/Freising\s*→\s*Moosach/.test(dt) || !/Moosach\s*→\s*Odeonsplatz/.test(dt) || !/Odeonsplatz\s*→/.test(dt)) problems.push(`${tag}: departure page does not show the three trips`);
+      if (!/1\. Fahrt/.test(dt) || !/2\. Fahrt/.test(dt) || !/3\. Fahrt/.test(dt)) problems.push(`${tag}: departure page does not name "1. Fahrt", "2. Fahrt" and "3. Fahrt"`);
+      const label = await pg.locator('svg[role=img]').first().getAttribute('aria-label');
+      if (!/Umstieg in Moosach/.test(label || '') || !/Umstieg in Odeonsplatz/.test(label || '')) problems.push(`${tag}: map does not name both transfers (${label})`);
+      const pills = await pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /top: 286px/.test(e.getAttribute('style') || '') && e.textContent.trim()).map((e) => { const r = e.getBoundingClientRect(); return { t: e.textContent.trim(), l: r.left, r: r.right }; }).sort((a, b) => a.l - b.l));
+      if (pills.length !== 2) problems.push(`${tag}: ${pills.length} transfer labels on the map instead of 2 (${pills.map((x) => x.t).join(' | ')})`);
+      else if (pills[0].r > pills[1].l + 0.5 || pills[0].l < -0.5 || pills[1].r > w + 0.5) problems.push(`${tag}: transfer labels on the map overlap or stick out (${pills.map((x) => `${x.t} ${Math.round(x.l)}–${Math.round(x.r)}`).join(' | ')})`);
+      if (await sideways(pg)) problems.push(`${tag}: departure page scrolls sideways`);
+      const cut = await pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /rotate\(-45deg\)/.test(e.getAttribute('style') || '') && e.textContent.trim()).filter((e) => e.getBoundingClientRect().right > innerWidth + 1 || e.getBoundingClientRect().left < -1).map((e) => e.textContent));
+      if (cut.length) problems.push(`${tag}: label on the card sticks out over the edge: ${cut.join(', ')}`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: departure page poorly readable: ${bad.slice(0, 4).join(', ')}`); }
+      // Incidents: for at risk/missed exactly one card, for on time none
+      await pg.goto(base + '/Meldungen'); await pg.waitForTimeout(1500);
+      const cards = pg.locator('a[href^="Detail.dc.html#"]');
+      if (sc.card) {
+        if ((await cards.count()) !== 1) problems.push(`${tag}: ${await cards.count()} cards under "Meldungen" instead of 1`);
+        else {
+          const ct = await cards.first().innerText();
+          if (!sc.card.test(ct)) problems.push(`${tag}: card under "Meldungen" does not name the state (${ct.replace(/\s+/g, ' ')})`);
+        }
+      } else if (await cards.count()) problems.push(`${tag}: incident despite an on-time connection`);
+      if (await sideways(pg)) problems.push(`${tag}: "Meldungen" scrolls sideways`);
     } finally { await c.close(); }
   }
 });
@@ -1126,4 +1286,4 @@ await check('Feedback without address', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');

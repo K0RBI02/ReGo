@@ -8,6 +8,7 @@ import { randomInt } from 'node:crypto';
 import { createNotifier } from './notifier.mjs';
 import { createGuard } from './guard.mjs';
 import { berlin } from './lib/time.mjs';
+import { MAX_CHAIN } from './domain/chain.mjs';
 import { cleanVersion, isNewer } from './lib/version.mjs';
 import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, toStop, DEVICE_RE } from './store/profile.mjs';
 
@@ -107,7 +108,7 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     }
     if (path === '/api/profile' && m === 'GET') return send(res, 200, await store.load(dev));
     if (path === '/api/profile' && m === 'PUT') { const b = await readBody(req); return send(res, 200, await store.update(dev, (p) => replaceProfile(p, b))); }
-    if (path === '/api/connections/search' && m === 'POST') {            // a pair of stops, looked at as soon as the app has both: direct connection, or one with 1 transfer (with a sample), or nothing
+    if (path === '/api/connections/search' && m === 'POST') {            // a pair of stops, looked at as soon as the app has both: direct connection, or one with 1 transfer (2 if there is no other; with a sample), or nothing
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                           // checks start and destination (400), stores nothing
       const [a, c] = [toStop(b.from), toStop(b.to)];
@@ -116,20 +117,20 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
       const r = await service.searchTransfer(a, c);
       // A source that has put ReGo on pause is not "try again in a moment": say which one and that it takes a while (the form shows this text)
       if (r.found === null && r.paused) throw Object.assign(new ValidationError(`Sorry, ${r.paused} lässt gerade keine Abfragen zu. Die Suche geht für diese Strecke später wieder.`, 503), { extra: { code: 'source-paused' } });
-      return send(res, 200, { direct, found: r.found, transfers: 1, ...(r.route ? { route: r.route } : {}) });
+      return send(res, 200, { direct, found: r.found, transfers: Math.max(1, (r.route?.legs?.length || 2) - 1), maxTransfers: MAX_CHAIN - 1, ...(r.route ? { route: r.route } : {}) });
     }
     if (path === '/api/tours' && m === 'POST') {
       const b = await readBody(req);
       addTours({ tours: [], settings: {} }, b);                       // checks the input (400), stores nothing
       const mine = await store.load(dev);
-      // Do not create routes without a direct connection on our own: the app searches with 1 transfer and the user confirms the preview (transfers: 1). If the source does not know, the route is created when in doubt.
+      // Do not create routes without a direct connection on our own: the app searches with 1 transfer (2 if there is no other) and the user confirms the preview (transfers: 1). If the source does not know, the route is created when in doubt.
       // This also applies to a route that already exists (from an older version, without a direct connection): that way the user gets the hint and can switch it to a transfer.
       // Only someone who already has a route with a transfer for this pair and creates it "with transfer" again is not checked once more.
       const haveX = mine.tours.some((x) => x.from?.id === b.from.id && x.to?.id === b.to.id && x.transfers === 1);
       if (!(b.transfers === 1 && haveX)) {
         for (const [a, c] of b.roundTrip ? [[b.from, b.to], [b.to, b.from]] : [[b.from, b.to]]) {
           if (b.transfers === 1) {
-            if ((await service.searchTransfer(toStop(a), toStop(c))).found === false) throw Object.assign(new ValidationError(`${a.name} → ${c.name}: Mit weniger als 2 Umstiegen nicht erreichbar.`, 422), { extra: { code: 'no-connection' } });
+            if ((await service.searchTransfer(toStop(a), toStop(c))).found === false) throw Object.assign(new ValidationError(`${a.name} → ${c.name}: Mit weniger als ${MAX_CHAIN} Umstiegen nicht erreichbar.`, 422), { extra: { code: 'no-connection' } });
           } else if ((await service.hasDirect(toStop(a), toStop(c))) === false) throw Object.assign(new ValidationError(`Zwischen ${a.name} und ${c.name} habe ich keine Direktverbindung gefunden.`, 422), { extra: { code: 'no-direct' } });
         }
       }

@@ -5,6 +5,7 @@ import { cleanStopName } from '../providers/hafas.mjs';
 const norm = (s) => String(s).toLowerCase().replace(/\s*\(.*?\)\s*/g, ' ').replace(/\bhbf\b|\bbahnhof\b|\bbf\b/g, '').trim();
 export function shortName(name) {
   let n = cleanStopName(name).replace(/\s*\(.*?\)/g, '').replace(/\bBahnhof\b/i, '').replace(/\s+/g, ' ').trim();
+  if (/^[^,]{2,},\s*\S/.test(n)) n = n.replace(/^[^,]+,\s*/, '');                 // the associations write "Ort, Haltestelle" ("München, Moosach"): the place is no help on the map
   if (!/^München[ -]?(Hbf|Ost)$/.test(n)) n = n.replace(/^München[- ]/, '');   // "München-Feldmoching" -> "Feldmoching"
   if (n.length > 15 && !/Hbf$/.test(n)) n = n.split(/[ \-/]/)[0];
   return n.length > 15 && !/Hbf$/.test(n) ? `${n.slice(0, 14)}.` : n;

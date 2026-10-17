@@ -274,7 +274,7 @@ test('Create route with transfer: first without a direct connection (422 no-dire
     let r = await post('/api/tours', { from: FS, to: SZ });
     assert.equal(r.status, 422); assert.equal(r.body.code, 'no-direct'); assert.equal(r.body.error, 'Zwischen Freising und Salzburg Hbf habe ich keine Direktverbindung gefunden.');
     r = await post('/api/tours', { from: PA, to: WI, transfers: 1 });
-    assert.equal(r.status, 422); assert.equal(r.body.code, 'no-connection'); assert.equal(r.body.error, 'Passau Hbf → Wien Hbf: Mit weniger als 2 Umstiegen nicht erreichbar.');
+    assert.equal(r.status, 422); assert.equal(r.body.code, 'no-connection'); assert.equal(r.body.error, 'Passau Hbf → Wien Hbf: Mit weniger als 3 Umstiegen nicht erreichbar.');
     assert.equal((await post('/api/tours', { from: FS, to: SZ, transfers: 2 })).status, 400);
     assert.equal((await (await fetch(`${base}/api/profile`, { headers: h })).json()).tours.length, 0);       // none of it was stored
     r = await post('/api/tours', { from: FS, to: SZ, roundTrip: true, transfers: 1 });

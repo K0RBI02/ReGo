@@ -20,6 +20,8 @@ export const MOCK_STOPS = [
   S('8000904', 'Grafing Bahnhof', 48.0430, 11.9660),
   S('8000905', 'Freilassing', 47.8350, 12.9760),
   S('8000906', 'Traunstein', 47.8680, 12.6430),
+  S('8000907', 'München Ost', 48.1274, 11.6050),
+  S('8000908', 'München-Neuperlach Süd', 48.0875, 11.6360),
 ];
 const byId = Object.fromEntries(MOCK_STOPS.map((s) => [s.id, s]));
 const ids = (...n) => n.map((x) => byId[MOCK_STOPS.find((s) => s.name.startsWith(x))?.id]);
@@ -32,6 +34,9 @@ const ROUTES = [
   { name: 'RE 5', product: 'regionalExpress', every: 30, mins: 78, stops: ids('München Hbf', 'Rosenheim', 'Prien', 'Traunstein', 'Freilassing', 'Salzburg'), headsign: ['Salzburg Hbf', 'München Hbf'], replacement: true },
   { name: 'RJX 61', product: 'nationalExpress', every: 60, mins: 100, stops: ids('München Hbf', 'Rosenheim', 'Salzburg Hbf', 'Linz', 'Wien'), headsign: ['Wien Hbf', 'München Hbf'] },
   { name: 'RE 1', product: 'regionalExpress', every: 60, mins: 50, stops: ids('München Hbf', 'Ingolstadt'), headsign: ['Ingolstadt Hbf', 'München Hbf'] },
+  // Together with the S1 these two make a trip that needs two transfers (Freising → Neuperlach Süd): no stop is shared by the first and the last line
+  { name: 'S4', product: 'suburban', every: 20, mins: 8, stops: ids('München Hbf', 'München Ost'), headsign: ['München Ost', 'München Hbf'] },
+  { name: 'U5', product: 'subway', every: 10, mins: 14, stops: ids('München Ost', 'München-Neuperlach'), headsign: ['Neuperlach Süd', 'München Ost'] },
 ];
 
 function route(fromId, toId) {
@@ -82,6 +87,7 @@ function gridFrom(r, t0, now, count) {
 // The scenario chooses the time: shortly after "now" there is a delay on the S1 as well as replacement transport and a delay on the RE 5.
 // transfers >= 1: if there is no direct trip, two routes are joined via a common stop (usually München Hbf) – like a real timetable, only with the
 // connection that is still reachable after the actual arrival.
+// transfers >= 2: if even that is not possible, three routes are joined via two stops.
 function journeysFor({ from, to, departure, results = 5, now, transfers = 0 }) {
   const t0 = Math.max(Date.parse(departure) || now, now - 5 * 60000);
   const hit = route(from, to);
@@ -91,7 +97,7 @@ function journeysFor({ from, to, departure, results = 5, now, transfers = 0 }) {
   }
   if (transfers < 1) return [];
   const hub = MOCK_STOPS.find((s) => s.id !== from && s.id !== to && route(from, s.id) && route(s.id, to));
-  if (!hub) return [];
+  if (!hub) return transfers >= 2 ? chainFor({ from, to, t0, results, now }) : [];
   const one = sliceOf(route(from, hub.id)), two = sliceOf(route(hub.id, to));
   const tripsB = gridFrom(two.r, t0, now, 24).map(({ plan, i }) => tripOf(two, plan, i, now));
   const out = [];
@@ -99,6 +105,29 @@ function journeysFor({ from, to, departure, results = 5, now, transfers = 0 }) {
     const a = tripOf(one, plan, i, now);
     const b = tripsB.find((x) => Date.parse(x.departure) >= Date.parse(a.arrival) + MCT * 60000);
     if (b) out.push({ type: 'journey', legs: [a, b] });
+    if (out.length >= results) break;
+  }
+  return out;
+}
+
+/** Two transfers: from → first stop → second stop → to, each part on its own route; every next trip is the first one that is reachable after the actual arrival. */
+function chainFor({ from, to, t0, results, now }) {
+  let hubs = null;
+  for (const h1 of MOCK_STOPS) {
+    if (h1.id === from || h1.id === to || !route(from, h1.id)) continue;
+    const h2 = MOCK_STOPS.find((s) => s.id !== from && s.id !== to && s.id !== h1.id && route(h1.id, s.id) && route(s.id, to));
+    if (h2) { hubs = [h1, h2]; break; }
+  }
+  if (!hubs) return [];
+  const one = sliceOf(route(from, hubs[0].id)), two = sliceOf(route(hubs[0].id, hubs[1].id)), three = sliceOf(route(hubs[1].id, to));
+  const tripsB = gridFrom(two.r, t0, now, 40).map(({ plan, i }) => tripOf(two, plan, i, now));
+  const tripsC = gridFrom(three.r, t0, now, 80).map(({ plan, i }) => tripOf(three, plan, i, now));
+  const out = [];
+  for (const { plan, i } of gridFrom(one.r, t0, now, results + 6)) {
+    const a = tripOf(one, plan, i, now);
+    const b = tripsB.find((x) => Date.parse(x.departure) >= Date.parse(a.arrival) + MCT * 60000);
+    const c = b && tripsC.find((x) => Date.parse(x.departure) >= Date.parse(b.arrival) + MCT * 60000);
+    if (b && c) out.push({ type: 'journey', legs: [a, b, c] });
     if (out.length >= results) break;
   }
   return out;

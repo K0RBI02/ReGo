@@ -125,6 +125,9 @@ class Component extends DCLogic {
     // The look at the stops: direct / with 1 transfer / nothing / no source answers. "Weiter" waits for it and stops at "nothing".
     const pr = ok ? this._probe.view() : null, kind = pr ? pr.kind : '';
     const ready = ok && kind !== 'busy' && kind !== 'none';
+    // With a transfer found: how many (2 only if there is nothing with 1) and where one changes ("A › B" for two)
+    const xl = kind === 'transfer' && pr.route ? pr.route : null, xn = xl ? Math.max(1, (xl.legs || []).length - 1) : 1;
+    const xvia = xl ? (xl.changes && xl.changes.length > 1 ? xl.changes.map((c) => c.via).join(' › ') : xl.via || '') : '';
     window.REGO_pending = ok ? { from: st.from, to: st.to, transfers: kind === 'transfer', time: st.out.from, until: st.out.until } : null;
     // Activity time: when ReGo is active for this route (the return trip is added later through "Strecke hinzufügen")
     const wins = [T.win.view(st.out, (w) => this.setState({ out: w }), { title: 'Aktivitätszeit', tone: 'w', compact: true })];
@@ -135,8 +138,8 @@ class Component extends DCLogic {
       hint: !ok ? (typed ? 'Bitte wähle eine Haltestelle aus.' : 'Ohne Strecke kann ReGo nichts zeigen.')
         : kind === 'busy' ? 'Sucht Verbindungen\u00a0…'
         : kind === 'direct' ? 'Direktverbindung gefunden.'
-        : kind === 'transfer' ? 'Gefunden: 1 Umstieg' + (pr.route && pr.route.via ? ' in ' + pr.route.via : '') + '.'
-        : kind === 'none' ? 'Mit weniger als 2 Umstiegen nicht erreichbar.'
+        : kind === 'transfer' ? 'Gefunden: ' + (xn > 1 ? xn + ' Umstiege' : '1 Umstieg') + (xvia ? ' in ' + xvia : '') + '.'
+        : kind === 'none' ? 'Mit weniger als ' + ((pr.max || 1) + 1) + ' Umstiegen nicht erreichbar.'
         : kind === 'sorry' ? 'Sorry, gerade antwortet keine Quelle.'
         : 'Du kannst alles später im Menü ändern.',
       next: ready ? 'Onboarding2.dc.html' : '#', notReady: !ready,

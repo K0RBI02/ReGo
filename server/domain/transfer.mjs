@@ -7,6 +7,7 @@
 //   tight   – "Anschluss wackelt" (connection at risk): feeder delayed, buffer under 3 min (or the source no longer counts the connection)
 //   missed  – "Anschluss verpasst" (connection missed): buffer ≤ 0 or the connecting trip is cancelled; the next connection is shown
 // ReGo picks the transfer anew for every departure.
+// Two transfers (the fallback when nothing with one is left, e.g. during a closure) are rated in chain.mjs with the same rules.
 import { createHash } from 'node:crypto';
 import { berlin, hhmm, weekday } from '../lib/time.mjs';
 import { lineLabel, lineColor } from '../lib/lines.mjs';
@@ -19,21 +20,21 @@ import { windowView } from './window.mjs';
 export const MAX_WAIT_MIN = 30;        // planned wait at the transfer; above it we do not show the trip (unless there would be nothing else)
 export const TIGHT_MIN = 3;            // less buffer than this: the connection is at risk
 const MCT_MIN = 2, MCT_MAX = 6, MCT_DEFAULT = 4;    // range for the estimated minimum transfer time
-const SHOWN = 3;                       // this many departures the route shows (each with its own detail page)
+export const SHOWN = 3;                // this many departures the route shows (each with its own detail page)
 const MIN = 60000;
 const CONN_INCIDENTS = 2;              // at most this many connection incidents (at risk/missed) per route
 
 const t = (iso) => Date.parse(iso);
-const diffMin = (from, to) => Math.round((t(to) - t(from)) / MIN);
+export const diffMin = (from, to) => Math.round((t(to) - t(from)) / MIN);
 const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 8);
-const nm = (stop) => tidyName(cleanStopName(stop?.name || ''));
+export const nm = (stop) => tidyName(cleanStopName(stop?.name || ''));
 const viaKey = (stop) => shortName(stop?.name || '').toLowerCase();
-const keyOf = (l) => `${l.line.name}|${l.plannedDep}`;
+export const keyOf = (l) => `${l.line.name}|${l.plannedDep}`;
 const byDep = (x, y) => t(x.dep) - t(y.dep);
 const byArr = (x, y) => t(x.arr) - t(y.arr) || t(x.dep) - t(y.dep);
-const dur = (m) => { m = Math.max(0, Math.round(m)); const h = Math.floor(m / 60), r = m % 60; return h ? (r ? `${h} Std. ${r} Min.` : `${h} Std.`) : `${r} Min.`; };
+export const dur = (m) => { m = Math.max(0, Math.round(m)); const h = Math.floor(m / 60), r = m % 60; return h ? (r ? `${h} Std. ${r} Min.` : `${h} Std.`) : `${r} Min.`; };
 const uniq = (list) => { const seen = new Set(); return list.filter((x) => { const k = keyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }); };
-const platformChanged = (l) => !!(l && l.plannedPlatform && l.platform && String(l.plannedPlatform) !== String(l.platform));
+export const platformChanged = (l) => !!(l && l.plannedPlatform && l.platform && String(l.plannedPlatform) !== String(l.platform));
 
 function pairsOf(journeys) {
   const out = [];
@@ -184,11 +185,11 @@ function entriesOf(journeys, bLists) {
   return out;
 }
 
-/** Route without a departure: say honestly why – never "pünktlich" (on time). */
-function noEntriesView(tour, stale, cancelled, staleNote) {
+/** Route without a departure: say honestly why – never "pünktlich" (on time). maxChanges = the most transfers that were looked for (the text names it). */
+export function noEntriesView(tour, stale, cancelled, staleNote, maxChanges = 1) {
   const [big, sub2] = stale ? ['Keine Daten', staleNote || 'Die Fahrplanquelle antwortet gerade nicht. ReGo versucht es weiter.']
     : cancelled ? ['Fällt aus', 'Die nächsten Fahrten fallen aus.']
-      : ['Keine', 'Keine Verbindung mit höchstens 1 Umstieg gefunden.'];
+      : ['Keine', `Keine Verbindung mit höchstens ${maxChanges === 1 ? '1 Umstieg' : `${maxChanges} Umstiegen`} gefunden.`];
   const stations = [tour.from, tour.to].map((s) => ({ id: s.id, name: shortName(s.name) }));
   return { kind: 'none', head: 'Nächste Abfahrt', big, sub: sub2, rows: [], alternative: null, ticketHint: null, map: { stations, hubIndex: -1, haloIndex: -1, connections: [], disrupted: { from: 0, to: 1 }, alternative: null } };
 }
@@ -510,7 +511,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
   }
 
   // No incident: "pünktlich" view on the route itself; without a departure an honest explanation
-  if (!shown.length) out.view = noEntriesView(tour, ctx.stale, all.some((e) => e.kind === 'cancelledA'), ctx.staleNote);
+  if (!shown.length) out.view = noEntriesView(tour, ctx.stale, all.some((e) => e.kind === 'cancelledA'), ctx.staleNote, ctx.maxChanges || 1);
   else if (!incidents.length) out.view = shown[0].view;
   return { tour: out, incidents };
 }

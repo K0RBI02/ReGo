@@ -178,15 +178,15 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <sc-if value="{{d.isXfer}}" hint-placeholder-val="{{ false }}">
 <a class="rg-dep rg-xdep" href="{{d.href}}" style="display: grid; grid-template-columns: minmax(70px, auto) auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 3px; padding: 9px 0 10px; border-bottom: {{d.border}}">
 <span style="font-size: 27px; font-weight: 700; letter-spacing: -0.03em">{{d.time}}</span>
-<span style="display: flex; align-items: center; gap: 4px">
+<span style="display: flex; align-items: center; gap: 4px; {{d.chipsPos}}">
 <sc-for list="{{d.chips}}" as="c" hint-placeholder-count="3">
 <sc-if value="{{c.isChev}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" aria-hidden="true"><path d="M1.5 1.5L6.5 6l-5 4.5"></path></svg></sc-if>
 <sc-if value="{{c.isChip}}" hint-placeholder-val="{{ true }}"><span style="{{c.style}}">{{c.label}}</span></sc-if>
 </sc-for>
 </span>
-<span style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 700"><svg style="flex: none" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
+<span style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 17px; font-weight: 700; {{d.statusPos}}"><svg style="flex: none" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#1C1A1A" stroke-width="{{d.iconW}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{d.iconD}}"></path></svg>{{d.status}}</span>
 <span style="{{d.platformStyle}}">{{d.platform}}</span>
-<span style="font-size: 13px; font-weight: 600; color: #4A4747; white-space: nowrap">{{d.arrText}}</span>
+<span style="font-size: 13px; font-weight: 600; color: #4A4747; white-space: nowrap; {{d.arrPos}}">{{d.arrText}}</span>
 <span style="{{d.xferStyle}}">{{d.xferText}}</span>
 </a>
 </sc-if>
@@ -292,12 +292,14 @@ class Component extends DCLogic {
     const departures = nd.map((d, idx) => {
       const late = d.delayMin > 0, moved = d.plannedPlatform !== d.expectedPlatform;
       const x = d.transfer;            // trip with a transfer: two lines, arrival at the destination and a line about the transfer
+      const three = !!x && (d.lineIds || []).length > 2;      // two transfers: three lines do not fit next to the time and status, so they get a row of their own (time/status/platform, lines, transfer text)
       return {
         isDirect: !x, isXfer: !!x,
         chips: x ? (d.lineIds || [d.lineId]).flatMap((id, k) => (k ? [{ isChev: true }] : []).concat(chipFor(id))) : [],
+        chipsPos: three ? 'grid-column: 2 / -1; grid-row: 2' : '', statusPos: three ? 'grid-column: 2 / 4; grid-row: 1' : '', arrPos: three ? 'grid-column: 1; grid-row: 2' : '',
         arrText: d.arrTime ? 'an ' + d.arrTime : '',
         xferText: x ? x.text : '',
-        xferStyle: 'grid-column: 2 / -1; ' + (x && PILL[x.state] ? 'justify-self: start; background: ' + PILL[x.state] + '; border-radius: 999px; padding: 3px 10px; font-size: 14px; font-weight: 700; white-space: nowrap' : 'font-size: 14px; font-weight: 600; color: #4A4747'),
+        xferStyle: 'grid-column: 2 / -1; ' + (three ? 'grid-row: 3; ' : '') + (x && PILL[x.state] ? 'justify-self: start; background: ' + PILL[x.state] + '; border-radius: 999px; padding: 3px 10px; font-size: 14px; font-weight: 700; white-space: nowrap' : 'font-size: 14px; font-weight: 600; color: #4A4747'),
         href: 'Detail.dc.html#' + near.id + '.' + idx + '-m',
         border: idx === nd.length - 1 ? '0 solid transparent' : '1.5px solid #E3E3E3',
         time: d.expectedTime, line: T.lines[d.lineId].label,
@@ -305,7 +307,7 @@ class Component extends DCLogic {
         iconD: late ? 'M24 8L7 38h34zM24 19v9' : d.noRt ? 'M24 19v16M24 11.5v.1' : 'M9 25l9 9 21-22', iconW: late ? 4 : 5,      // no real-time data: a small "i" instead of the check mark
         status: (d.nextDay ? 'morgen · ' : '') + (late ? '+' + d.delayMin + ' Min.' : d.far ? 'planmäßig' : 'pünktlich'),      // far away or no real-time data: the source does not know delays, then "planmäßig"
         platform: 'Gl. ' + d.expectedPlatform,
-        platformStyle: 'font-size: 15px; white-space: nowrap; font-weight: ' + (moved ? 700 : 600) + '; color: ' + (moved ? '#1C1A1A' : '#4A4747')
+        platformStyle: 'font-size: 15px; white-space: nowrap; font-weight: ' + (moved ? 700 : 600) + '; color: ' + (moved ? '#1C1A1A' : '#4A4747') + (three ? '; grid-column: 4; grid-row: 1' : '')
       };
     });
     // Other routes show their state: white, with a small icon and the kind of incident (minutes for a delay) before the line

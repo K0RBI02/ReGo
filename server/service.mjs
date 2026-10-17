@@ -4,6 +4,7 @@ import { berlin, hhmm, fromBerlin, weekday } from './lib/time.mjs';
 import { distanceKm, regionOf } from './lib/geo.mjs';
 import { buildTour, stillVisible, THEME, SCHEMA_VERSION } from './domain/state.mjs';
 import { buildTransferTour, transferVias, previewRoute, shortcutFor } from './domain/transfer.mjs';
+import { buildChainTour, previewChain, hasStart } from './domain/chain.mjs';
 import { classifyRemark } from './domain/classify.mjs';
 import { windowState, windowView, windowRank, pushActive, DEFAULT_SCHEDULE } from './domain/window.mjs';
 import { createProviders } from './providers/index.mjs';
@@ -90,11 +91,11 @@ export function createService({ config, store, now = () => Date.now(), providers
     } catch (err) { log('Prüfung beim Anlegen fehlgeschlagen', from.id, to.id, err.message); return null; }
   }
 
-  /** Connections with at most one transfer. Uses the same query and the same cache as getState. */
-  const transferJourneys = (from, to, t, stamp = '') => {
+  /** Connections with at most n transfers (1, or 2 as the fallback). Uses the same query and the same cache as getState. */
+  const transferJourneys = (from, to, t, stamp = '', n = 1) => {
     const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
-    const key = `jl:${from.id}:${to.id}:t1${stamp}`;
-    return { key, load: (ttl = config.ttl.journeys) => askTrips(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 })) };
+    const key = `jl:${from.id}:${to.id}:t${n}${stamp}`;
+    return { key, load: (ttl = config.ttl.journeys) => askTrips(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: n })) };
   };
 
   /**
@@ -114,20 +115,28 @@ export function createService({ config, store, now = () => Date.now(), providers
    * Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. paused = name of the source that has put ReGo on pause.
    * The answer for "now" comes first. If it holds no trip that is still to come (closure, no service at the moment), the next normal morning is checked as well:
    * the question is whether the two stops are connected, not what runs this minute. The route itself keeps showing the current state.
+   * Only if there is nothing with one transfer on a normal morning either (a closure for weeks can force a second one), connections with up to two transfers
+   * are looked at in the same order; the sample then has three trips.
    */
   async function searchTransfer(from, to) {
     const t = now();
-    const look = async (at, stamp, ttl) => {
-      const q = transferJourneys(from, to, at, stamp);
+    const look = async (at, stamp, ttl, n = 1) => {
+      const q = transferJourneys(from, to, at, stamp, n);
       const r = await withDeadline(q.load(ttl), DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
       return r.value || [];
     };
     try {
       const route = previewRoute(await look(t, ''), t);      // a trip that has left already is no sample: the route would not show it either
       if (route) return { found: true, route };
-      const m = commuteSample(t);
+      const m = commuteSample(t), stampM = m ? `@${berlin(m).date}` : '';
       if (m) {
-        const sample = previewRoute(await look(m, `@${berlin(m).date}`, 600), m, t);
+        const sample = previewRoute(await look(m, stampM, 600), m, t);
+        if (sample) return { found: true, route: sample };
+      }
+      const two = previewChain(await look(t, '', undefined, 2), t);
+      if (two) return { found: true, route: two };
+      if (m) {
+        const sample = previewChain(await look(m, stampM, 600, 2), m, t);
         if (sample) return { found: true, route: sample };
       }
       return { found: false, route: null };
@@ -188,7 +197,8 @@ export function createService({ config, store, now = () => Date.now(), providers
       if (tour.active === false) { tours[i] = { out: { id: tour.id, name: tour.name, lineId: '', active: false, period: tour.period, ...(tour.transfers === 1 ? { transfers: 1 } : {}), ...(tour.returnId ? { returnId: tour.returnId } : {}), ...(tour.returnOf ? { returnOf: tour.returnOf } : {}), distanceKm: null, ...windowView(tour.schedule, t), departures: [] }, inc: [] }; return; }
       const client = (providers.forTourSafe || providers.forTour).call(providers, tour.from, tour.to);
       let journeys = [], tourStale = false, staleNote = '';
-      const xfer = tour.transfers === 1;
+      const xfer = tour.transfers === 1, begun = Date.now();
+      let looked = 1, more = null, chain = false;      // looked = the most transfers asked for; more = the answer with two transfers; chain = the route shows it
       // Commute time: before the window (a few hours before at most) we request the trains from its start, otherwise from now
       const win = windowState(tour.schedule || DEFAULT_SCHEDULE, t);
       const at = win.anchor ?? t, stamp = win.anchor ? `@${hhmm(win.anchor)}` : '';
@@ -207,16 +217,36 @@ export function createService({ config, store, now = () => Date.now(), providers
         failed++; stale = true; tourStale = true; staleNote = noteOf(err);
         if (err?.status !== 429) log('Abruf fehlgeschlagen', tour.id, err.message);
       }
+      // Nothing to come with at most one transfer – a closure can force a second change: then connections with up to two transfers are shown (same query and cache as the preview)
+      if (xfer && !tourStale && !hasStart(journeys, t, 2)) {
+        looked = 2;
+        const q2 = transferJourneys(tour.from, tour.to, at, stamp, 2);
+        try {
+          const r2 = await withDeadline(
+            q2.load(ttl),
+            Math.max(B_DEADLINE_MS, DEADLINE_MS - (Date.now() - begun)), () => { const hit = cache.peek(q2.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
+          more = r2.value || [];
+          if (r2.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r2.at); if (t - r2.at > BANNER_AFTER_SEC * 1000) served++; }
+          if (hasStart(more, t)) {
+            chain = true;
+            noteOnce(`chain:${tour.id}`, `Strecke ${tour.from.name} → ${tour.to.name}: nichts mit höchstens 1 Umstieg, es gelten die Verbindungen mit bis zu 2 Umstiegen (${more.filter((j) => ahead(j, t)).length} Fahrten noch nicht abgefahren)`);
+          }
+        } catch (err) {
+          stale = true; tourStale = true; staleNote = noteOf(err);          // we could not find out whether a connection with two transfers exists: not "no connection"
+          if (err?.status !== 429) log('Abruf mit 2 Umstiegen fehlgeschlagen', tour.id, err.message);
+        }
+      }
       const started = Date.now();
       const linesAtBudget = (id) => (Date.now() - started > MAP_BUDGET_MS ? Promise.resolve([]) : withDeadline(linesAt(id), Math.max(300, MAP_BUDGET_MS - (Date.now() - started)), () => []));
       const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
-      const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t, stamp, ttl) : undefined;
+      if (chain) journeys = more;
+      const bLists = xfer && !chain && journeys.length ? await loadBLists(tour, journeys, t, stamp, ttl) : undefined;
       const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t, at, stamp, ttl);
-      const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, staleNote, bLists, shortcutFor: shortcut, window: win });
+      const built = await (chain ? buildChainTour : xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, staleNote, bLists, shortcutFor: shortcut, window: win, maxChanges: looked });
       if (tourStale) built.tour.stale = true;                  // this route shows old data (or none at all)
       // For the log: a route with a transfer that finds nothing although the source answered – what did the source actually return?
-      if (xfer && !tourStale && !built.tour.departures.length) noteOnce(`none:${tour.id}`, `Strecke ohne Abfahrt: ${tour.from.name} → ${tour.to.name} (1 Umstieg) – die Quelle lieferte ${journeys.length} Fahrten, ${journeys.filter((j) => ahead(j, t)).length} davon noch nicht abgefahren`);
+      if (xfer && !tourStale && !built.tour.departures.length) noteOnce(`none:${tour.id}`, `Strecke ohne Abfahrt: ${tour.from.name} → ${tour.to.name} (1 Umstieg) – die Quelle lieferte ${journeys.length} Fahrten, ${journeys.filter((j) => ahead(j, t)).length} davon noch nicht abgefahren${more ? `; mit 2 Umstiegen ${more.length} Fahrten, ${more.filter((j) => ahead(j, t)).length} davon noch nicht abgefahren` : ''}`);
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
 

@@ -213,7 +213,7 @@
   };
 
   /**
-   * The look at a pair of stops as soon as both are chosen (new route form, setup step 1): direct connection, one with 1 transfer, nothing, or no source answers.
+   * The look at a pair of stops as soon as both are chosen (new route form, setup step 1): direct connection, one with 1 or 2 transfers, nothing, or no source answers.
    * One controller per form. set(from, to, delay) starts the look when the pair is complete and new (a typed name waits a moment, a picked one does not),
    * again(from, to) looks once more, view() says what to show (null = nothing to show), reset() forgets it. A result for an older pair is dropped.
    * onChange is called when a look has finished; the form also redraws by itself when it changes its own state.
@@ -259,7 +259,7 @@
       })().finally(() => { adding = null; });
       return adding;
     },
-    /** Connection with at most 1 transfer between two chosen stops (preview before creating). */
+    /** Connection with at most 1 transfer between two chosen stops, 2 if there is no other (preview before creating). */
     async searchTransfer({ from, to }) {
       const a = R.findStation(from), b = R.findStation(to);
       if (!a || !b) throw new Error('Bitte Haltestellen aus der Liste wählen');
@@ -267,7 +267,7 @@
       return api('/connections/search', { method: 'POST', body: JSON.stringify({ from: pt(a), to: pt(b) }) });
     },
     /**
-     * A look at two chosen stops: { kind: 'direct' } | { kind: 'transfer', route } | { kind: 'none' } | { kind: 'sorry' } (no source answers).
+     * A look at two chosen stops: { kind: 'direct' } | { kind: 'transfer', route } | { kind: 'none', max } | { kind: 'sorry' } (no source answers).
      * { kind: 'unknown' } comes from an older server that cannot tell whether there is a direct connection: the screens then show nothing and saving works as before.
      * refused: the server has already said that there is no direct connection, so an older server's answer counts as "no direct connection" too.
      */
@@ -276,7 +276,7 @@
       if (r.direct === undefined && !refused) return { kind: 'unknown' };
       if (r.direct === true) return { kind: 'direct' };
       if (r.found === true && r.route) return { kind: 'transfer', route: r.route };
-      if (r.found === false) return { kind: 'none' };
+      if (r.found === false) return { kind: 'none', max: r.maxTransfers || 1 };           // max: how many transfers the server looked up to (older servers: 1)
       return { kind: 'sorry' };
     },
     async setActive(id, active) { await api(`/tours/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); await R.refresh(); },

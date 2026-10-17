@@ -1,6 +1,7 @@
 // Days with closures (S-Bahn Stammstrecke closed, October 2026): EFA applies the limit on transfers only after it has picked its best trips. When the
 // network is in a bad state those need more transfers than allowed, nothing is left, and the answer only holds earlier trips. The preview must not call
 // such a trip "found", the route must show what really runs, creating a route must not depend on this one weekend, and an old answer is not "current".
+// And when there is nothing with one transfer at all, the route shows what runs with two (fallback): S1, U3 and U5 instead of "Keine Daten".
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -240,7 +241,7 @@ test('Closure weekend: the preview finds what really runs, and the route shows t
   } finally { s.done(); }
 });
 
-test('Closure weekend without any trip with one transfer: creating the route works (a normal morning decides), the route says honestly what runs now', async () => {
+test('Closure weekend without any trip with one transfer: creating the route works (a normal morning decides), the route shows what runs now – with two transfers', async () => {
   const w = world({ u5: false }), s = await live(w);
   try {
     const found = await s.service.searchTransfer(FS, NS);
@@ -249,15 +250,22 @@ test('Closure weekend without any trip with one transfer: creating the route wor
     assert.equal(found.route.legs[0].times, 'Mo ab 07:42 · an 08:20');                                       // Monday morning, after the closure
     assert.equal(found.route.legs[1].times, 'ab 08:27 · an 08:49');
     const queried = w.trips();
-    assert.equal(queried.length, 4);                                                                         // now: plain, limit, fewest transfers; Monday: plain
-    assert.deepEqual(queried.map((a) => [a.inSearch, a.lean]), [[false, false], [true, false], [true, true], [false, false]]);
+    assert.equal(queried.length, 4);                                                                         // now: plain, limit, fewest transfers; Monday: plain – one transfer is enough there
+    assert.deepEqual(queried.map((a) => [a.inSearch, a.lean, a.max]), [[false, false, 1], [true, false, 1], [true, true, 1], [false, false, 1]]);
 
-    const st = await s.service.getState(s.dev);                                                              // right now nothing runs with one transfer
+    const st = await s.service.getState(s.dev);                                                              // right now nothing runs with one transfer: the answer with two counts
     const tour = st.tours[0];
-    assert.equal(tour.departures.length, 0); assert.equal(tour.view.kind, 'none'); assert.equal(tour.view.big, 'Keine');
-    assert.match(tour.view.sub, /Keine Verbindung mit höchstens 1 Umstieg/);
+    assert.deepEqual(tour.departures.map((d) => d.expectedTime), ['16:42', '17:02', '17:22']);
+    assert.deepEqual(tour.departures[0].lineIds, ['S1', 'U3', 'U5']); assert.deepEqual(tour.lineIds, ['S1', 'U3', 'U5']);
+    assert.equal(tour.transfers, 1); assert.equal(tour.changes, 2); assert.equal(tour.via, 'München, Moosach › München, Odeonsplatz');
+    assert.equal(tour.departures[0].transfer.count, 2); assert.equal(tour.departures[0].transfer.state, 'ok'); assert.equal(tour.departures[0].transfer.text, '2 Umstiege · 4 und 4 Min.');
+    assert.equal(tour.departures[0].arrTime, '17:49');                                                       // 16:42 + 67 minutes
+    assert.notEqual(tour.view.kind, 'none'); assert.ok(!tour.stale);
     assert.equal(st.connection.status, 'ok');                                                                // no banner for this
+    const two = w.trips().slice(4);
+    assert.equal(two.length, 1); assert.equal(two[0].max, 2); assert.ok(!two[0].inSearch);                   // one plain request with two transfers allowed was enough
     assert.equal(s.lines.filter((l) => /ab Sa 16:36 keine Fahrt, die noch fährt \(einfache Abfrage: 2 Fahrten \(Fr 21:42 bis Fr 22:02; 0 nutzbar; Umstiege 1×2\); Umstiegslimit in der Suche: keine Fahrten; wenigste Umstiege: keine Fahrten\)/.test(l)).length, 1);
+    assert.equal(s.lines.filter((l) => /^Strecke Freising → München, Neuperlach Süd: nichts mit höchstens 1 Umstieg, es gelten die Verbindungen mit bis zu 2 Umstiegen \(8 Fahrten noch nicht abgefahren\)$/.test(l)).length, 1);
 
     // creating the route (the check at creation is the same call) does not ask the source again within the minute
     const before = w.asked.length;
@@ -266,9 +274,44 @@ test('Closure weekend without any trip with one transfer: creating the route wor
   } finally { s.done(); }
 });
 
-test('Closure for days: the pair is not connected on a normal morning either – "nothing found"; the source failing for the check is "unknown", not "nothing"', async () => {
+test('Closure weekend with a trip with one transfer: two transfers are never asked for', async () => {
+  const w = world({ u5: true }), s = await live(w);
+  try {
+    const st = await s.service.getState(s.dev);
+    assert.deepEqual(st.tours[0].departures.map((d) => d.lineIds), [['S1', 'U5'], ['S1', 'U5'], ['S1', 'U5']]);
+    assert.equal(st.tours[0].changes, undefined);
+    assert.ok(w.trips().every((a) => a.max === 1));                                                        // the trips from Freising: never with two transfers
+    assert.equal(s.lines.filter((l) => /nichts mit höchstens 1 Umstieg/.test(l)).length, 0);
+  } finally { s.done(); }
+});
+
+test('Closure weekend, the source fails for the answer with two transfers: not "no connection" but "Keine Daten"', async () => {
+  const w = world({ u5: false }), s = await live(w);
+  const answer = w.answer;
+  w.answer = (url) => (new URL(url).searchParams.get('maxChanges') === '2' ? 500 : answer(url));
+  try {
+    const st = await s.service.getState(s.dev);
+    const tour = st.tours[0];
+    assert.deepEqual(tour.departures, []); assert.equal(tour.view.kind, 'none'); assert.equal(tour.view.big, 'Keine Daten'); assert.ok(tour.stale);
+  } finally { s.done(); }
+});
+
+test('Closure for days: the pair is not connected with one transfer on a normal morning either – the connection with two is "found"; nothing at all is "nothing"; the source failing for the check is "unknown", not "nothing"', async () => {
   const long = world({ u5: false, closedTo: at('2026-11-30T04:00:00+01:00') }), s = await live(long);
-  try { const r = await s.service.searchTransfer(FS, NS); assert.equal(r.found, false); assert.equal(r.route, null); } finally { s.done(); }
+  try {
+    const r = await s.service.searchTransfer(FS, NS);
+    assert.equal(r.found, true);
+    assert.deepEqual(r.route.legs.map((l) => l.line), ['S1', 'U3', 'U5']);
+    assert.deepEqual(r.route.legs.map((l) => l.times), ['ab 16:42 · an 17:09', 'ab 17:13 · an 17:27', 'ab 17:31 · an 17:49']);
+    assert.equal(r.route.via, 'München, Moosach'); assert.equal(r.route.wait, 4);
+    assert.deepEqual(r.route.changes, [{ via: 'München, Moosach', wait: 4 }, { via: 'München, Odeonsplatz', wait: 4 }]);
+    assert.equal(r.route.duration, '1 Std. 7 Min.');
+    assert.deepEqual(long.trips().map((a) => a.max), [1, 1, 1, 1, 2]);                                       // now: plain, limit, fewest transfers; Monday: plain (the stronger ones just found nothing); then the plain query with two transfers
+  } finally { s.done(); }
+  const none = world({ u5: false, closedTo: at('2026-11-30T04:00:00+01:00') }), n = await live(none);
+  const asked = none.answer;
+  none.answer = (url) => (new URL(url).searchParams.get('maxChanges') === '2' ? { journeys: [], systemMessages: [] } : asked(url));      // not even with two transfers
+  try { const r = await n.service.searchTransfer(FS, NS); assert.equal(r.found, false); assert.equal(r.route, null); } finally { n.done(); }
   const sick = world({ u5: false, failMornings: true }), t = await live(sick);
   try { const r = await t.service.searchTransfer(FS, NS); assert.equal(r.found, null); assert.equal(r.route, null); } finally { t.done(); }
 });
@@ -337,9 +380,9 @@ test('Preview and route see the same trips: an empty answer after a good one doe
     s.clock.t += 5 * 60e3; st = await s.service.getState(s.dev);                                              // more than ten minutes: now the honest answer
     tour = st.tours[0];
     assert.equal(tour.departures.length, 0); assert.equal(tour.view.kind, 'none'); assert.equal(tour.view.big, 'Keine');
-    assert.match(tour.view.sub, /Keine Verbindung mit höchstens 1 Umstieg/);
+    assert.match(tour.view.sub, /Keine Verbindung mit höchstens 2 Umstiegen/);                                 // the answer with two transfers was asked for as well – and is empty
     assert.equal(st.connection.status, 'ok');
-    assert.equal(s.lines.filter((l) => /Strecke ohne Abfahrt: Freising → München, Neuperlach Süd \(1 Umstieg\) – die Quelle lieferte 0 Fahrten/.test(l)).length, 1);
+    assert.equal(s.lines.filter((l) => /Strecke ohne Abfahrt: Freising → München, Neuperlach Süd \(1 Umstieg\) – die Quelle lieferte 0 Fahrten, 0 davon noch nicht abgefahren; mit 2 Umstiegen 0 Fahrten, 0 davon noch nicht abgefahren$/.test(l)).length, 1);
 
     s.clock.t += 40e3; s.src.mode = 'full'; st = await s.service.getState(s.dev);                              // the source answers again
     assert.equal(st.tours[0].departures.length, 1);
@@ -386,7 +429,9 @@ test('Preview: a trip that has left is no sample – a normal morning is looked 
 test('Sample morning: the next weekday at 07:30, at least two hours ahead', async () => {
   const days = async (t) => {
     const s = await setup(() => [], {}); s.clock.t = t; await s.service.searchTransfer(FSs, NSs); s.done();
-    return s.src.args.map((a) => new Date(a.when).toISOString());
+    const asked = s.src.args.map((a) => [a.transfers, new Date(a.when).toISOString()]);
+    assert.deepEqual(asked.filter(([n]) => n === 2).map(([, w]) => w), asked.filter(([n]) => n === 1).map(([, w]) => w));      // nothing with one transfer: the same two moments again with two
+    return asked.filter(([n]) => n === 1).map(([, w]) => w);
   };
   assert.deepEqual(await days(at('2026-10-17T16:36:00+02:00')), ['2026-10-17T14:36:00.000Z', '2026-10-19T05:30:00.000Z']);       // Saturday -> Monday
   assert.deepEqual(await days(at('2026-10-20T03:00:00+02:00')), ['2026-10-20T01:00:00.000Z', '2026-10-20T05:30:00.000Z']);       // Tuesday night -> the same morning

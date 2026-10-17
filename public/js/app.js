@@ -152,7 +152,7 @@
           // No direct connection: look for one with a transfer, like the "Neue Strecke" form does. Nobody confirms a preview during the setup, so a connection that is found is saved right away.
           const r = await R.actions.searchTransfer({ from: p.from, to: p.to });
           if (r && r.found === true) await R.actions.addTour({ ...route, transfers: 1 });
-          else if (r && r.found === false) throw new Error(`${p.from} → ${p.to}: Mit weniger als 2 Umstiegen nicht erreichbar.`);
+          else if (r && r.found === false) throw new Error(`${p.from} → ${p.to}: Mit weniger als ${(r.maxTransfers || 1) + 1} Umstiegen nicht erreichbar.`);
           else throw new Error('Sorry, gerade antwortet keine Quelle. Lege die Strecke gleich noch einmal an.');
         }
       } catch (e) { R.lastAddError = (e && e.message) || 'Die Strecke konnte nicht angelegt werden.'; /* the main screen shows the empty state with the reason */ }

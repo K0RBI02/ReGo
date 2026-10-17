@@ -6,7 +6,7 @@ It is a small Node.js server (Node ≥ 20, one runtime dependency: `hafas-client
 
 - fetches timetable data from several sources (regional transport associations, ÖBB, Deutsche Bahn),
 - keeps the routes ("tours" in the API) and settings of each device,
-- turns them into one ready-to-show state: next departures, delays, cancellations, platform changes, construction, replacement transport and connections with one transfer,
+- turns them into one ready-to-show state: next departures, delays, cancellations, platform changes, construction, replacement transport and connections with one or two transfers,
 - decides when a device should be notified and nudges the app to fetch the message,
 - serves the UI files that the app bundles, plus a status page.
 
@@ -98,7 +98,7 @@ JSON over plain http. Every path except `/api/health` and `/api/status` needs th
 | `GET /api/status` | Version, state of the sources (`ok`, and `pausedSec` while a source is left alone), number of devices (also per app version) and push subscriptions; no personal data. The page `/status` shows the same. |
 | `GET /api/stations?q=` | Station search. |
 | `GET /api/state` | The complete state of the device: routes with departures, incidents, settings, and the feedback address (`contact`). The Android app adds `?app=<version>`; if that app is older than `APP_LATEST`, the answer also carries `app: {latest, url}` for the update hint. |
-| `POST /api/connections/search` | Looks at a pair of stops (the app calls it as soon as both are chosen). `direct` says whether there is a direct connection (`true`, `false` or `null` for unknown); with one, `found` is `true` and nothing else is looked up. Otherwise it looks for a connection with one transfer: `found` is `true` (with a sample `route`), `false` or `null` (unknown); 503 with `code: "source-paused"` if the source for this route has put ReGo on pause. |
+| `POST /api/connections/search` | Looks at a pair of stops (the app calls it as soon as both are chosen). `direct` says whether there is a direct connection (`true`, `false` or `null` for unknown); with one, `found` is `true` and nothing else is looked up. Otherwise it looks for a connection with one transfer, and only if there is none, for one with up to two: `found` is `true` (with a sample `route`; `transfers` says how many transfers it has, a sample with two carries three `legs` and `changes: [{via, wait}, …]`; `maxTransfers` is how far the search goes, so the app can word "fewer than 3 transfers" only when the server really looked that far), `false` or `null` (unknown); 503 with `code: "source-paused"` if the source for this route has put ReGo on pause. |
 | `POST /api/tours`, `PATCH /api/tours/:id`, `DELETE /api/tours/:id` | Create, change or delete a route. |
 | `GET/PUT/DELETE /api/profile` | Read, replace (the app's undo) or delete the data of the device. |
 | `PUT /api/settings` | Push threshold (3, 5 or 10 minutes). |
@@ -107,7 +107,7 @@ JSON over plain http. Every path except `/api/health` and `/api/status` needs th
 | `GET /api/notifications` | Collect the pending notifications (after a nudge, or about every 15 minutes). |
 | `POST /api/transfer`, `POST /api/transfer/claim` | "New phone": a one-time code (valid for 10 minutes) moves routes and settings to another device. |
 
-Creating a route checks it against the source first. Without a direct connection the answer is **422** (`no-direct`), and the app then searches with one transfer by itself and shows what it found before the route is saved with `transfers: 1`. The search with one transfer looks at the current time first; if nothing is left today (closure, night), it looks at the next normal weekday morning (07:30) as well, and the sample connection then carries its weekday ("Mo ab 07:42"). A route is meant for such mornings, so what runs this minute does not decide whether it can be created. `roundTrip` creates two linked routes (the app does not offer it for now); a device can have up to 20.
+Creating a route checks it against the source first. Without a direct connection the answer is **422** (`no-direct`), and the app then searches with one transfer (two if there is no other) by itself and shows what it found before the route is saved with `transfers: 1`; nothing within two transfers is **422** (`no-connection`). The search with one transfer looks at the current time first; if nothing is left today (closure, night), it looks at the next normal weekday morning (07:30) as well, and the sample connection then carries its weekday ("Mo ab 07:42"). A route is meant for such mornings, so what runs this minute does not decide whether it can be created. `roundTrip` creates two linked routes (the app does not offer it for now); a device can have up to 20.
 
 ## What the state contains
 
@@ -132,6 +132,8 @@ An incident has a stable ID (a hash of the route and its identifying details): i
 **"Pünktlich" needs real-time data.** Every trip carries a flag whether its source has real-time data for the departure (an estimated time, or the status "monitored"). A near departure without it is not reported as on time: the view says "planmäßig" and "Ohne Echtzeit … Verspätungen unbekannt", and the app shows it neutral instead of with a green check. With a transfer, both trips need the data.
 
 **Routes with one transfer.** They are created on the user's choice when there is no direct connection. The source only returns connections that still work in real time, so ReGo rates the transfer itself: for every departure it picks feeder, transfer station and connection anew and decides between ok, at risk and missed. The associations (EFA) apply the limit of one transfer inside their search only when the route options are switched on; otherwise they first pick their best candidate trips and drop the ones with too many transfers afterwards. During closures the best trips need more transfers than allowed, so a plain search can come back with nothing, or only with trips that have left already. ReGo asks the plain query first (it is what works on a normal day); if its answer holds no trip that is still to come and within the limit, it asks again with the limit inside the search, and if need be for the trips with the fewest transfers. The variant that worked is asked first for ten minutes, one that did not help is left alone for five. The preview and the saved route use the same query and cache. The log says what each query returned (number of trips, first and last departure, transfers).
+
+**Two transfers as a fallback.** `transfers: 1` stays the only value a route stores; it means "with transfers". The state first uses the answer with at most one transfer. Only when that holds no trip that is still to come (typically a closure that forces a second change, like the weeks of work on the Stammstrecke), ReGo asks for connections with up to two transfers (same sources, own cache entry) and the route shows those: a chain of up to three trips, with `changes: 2` on the route, `lineIds` of all trips, and per departure `transfer: {station: "A › B", minutes, state, text, count}`; the detail page has the sections trip, transfer, trip, transfer, trip and a map with three lines. This answer is rated more simply (nothing is looked up at the transfer stations): a transfer is ok, at risk (the trip before is late and the buffer is under three minutes) or missed (no buffer left, or the next trip is cancelled). If the source cannot say whether a connection with two transfers exists, the route says "Keine Daten", not "no connection". It only helps if the source knows about the closure: if it does not report it, ReGo cannot show it either.
 
 **Shortcut hint.** If a route without transfer has replacement transport, ReGo also looks for a safe connection with one transfer that arrives at least five minutes earlier and shows it on the incident page. It is only a hint, there is no extra incident and no push.
 
@@ -169,7 +171,7 @@ server/     index.mjs     HTTP server, routes, static files, background timers
             guard.mjs     rate limits, invitation code
             notifier.mjs  push decisions (fcm.mjs: Firebase delivery)
             providers/    timetable sources: EFA, HAFAS, hafas-client, mock
-            domain/       incidents, transfers, commute window
+            domain/       incidents, transfers (one, and the chain of up to two), commute window
             store/        profiles on disk, cache
 public/     the UI (screens/*.dc.html, js/), also bundled into the Android app
 android/    the Android app (WebView shell, notification service)

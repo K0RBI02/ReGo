@@ -237,7 +237,7 @@ Strecke hinzufügen</button>
 </sc-if>
 </sc-for>
 </div>
-<span style="font-size: 13px; font-weight: 600; color: #4A4747; line-height: 1.35">Mit Speichern legst du die Strecke so an. ReGo wählt den Umstieg für jede Abfahrt neu.</span>
+<span style="font-size: 13px; font-weight: 600; color: #4A4747; line-height: 1.35">{{xrouteNote}}</span>
 </div>
 </sc-if>
 <div style="display: flex; flex-direction: column; gap: 8px">
@@ -371,12 +371,13 @@ class Component extends DCLogic {
     const R = window.REGO, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     return R.tours.map((t) => {
       const d = t.schedule.days, work = d.length === 5 && names.slice(0, 5).every((n) => d.includes(n));
-      // With 1 transfer: both lines as chips ("S1 › RE") and the station where one usually changes
+      // With a transfer: the lines as chips ("S1 › RE"; three with two transfers) and the station where one usually changes
       const xfer = t.transfers === 1, ids = xfer && t.lineIds && t.lineIds.length ? t.lineIds : [t.lineId];
       const chips = ids.filter(Boolean).map((id) => R.lines[id]).filter((l) => l && l.label).map((l) => ({ label: l.label, color: l.color }));
-      const xnote = xfer ? '1 Umstieg' + (t.via ? ' · meist ' + t.via : '') : '';
+      const xn = xfer ? Math.max(1, t.changes || 1) : 0, xnote = xfer ? (xn > 1 ? xn + ' Umstiege' : '1 Umstieg') + (t.via ? ' · meist ' + t.via : '') : '';
+      const lim = xfer && t.view ? /höchstens (\d+) Umstieg/.exec(t.view.sub || '') : null;      // how far the server looked ("höchstens 2 Umstiegen")
       // Active route without a departure: say briefly why (the main screen shows the same, big)
-      const b = t.view && t.view.big, why = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : xfer ? 'Keine Verbindung mit 1 Umstieg' : 'Keine Direktverbindung';
+      const b = t.view && t.view.big, why = !t.active || (t.departures || []).length ? '' : b === 'Keine Daten' ? 'Gerade keine Daten' : b === 'Fällt aus' ? 'Nächste Fahrten fallen aus' : xfer ? (lim && +lim[1] > 1 ? 'Keine Verbindung mit höchstens ' + lim[1] + ' Umstiegen' : 'Keine Verbindung mit 1 Umstieg') : 'Keine Direktverbindung';
       const zeit = t.schedule.departUntil ? R.win.text(R.win.of(t.schedule.departAfter, t.schedule.departUntil)) : 'ab ' + t.schedule.departAfter;      // older server only knows "ab"
       return { id: t.id, when: (work ? 'Mo–Fr' : d.join(', ')) + ' · ' + zeit, name: t.name, chips, on: t.active, note: why || xnote, noteOff: xnote };
     });
@@ -469,12 +470,12 @@ class Component extends DCLogic {
     const editing = !!st.editId;
     const valid = editing || T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
     const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => { this._probe.set(st.focus === 'from' ? q.name : st.from, st.focus === 'to' ? q.name : st.to); this.setState({ [st.focus]: q.name, focus: '' }); } })) : [];
-    // The look at the stops (see _probe): busy / direct / transfer (preview: the two trips and the transfer row in between) / none / sorry
+    // The look at the stops (see _probe): busy / direct / transfer (preview: the trips with a transfer row between each two) / none / sorry
     const pr = this._probe.view(), kind = pr ? pr.kind : '';
     const waitFind = kind === 'busy' || kind === 'none';                  // saving waits for the look, and makes no sense when nothing can be reached
     const xr = kind === 'transfer' ? pr.route : null, xrows = [];
     if (xr) (xr.legs || []).forEach((l, k) => {
-      if (k === 1) xrows.push({ isXfer: true, text: 'Umstieg ' + (xr.via || '') + (xr.wait != null ? ' · ' + xr.wait + ' Min.' : '') });
+      if (k >= 1) { const c = xr.changes && xr.changes[k - 1] ? xr.changes[k - 1] : k === 1 ? xr : {}; xrows.push({ isXfer: true, text: 'Umstieg ' + (c.via || '') + (c.wait != null ? ' · ' + c.wait + ' Min.' : '') }); }
       xrows.push({ isLeg: true, line: l.line, title: l.title, times: l.times, chipStyle: chipCss(l.color) });
     });
     const pushChips = [3, 5, 10].map((v) => ({
@@ -530,9 +531,10 @@ class Component extends DCLogic {
       setTo: (e) => { const v = val(e); this._probe.set(st.from, v, 600); this.setState({ to: v, focus: 'to' }); },
       probeBusy: kind === 'busy', probeDirect: kind === 'direct',
       hasSaveErr: kind === 'none' || kind === 'sorry',
-      saveErr: kind === 'none' ? pr.from + ' → ' + pr.to + ': Mit weniger als 2 Umstiegen nicht erreichbar.' : kind === 'sorry' ? (pr.message || 'Sorry, gerade antwortet keine Quelle. Beim Speichern versuche ich es noch einmal.') : '',
+      saveErr: kind === 'none' ? pr.from + ' → ' + pr.to + ': Mit weniger als ' + ((pr.max || 1) + 1) + ' Umstiegen nicht erreichbar.' : kind === 'sorry' ? (pr.message || 'Sorry, gerade antwortet keine Quelle. Beim Speichern versuche ich es noch einmal.') : '',
       // Found with a transfer = preview; saving then creates the route with the transfer
-      hasXroute: !!xr, xrows, xrouteHead: xr && (xr.legs || []).length > 1 ? 'Gefunden · 1 Umstieg' : 'Gefunden · ohne Umstieg', xrouteDur: xr ? xr.duration || '' : '',
+      hasXroute: !!xr, xrows, xrouteHead: 'Gefunden · ' + (xr && (xr.legs || []).length > 2 ? (xr.legs.length - 1) + ' Umstiege' : xr && (xr.legs || []).length > 1 ? '1 Umstieg' : 'ohne Umstieg'), xrouteDur: xr ? xr.duration || '' : '',
+      xrouteNote: (xr && (xr.legs || []).length > 2 ? 'Mit 1 Umstieg gibt es nichts. ' : '') + 'Mit Speichern legst du die Strecke so an. ReGo wählt ' + (xr && (xr.legs || []).length > 2 ? 'die Umstiege' : 'den Umstieg') + ' für jede Abfahrt neu.',
       openAdd: () => { this._probe.reset(); this.setState({ adding: true, editId: '', focus: '', from: '', to: '', out: window.REGO.win.fresh('out'), days: [true, true, true, true, true, false, false] }); },
       cancelAdd: () => { this._probe.reset(); this.setState({ adding: false, editId: '' }); },
       saveAdd: () => {
