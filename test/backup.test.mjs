@@ -33,7 +33,16 @@ test('Names: what is special about a stop has to be in the other name – the pl
   assert.equal(spotMatch('Garching-Forschungszentrum', 'Garching, Forschungszentrum'), 0);
   assert.equal(spotMatch('Freilassing (Obb), Freilassing', 'Freilassing'), 0);
   assert.equal(spotMatch('Landshut(Bay)Hbf', 'Landshut (Bay) Hbf'), 0);
+  // names as the sources really deliver them (MVV: "Ort, Haltestelle"; ÖBB: "Freising", "Neufahrn(b Freising)")
+  assert.equal(spotMatch('Freising, Freising', 'Freising'), 0);
+  assert.equal(spotMatch('München, München Hbf', 'München Hbf'), 0);
+  assert.equal(spotMatch('München, Münchner Freiheit', 'München Münchner Freiheit'), 0);
+  assert.equal(spotMatch('Freising, Flughafen München', 'Flughafen München'), 0);
   // not the same place: a bus stop is not the station next to it, a second station of the town is not the first
+  assert.equal(spotMatch('Freising, Freising', 'Neufahrn(b Freising)'), -1);                // a single word next door is not the station
+  assert.equal(spotMatch('Freising, Freising', 'Marienplatz'), -1);
+  assert.equal(spotMatch('Freising, Freising', 'Flughafen Briefzentrum, Freising'), -1);
+  assert.equal(spotMatch('München, Neuperlach Süd', 'München, Klinikum Neuperlach'), -1);
   assert.equal(spotMatch('Freising, Marienplatz', 'Freising'), -1);
   assert.equal(spotMatch('Freising', 'Freising, Marienplatz'), -1);
   assert.equal(spotMatch('Freising', 'Freising Süd'), -1);

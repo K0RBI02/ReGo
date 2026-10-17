@@ -73,19 +73,21 @@ const STATION_WORDS = new Set(['bahnhof', 'bhf', 'bf', 'hbf', 'pbf', 'haupt', 'b
 /**
  * Does a stop of another source plausibly mean the same place? Used where ReGo steps in for an association and must not guess:
  * what is special about the original name ("Marienplatz" in "Freising, Marienplatz") has to be in the other name as well, and the other
- * name must not add anything besides its place name. The place before the comma and words like "Bahnhof" or "Hbf" do not count.
- * Returns 0 (same words), 1 (the other adds only its place name: "Neuperlach Süd" and "München Neuperlach Süd") or -1 (not the same place).
+ * name must not add anything. The place before the comma and words like "Bahnhof" or "Hbf" do not count.
+ * Only if the original has no comma (its place is unknown) the other may put its own place name in front: "Neuperlach Süd" and "München Neuperlach Süd".
+ * Returns 0 (same words), 1 (the other adds its place name) or -1 (not the same place).
  */
 export function spotMatch(name, other) {
   const s = String(name || ''), i = s.indexOf(',');
   const place = new Set(i > 0 ? nameWords(s.slice(0, i)) : []);
   const rest = (x) => new Set(nameWords(x).filter((w) => !STATION_WORDS.has(w) && !place.has(w)));
   const a = rest(i > 0 ? s.slice(i + 1) : s), b = rest(other);
-  const o = String(other || ''), j = o.indexOf(',');
-  const otherPlace = new Set(j > 0 ? nameWords(o.slice(0, j)) : nameWords(o).slice(0, 1));
   if (![...a].every((w) => b.has(w))) return -1;
   const extra = [...b].filter((w) => !a.has(w));
   if (!extra.length) return 0;
+  if (i > 0) return -1;
+  const o = String(other || ''), j = o.indexOf(',');
+  const otherPlace = new Set(j > 0 ? nameWords(o.slice(0, j)) : nameWords(o).slice(0, 1));
   return extra.every((w) => otherPlace.has(w)) ? 1 : -1;
 }
 
