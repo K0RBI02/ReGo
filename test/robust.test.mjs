@@ -177,7 +177,11 @@ test('Source hangs or is down: route waits at most the deadline, old trips are m
   t += 40e3; mode = 'hang';
   const t0 = Date.now(); s = await service.getState(dev);
   assert.ok(Date.now() - t0 < 2000, 'wartet nicht ewig');
-  assert.equal(s.tours[0].stale, true); assert.equal(s.connection.status, 'error'); assert.equal(s.tours[0].departures.length, 1);
+  assert.equal(s.tours[0].stale, true); assert.equal(s.tours[0].departures.length, 1);
+  assert.equal(s.connection.status, 'ok');                                                                     // 40 s old: the route says so itself, no banner over all screens
+  t += 5 * 60e3; s = await service.getState(dev);
+  assert.equal(s.tours[0].stale, true); assert.equal(s.connection.status, 'error');                           // 5 minutes without fresh data: now the banner
+  assert.equal(s.connection.lastSync, '07:00');                                                                // and it says since when
   // Source completely down, cache older than 30 minutes: show nothing old any more
   const s2 = createService({ config: { ...config, tourDeadlineMs: 80 }, store, now, providers: { ...providers, forTour: () => ({ ...client, journeys: async () => { if (mode === 'down') throw new Error('down'); return [{ legs: [leg('2026-10-14T08:20:00+02:00')] }]; } }) } });
   mode = 'ok'; await s2.getState(dev);

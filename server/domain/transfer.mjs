@@ -73,10 +73,10 @@ export function transferVias(journeys) {
 
 /**
  * Sample connection for the preview when creating a route: the first one with a transfer and a reasonable wait (otherwise simply the first).
- * null = nothing found.
+ * With `now` trips that have left already do not count (the route itself leaves them out as well). null = nothing found.
  */
-export function previewRoute(journeys) {
-  const pairs = pairsOf(journeys).filter((p) => !p.a.cancelled && !(p.b && p.b.cancelled));
+export function previewRoute(journeys, now = -Infinity) {
+  const pairs = pairsOf(journeys).filter((p) => !p.a.cancelled && !(p.b && p.b.cancelled) && !(t(p.a.dep) < now - 120000));
   if (!pairs.length) return null;
   const two = pairs.filter((p) => p.b);
   const pick = two.find((p) => diffMin(p.a.arr, p.b.dep) <= MAX_WAIT_MIN) || two[0] || pairs[0];

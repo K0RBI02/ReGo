@@ -37,6 +37,38 @@ export function createService({ config, store, now = () => Date.now(), providers
   const B_DEADLINE_MS = config.transferDeadlineMs || 4000;     // connecting trips from the transfer station: we wait this long at most (otherwise the source's own suggestion counts)
   const XFER_RESULTS = 8;                                      // connections with a transfer: request a few more so that enough remain per feeder after merging
   const IDLE_TTL_SEC = config.ttl.idle ?? 600;                 // background check (push): a route that cannot push at the moment is refreshed only this often
+  const KEEP_GOOD_SEC = config.keepGoodSec ?? 600;             // an answer without any trip right after a good one: the good one counts for this long
+  const BANNER_AFTER_SEC = config.staleBannerSec ?? 300;       // "Keine aktuellen Daten" only when a route shows data at least this old
+
+  // A source can answer with nothing although it showed trips a moment ago: EFA first calculates a few candidate trips and only then drops the ones
+  // with too many transfers, so on a day of closures its answers differ from minute to minute. For KEEP_GOOD_SEC the trips of the last good answer
+  // that have not left yet count instead of "no connection" – the same query gives the preview and the route the same trips.
+  const good = new Map();                                      // cache key -> { at, list }: the last answer that held a trip ahead
+  const ahead = (j, t) => Date.parse(j?.legs?.[0]?.dep) >= t - 120000;     // same limit as the routes use for "has left"
+  const noted = new Map();
+  /** One log line per key and ten minutes */
+  const noteOnce = (key, text) => {
+    const t = now();
+    if (t - (noted.get(key) ?? -Infinity) < 600e3) return;
+    if (noted.size >= 500) noted.clear();
+    noted.set(key, t); log(text);
+  };
+
+  /** cache.get for connection queries (stale data on errors included); an answer without a trip is handled as described above. */
+  const askTrips = (key, ttl, ask) => cache.get(key, ttl, async () => {
+    const list = await ask();
+    const t = now();
+    if ((list || []).some((j) => ahead(j, t))) {
+      good.delete(key); good.set(key, { at: t, list });
+      while (good.size > 1500) good.delete(good.keys().next().value);
+      return list;
+    }
+    const g = good.get(key);
+    const keep = g && t - g.at <= KEEP_GOOD_SEC * 1000 ? g.list.filter((j) => ahead(j, t)) : [];
+    if (!keep.length) return list;
+    noteOnce(`keep:${key}`, `Antwort ohne Fahrt (${key}): die letzte gute Antwort von ${hhmm(g.at)} bleibt (${keep.length} Fahrten)`);
+    return keep;
+  }, { maxStaleSec: STALE_MAX_SEC });
 
   async function searchStations(q) {
     const query = String(q || '').trim();
@@ -52,7 +84,7 @@ export function createService({ config, store, now = () => Date.now(), providers
     const key = `jl:${from.id}:${to.id}`;
     try {
       const r = await withDeadline(
-        cache.get(key, config.ttl.journeys, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(now()).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
+        askTrips(key, config.ttl.journeys, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(now()).toISOString(), results: 5 })),
         DEADLINE_MS, () => null);
       return (r.value || []).length > 0;
     } catch (err) { log('Prüfung beim Anlegen fehlgeschlagen', from.id, to.id, err.message); return null; }
@@ -62,7 +94,7 @@ export function createService({ config, store, now = () => Date.now(), providers
   const transferJourneys = (from, to, t, stamp = '') => {
     const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
     const key = `jl:${from.id}:${to.id}:t1${stamp}`;
-    return { key, load: (ttl = config.ttl.journeys) => cache.get(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 }), { maxStaleSec: STALE_MAX_SEC }) };
+    return { key, load: (ttl = config.ttl.journeys) => askTrips(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 })) };
   };
 
   /** Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. paused = name of the source that has put ReGo on pause. */
@@ -71,7 +103,7 @@ export function createService({ config, store, now = () => Date.now(), providers
     const q = transferJourneys(from, to, t);
     try {
       const r = await withDeadline(q.load(), DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
-      const route = previewRoute(r.value || []);
+      const route = previewRoute(r.value || [], t);      // a trip that has left already is no sample: the route would not show it either
       return { found: route ? true : (r.value || []).length ? null : false, route };
     } catch (err) {
       if (err?.status !== 429) log('Suche mit Umstieg fehlgeschlagen', from.id, to.id, err.message);
@@ -88,7 +120,7 @@ export function createService({ config, store, now = () => Date.now(), providers
       const when = new Date(Math.max(t, v.firstArr - 10 * 60000)).toISOString();
       try {
         const r = await withDeadline(
-          cache.get(key, ttl, () => client.journeys({ from: v.stop, to: tour.to, fromId: v.stop.id, toId: tour.to.id, when, results: 10 }), { maxStaleSec: STALE_MAX_SEC }),
+          askTrips(key, ttl, () => client.journeys({ from: v.stop, to: tour.to, fromId: v.stop.id, toId: tour.to.id, when, results: 10 })),
           B_DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         out.set(v.key, (r.value || []).map((j) => j.legs?.[0]).filter((l) => l && l.line));
       } catch (err) { if (err?.status !== 429) log('Anschlussfahrten nicht verfügbar', v.name, err.message); }
@@ -139,10 +171,12 @@ export function createService({ config, store, now = () => Date.now(), providers
       const key = xfer ? q.key : `jl:${tour.from.id}:${tour.to.id}${stamp}`;
       try {
         const r = await withDeadline(
-          xfer ? q.load(ttl) : cache.get(key, ttl, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(at).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
+          xfer ? q.load(ttl) : askTrips(key, ttl, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(at).toISOString(), results: 5 })),
           DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         journeys = r.value; hadData = true;
-        if (r.stale) { stale = true; served++; tourStale = true; oldest = Math.min(oldest, r.at); }
+        // Older data from the cache: the route says so itself. The banner over all screens only comes when the data is really old
+        // (a refresh that failed once leaves data that is a minute old, which is no reason to say "Keine aktuellen Daten")
+        if (r.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r.at); if (t - r.at > BANNER_AFTER_SEC * 1000) served++; }
       } catch (err) {
         failed++; stale = true; tourStale = true; staleNote = noteOf(err);
         if (err?.status !== 429) log('Abruf fehlgeschlagen', tour.id, err.message);
@@ -155,6 +189,8 @@ export function createService({ config, store, now = () => Date.now(), providers
       const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t, at, stamp, ttl);
       const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, staleNote, bLists, shortcutFor: shortcut, window: win });
       if (tourStale) built.tour.stale = true;                  // this route shows old data (or none at all)
+      // For the log: a route with a transfer that finds nothing although the source answered – what did the source actually return?
+      if (xfer && !tourStale && !built.tour.departures.length) noteOnce(`none:${tour.id}`, `Strecke ohne Abfahrt: ${tour.from.name} → ${tour.to.name} (1 Umstieg) – die Quelle lieferte ${journeys.length} Fahrten, ${journeys.filter((j) => ahead(j, t)).length} davon noch nicht abgefahren`);
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
 
@@ -168,8 +204,8 @@ export function createService({ config, store, now = () => Date.now(), providers
     return {
       schemaVersion: SCHEMA_VERSION,
       clock: { date: b.date, now: b.time },
-      // "error" (the app says "Keine aktuellen Daten") when nothing could be loaded or old data is shown as if it were current. Routes without any data
-      // (e.g. one source is closed) say so themselves; they do not put the banner on top of the routes that are fine.
+      // "error" (the app says "Keine aktuellen Daten") when nothing could be loaded or data that is really old (BANNER_AFTER_SEC) is shown as if it were
+      // current. Routes without any data (e.g. one source is closed) say so themselves; they do not put the banner on top of the routes that are fine.
       connection: { status: allFailed || served ? 'error' : 'ok', loading: false, lastSync: hhmm(stale ? oldest : t) },
       settings: profile.settings,
       theme: THEME, lines, tours: outTours, incidents,

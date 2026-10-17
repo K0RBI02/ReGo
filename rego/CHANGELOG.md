@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.3 – Steadier connections
+
+**Routes with a transfer**
+- During closures an association (MVV) can answer a search for "at most 1 transfer" with nothing, or only with trips that have left already, although it found a connection a minute earlier: it first calculates a few candidate trips and only then drops the ones with too many transfers. ReGo now asks once more for the trips with the fewest transfers when that happens (and leaves it for five minutes if that brings nothing either).
+- An answer without a trip right after a good one no longer turns a route into "Keine Verbindung mit höchstens 1 Umstieg gefunden": for ten minutes the trips of the last good answer that have not left yet are kept. This holds for all routes. The preview when creating a route and the saved route use the same query and the same cache, so they agree.
+- The preview no longer offers a trip that has left already as the sample connection. If the source only returns such trips, the form says that the search was not possible just now ("Nochmal suchen") instead of "nothing found".
+
+**Main screen**
+- "Keine aktuellen Daten" over all screens now comes only when a route shows data that is at least five minutes old (before: right after the first refresh that failed). The route itself still marks older data.
+
+**Log**
+- If the source returns no trip for a route with a transfer, one line per route and ten minutes says what the source said (its own messages) and whether the second query helped. A route with a transfer that shows no departure although the source answered gets one line as well.
+
+**Rebuild**
+- Server only: update the add-on. The app stays at 0.8.0.
+
 ## 0.8.2 – A second source
 
 **Timetable sources**

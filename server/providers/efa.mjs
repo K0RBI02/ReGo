@@ -7,12 +7,16 @@ import { berlin } from '../lib/time.mjs';
 
 const COORD = 'WGS84[dd.ddddd]';
 
+const SECOND_TRY_PAUSE_MS = 5 * 60000;     // the second try (few transfers) found nothing: not again for this long
+const NOTE_EVERY_MS = 10 * 60000;          // one log line per route and this long about an answer without trips
+
 export class EfaClient {
   /** maxParallel: at most this many requests at the same time (more wait in line); pause: what to do after "too many requests" (HTTP 429) */
-  constructor(base, { key = 'efa', fetchImpl = (...a) => globalThis.fetch(...a), userAgent = 'ReGo', timeoutMs = 8000, retries = 1, maxParallel = 3, pause = new SourcePause(), log = () => {} } = {}) {
+  constructor(base, { key = 'efa', fetchImpl = (...a) => globalThis.fetch(...a), userAgent = 'ReGo', timeoutMs = 8000, retries = 1, maxParallel = 3, pause = new SourcePause(), log = () => {}, now = () => Date.now() } = {}) {
     this.base = base.replace(/\/$/, ''); this.key = key; this.name = key;
     this.fetch = fetchImpl; this.userAgent = userAgent; this.timeoutMs = timeoutMs; this.retries = retries;
-    this.pause = pause; this.log = log; this.maxParallel = maxParallel; this.running = 0; this.waiting = [];
+    this.pause = pause; this.log = log; this.now = now; this.maxParallel = maxParallel; this.running = 0; this.waiting = [];
+    this.noLuck = new Map(); this.noted = new Map();      // route -> until when the second try is skipped / when the last log line was written
   }
 
   owns(id) { return String(id || '').startsWith(`${this.key}|`); }
@@ -77,17 +81,57 @@ export class EfaClient {
     return parseStops({ locations: locations.filter((x) => x && !seen.has(x.id) && seen.add(x.id)) }, this.key, query);
   }
 
-  /** Connections from "when", including intermediate stops and remarks. transfers = at most this many transfers (0 = direct connections only). */
-  async journeys({ fromId, toId, when, results = 5, transfers = 0 }) {
+  /** One trip request -> { journeys, messages }. No trip and an error message of the source (other than -8011, "nothing found"): an error. */
+  async trips(params) {
+    const data = await this.get('XML_TRIP_REQUEST2', params);
+    const messages = data?.systemMessages || [];
+    const errs = messages.filter((m) => m.type === 'error' && m.code !== -8011);
+    if (!data?.journeys?.length && errs.length) throw new ProviderError(`${this.name}: ${errs[0].text || 'Fehler ' + errs[0].code}`, { kind: 'http' });
+    return { journeys: parseJourneys(data, this.key), messages };
+  }
+
+  /** Does the answer hold a trip that has not left yet (when = the time asked for)? EFA also returns a trip or two from before that time. */
+  ahead(journeys, when) {
+    const from = new Date(when).getTime() - 2 * 60000;
+    return (journeys || []).some((j) => Date.parse(j.legs?.[0]?.dep) >= from);
+  }
+
+  /** Writes a log line, but for the same route only every NOTE_EVERY_MS. */
+  note(route, text) {
+    const t = this.now();
+    if (t - (this.noted.get(route) ?? -Infinity) < NOTE_EVERY_MS) return;
+    if (this.noted.size >= 500) this.noted.clear();
+    this.noted.set(route, t);
+    this.log(text);
+  }
+
+  /**
+   * Connections from "when", including intermediate stops and remarks. transfers = at most this many transfers (0 = direct connections only).
+   * from/to: the stops (only for the log).
+   */
+  async journeys({ fromId, toId, when, results = 5, transfers = 0, from, to }) {
     const b = berlin(new Date(when).getTime());
-    const data = await this.get('XML_TRIP_REQUEST2', {
+    const params = {
       type_origin: 'any', name_origin: this.raw(fromId), type_destination: 'any', name_destination: this.raw(toId),
       itdDate: b.date.replaceAll('-', ''), itdTime: b.time.replace(':', ''), itdTripDateTimeDepArr: 'dep',
       calcNumberOfTrips: results, maxChanges: transfers, useRealtime: 1,
-    });
-    const errs = (data?.systemMessages || []).filter((m) => m.type === 'error' && m.code !== -8011);
-    if (!data?.journeys?.length && errs.length) throw new ProviderError(`${this.name}: ${errs[0].text || 'Fehler ' + errs[0].code}`, { kind: 'http' });
-    return parseJourneys(data, this.key);
+    };
+    const first = await this.trips(params);
+    if (!transfers || this.ahead(first.journeys, when)) return first.journeys;
+
+    // EFA first calculates a few candidate trips and only then drops the ones with more transfers than allowed (maxChanges). When the network is in
+    // a bad state (closures) that can leave nothing, or only trips that have left already – and the answer differs from minute to minute.
+    // So we ask once more, this time for the trips with the fewest transfers; if that does not help either, the first answer stands.
+    const route = `${fromId}>${toId}`;
+    if (this.now() < (this.noLuck.get(route) ?? 0)) return first.journeys;
+    let second = { journeys: [] }, failed = '';
+    try { second = await this.trips({ ...params, routeType: 'LEASTINTERCHANGE' }); } catch (err) { failed = err.message; }
+    const found = this.ahead(second.journeys, when);
+    if (this.noLuck.size >= 500) this.noLuck.clear();
+    this.noLuck.set(route, found ? 0 : this.now() + SECOND_TRY_PAUSE_MS);
+    const said = first.messages.slice(0, 3).map((m) => `${m.type || '?'} ${m.code ?? ''} ${m.text || m.module || ''}`.replace(/\s+/g, ' ').trim()).join('; ').slice(0, 240);
+    this.note(route, `${this.name}: ${first.journeys.length ? 'nur schon abgefahrene Fahrten' : 'keine Fahrt'} mit höchstens ${transfers} Umstieg ${from?.name && to?.name ? `${from.name} → ${to.name}` : route}${said ? ` (Meldungen der Quelle: ${said})` : ''} – zweite Abfrage mit wenigen Umstiegen: ${failed ? `Fehler ${failed}` : found ? `${second.journeys.length} Fahrten` : 'auch nichts'}`);
+    return found ? second.journeys : first.journeys;
   }
 
   /** Coordinates of a stop; EFA does not return lines here (empty list, map without connections). */
