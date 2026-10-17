@@ -22,7 +22,7 @@ Data kept only on your device
 - The Android app is excluded from automatic Android backups (`allowBackup=false`). When switching devices, use "Export tickets" and "Move device".
 
 Sharing and external services
-- Timetable queries go from the server to providers such as MVV, Bahnland Bayern (MoBY), and ÖBB. For Deutsche Bahn routes (and as a fallback for ÖBB) the server queries the public transport service.
+- Timetable queries go from the server to providers such as MVV, Bahnland Bayern (MoBY), and ÖBB. For Deutsche Bahn routes (and as a fallback for ÖBB) the server queries the public transport service. If one of the associations does not answer, the server asks ÖBB or Deutsche Bahn for the same stops instead.
 - Unofficial sources: publicly reachable but unsupported interfaces may be used. ReGo is a small hobby project and cannot guarantee availability or API stability for unofficial sources.
 - The links in settings (under "Routes": Privacy, ReGo on GitHub) and the download link of the update notice open a GitHub page in the browser; GitHub only sees your request when you open that link.
 - Feedback: "Send feedback" opens your mail app (the address is also written out in the settings) or, if the server has no feedback address, the GitHub issue form. Both come with a prepared text that contains the app and server version, but no device ID. A link set by the operator instead of an email address opens as it is. Nothing is sent until you send the mail or the issue yourself, and GitHub issues are public.

@@ -16,11 +16,11 @@ export function createProviders(config, now = () => Date.now()) {
     const restOebb = new HafasClient(config.upstream.oebb, { ...quick, name: 'oebb' });
     const db = restDb;      // DB blocks the library (OPS_BLOCKED), therefore only transport.rest now
     const oebb = withFallback(createOebbClient(config.upstream.userAgent), restOebb, config);
-    return build(db, oebb, false, efas);
+    return build(db, oebb, false, efas, { log: common.log, now });
   }
   const db = new HafasClient(config.upstream.db, { ...common, name: 'db', ...(mock ? { fetchImpl: mockFetch({ now }), retries: 0 } : {}) });
   const oebb = new HafasClient(config.upstream.oebb, { ...common, name: 'oebb', ...(mock ? { fetchImpl: mockFetch({ now }), retries: 0 } : {}) });
-  return build(db, oebb, mock, efas);
+  return build(db, oebb, mock, efas, { log: common.log, now });
 }
 
 export function withFallback(primary, fallback, config) {
@@ -59,31 +59,128 @@ function chain(first, second) {
 
 const unsupported =(msg) => ({ name: 'efa', async journeys() { throw new ProviderError(msg, { kind: 'unsupported' }); }, async stop(id) { return { id, name: '', lines: [] }; } });
 
-/** The source did not answer (timeout, 429, 5xx, on pause) – as opposed to: it answered but does not know the stop. */
-const sourceDown = (e) => e?.kind === 'network' || e?.status === 429 || e?.status >= 500 || /derzeit nicht erreichbar/.test(e?.message || '');
+/** The source did not answer (timeout, 429, 5xx, on pause, refused) – as opposed to: it answered but does not know the stop. */
+const sourceDown = (e) => e?.kind === 'network' || e?.status === 429 || e?.status === 401 || e?.status === 403 || e?.status >= 500 || /derzeit nicht erreichbar/.test(e?.message || '');
 
-/** Find the stop of one association again at the other provider (name + coordinates). */
-export function createTranslator(efa) {
-  const cache = new Map();
-  return async function translate(stop, target) {
-    const key = `${target.name}|${stop.id}`;
-    if (cache.has(key)) return cache.get(key);
+// ---- Stop names across sources -----------------------------------------------------------------------------------------
+
+/** Words of a stop name in plain form: lower case, no umlauts, no brackets ("Lindau (Bodensee) Hbf" -> lindau hbf), "Ostbahnhof" -> "ost". */
+const nameWords = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss').replace(/\(.*?\)/g, ' ')
+  .split(/[^a-z0-9]+/).filter(Boolean).map((w) => w.replace(/(?<=.{2})(bahnhof|bhf|bf)$/, '') || w);
+/** Words that say "station" and nothing else ("Hauptbahnhof" is "haupt" after nameWords). */
+const STATION_WORDS = new Set(['bahnhof', 'bhf', 'bf', 'hbf', 'pbf', 'haupt', 'bahnhofsplatz', 'haltestelle', 'hp']);
+
+/**
+ * Does a stop of another source plausibly mean the same place? Used where ReGo steps in for an association and must not guess:
+ * what is special about the original name ("Marienplatz" in "Freising, Marienplatz") has to be in the other name as well, and the other
+ * name must not add anything besides its place name. The place before the comma and words like "Bahnhof" or "Hbf" do not count.
+ * Returns 0 (same words), 1 (the other adds only its place name: "Neuperlach Süd" and "München Neuperlach Süd") or -1 (not the same place).
+ */
+export function spotMatch(name, other) {
+  const s = String(name || ''), i = s.indexOf(',');
+  const place = new Set(i > 0 ? nameWords(s.slice(0, i)) : []);
+  const rest = (x) => new Set(nameWords(x).filter((w) => !STATION_WORDS.has(w) && !place.has(w)));
+  const a = rest(i > 0 ? s.slice(i + 1) : s), b = rest(other);
+  const o = String(other || ''), j = o.indexOf(',');
+  const otherPlace = new Set(j > 0 ? nameWords(o.slice(0, j)) : nameWords(o).slice(0, 1));
+  if (![...a].every((w) => b.has(w))) return -1;
+  const extra = [...b].filter((w) => !a.has(w));
+  if (!extra.length) return 0;
+  return extra.every((w) => otherPlace.has(w)) ? 1 : -1;
+}
+
+/** How long a stop that cannot be translated (not found, not plausible) is left alone before the other source is asked again. */
+const REFUSED_MS = 15 * 60e3;
+
+/**
+ * Find the stop of one association again at the other provider (name + coordinates).
+ * strict: ReGo steps in for a source that does not answer and must not guess: the stop needs coordinates, the name of the hit has to fit
+ * (spotMatch) and a stop that cannot be translated is not searched again for a while (the answer is the same, the source is not to be asked every 30 seconds).
+ */
+export function createTranslator(efa, { strict = false, now = () => Date.now(), log = () => {} } = {}) {
+  const cache = new Map(), pending = new Map(), refused = new Map(), told = new Set();
+  /** What the operator needs to see to judge the name check: which stop was refused and what was close by (once per stop and source, not once per minute) */
+  const tell = (stop, target, why) => { const k = `${target.name}|${stop.id}`; if (!told.has(k)) { told.add(k); log(`Ausweichquelle ${target.name}: „${stop.name}“ ${why}`); } };
+  async function find(stop, target) {
     let { lat, lon } = stop;
+    if (lat == null && strict) { tell(stop, target, 'hat keine gespeicherten Koordinaten'); throw new ProviderError(`Haltestelle "${stop.name}" ist ohne Koordinaten nicht sicher zu übersetzen`, { kind: 'unsupported' }); }
     if (lat == null) { try { const s = await efa.stop(stop.id); lat = s.lat; lon = s.lon; } catch { /* carry on without coordinates */ } }
     // The other side does not know names like "Freilassing (Obb), Freilassing": try several spellings in turn
     const full = String(stop.name || '').trim(), city = full.split(',')[0].replace(/\s*\(.*?\)/g, '').trim(), rest = full.split(',').slice(1).join(' ').trim();
     const variants = [...new Set([full.replace(/,\s*/g, ' '), full.replace(/\s*\(.*?\)/g, '').replace(/,\s*/g, ' ').trim(), rest && rest !== city ? `${city} ${rest}` : '', city].filter((v) => v.length >= 3))];
+    // A candidate: within 600 m and, when strict, with a name that fits. r = 0 is the same name, 1 a name with a place added.
+    const fit = (x) => {
+      const d = distanceKm({ lat, lon }, x);
+      if (d == null || d > 0.6) return null;
+      const r = strict ? spotMatch(stop.name, x.name) : 0;
+      return r < 0 ? null : { x, d, r };
+    };
     let list = [];
     for (const q of variants) {
       // A source that does not answer says nothing about the stop: pass the error on instead of trying more spellings (and then claiming the stop does not exist)
       try { list = await target.searchStops(q); } catch (e) { if (sourceDown(e)) throw e; list = []; }
-      if ((list || []).some((x) => { const d = distanceKm({ lat, lon }, x); return d != null && d <= 0.6; })) break;
+      if ((list || []).some((x) => fit(x))) break;
     }
-    const near = (list || []).map((x) => ({ x, d: distanceKm({ lat, lon }, x) })).filter((c) => c.d != null && c.d <= 0.6).sort((p, r) => p.d - r.d);
+    const near = (list || []).map(fit).filter(Boolean).sort((p, r) => p.r - r.r || p.d - r.d);
     const hit = near[0]?.x || (lat == null ? list?.[0] : null);
-    if (!hit) throw new ProviderError(`Haltestelle "${stop.name}" ist auf der anderen Seite der Grenze nicht auffindbar`, { kind: 'unsupported' });
-    cache.set(key, hit.id);
+    if (!hit) {
+      if (strict) {
+        const close = (list || []).filter((x) => { const d = distanceKm({ lat, lon }, x); return d != null && d <= 0.6; }).slice(0, 3).map((x) => `„${x.name}“`);
+        tell(stop, target, `ist keiner Haltestelle sicher zuzuordnen${close.length ? ` (in der Nähe: ${close.join(', ')})` : ''}`);
+      }
+      throw new ProviderError(`Haltestelle "${stop.name}" ist auf der anderen Seite der Grenze nicht auffindbar`, { kind: 'unsupported' });
+    }
     return hit.id;
+  }
+  return function translate(stop, target) {
+    const key = `${target.name}|${stop.id}`;
+    if (cache.has(key)) return Promise.resolve(cache.get(key));
+    const no = refused.get(key);
+    if (no && now() < no.until) return Promise.reject(no.err);
+    // Routes that start at the same moment share one search per stop
+    if (!pending.has(key)) {
+      pending.set(key, find(stop, target)
+        .then((id) => { cache.set(key, id); return id; }, (e) => { if (strict && e?.kind === 'unsupported') refused.set(key, { until: now() + REFUSED_MS, err: e }); throw e; })
+        .finally(() => pending.delete(key)));
+    }
+    return pending.get(key);
+  };
+}
+
+/** Several associations as one for the translation: owns() is true for the stops of each of them, stop() asks the one a stop belongs to. */
+const together = (list) => (list.length === 1 ? list[0] : {
+  key: list.map((e) => e.key).join('+'),
+  owns: (id) => list.some((e) => e.owns(id)),
+  stop: (id) => list.find((e) => e.owns(id)).stop(id),
+});
+
+/**
+ * The association first. If it does not answer (closed with HTTP 429, timeout, server error, refused), the railway sources step in so that the route
+ * keeps showing trips: first ÖBB, then DB (only if ÖBB fails – an answer without trips is an answer, DB knows the same trains). Without trips from
+ * the railway, the error of the association stays: it says which source is closed. An association that answers but does not know the route
+ * is not replaced (other sources would only guess).
+ */
+export function withBackup(primary, backups, log = () => {}) {
+  let down = false;      // for the log: one line when the backup starts, one when the association answers again
+  return {
+    name: primary.name,
+    async journeys(args) {
+      let err;
+      try {
+        const r = await primary.journeys(args);
+        if (down) { down = false; log(`${primary.name}: antwortet wieder – die Strecken laufen wieder darüber`); }
+        return r;
+      } catch (e) { if (!sourceDown(e)) throw e; err = e; }
+      for (const b of backups) {
+        try {
+          const r = await b.journeys(args);
+          if (r?.length) { if (!down) { down = true; log(`${err.message} – ${b.name} übernimmt die Strecken`); } return r; }
+          break;
+        } catch { /* this one does not help, the next one may */ }
+      }
+      throw err;
+    },
+    stop: (id) => primary.stop(id),
   };
 }
 
@@ -99,11 +196,22 @@ function mixedFor(target, efa, translate = createTranslator(efa)) {
   };
 }
 
-export function build(db, oebb, mock, efas = []) {
+export function build(db, oebb, mock, efas = [], { log = () => {}, now = () => Date.now() } = {}) {
   const efaOf = (stop) => efas.find((c) => c.owns(stop?.id));
   const mixedCache = new Map();
-  const mixed = (target, efa) => { const k = `${target.name}|${efa.key}`; if (!mixedCache.has(k)) mixedCache.set(k, mixedFor(target, efa)); return mixedCache.get(k); };
-  const log = () => {};
+  /** strict: the stops are translated without guessing (see createTranslator), for the case that ReGo steps in for an association */
+  const mixed = (target, efa, strict = false) => {
+    const k = `${target.name}|${efa.key}${strict ? '|strict' : ''}`;
+    if (!mixedCache.has(k)) mixedCache.set(k, mixedFor(target, efa, createTranslator(efa, { strict, now, log })));
+    return mixedCache.get(k);
+  };
+  const backupCache = new Map();
+  /** The association (or the mix of two) first; if it does not answer, ÖBB and DB with strictly translated stops. */
+  const withRail = (primary, efa) => {
+    const k = `${primary.name}|${efa.key}`;
+    if (!backupCache.has(k)) backupCache.set(k, withBackup(primary, [mixed(oebb, efa, true), mixed(db, efa, true)], log));
+    return backupCache.get(k);
+  };
   return {
     db, oebb, mock, efas,
     /** Source for a single stop */
@@ -124,11 +232,15 @@ export function build(db, oebb, mock, efas = []) {
       }
       return regionOf(from) === 'AT' || regionOf(to) === 'AT' ? oebb : db;
     },
-    /** Association first; for routes with an Austrian end ÖBB is tried as a fallback (e.g. if the association knows nothing there). */
+    /**
+     * Association first; for routes with an Austrian end ÖBB is tried as a fallback (e.g. if the association knows nothing there).
+     * Routes between stops of associations (one or two): if the association does not answer, ÖBB and then DB step in (withBackup).
+     */
     forTourSafe(from, to) {
       const c = this.forTour(from, to);
       const a = efaOf(from), b = efaOf(to);
       if (a && a === b && (regionOf(from) === 'AT' || regionOf(to) === 'AT')) return chain(a, mixed(oebb, a));
+      if (a && b) return withRail(c, together([...new Set([a, b])].sort((p, q) => String(p.key).localeCompare(String(q.key)))));
       return c;
     },
     /** Search with special cases: Lindau Hbf is called "Lindau (Bodensee) Insel" or "Lindau Inselbahnhof" by the sources. */

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased – A second source
+
+**Timetable sources**
+- If an association does not answer (MoBY: HTTP 429 for a day, but also timeouts, server errors and refusals), ÖBB and then Deutsche Bahn show the trips of its routes. The routes keep running; the stops are matched by name and position. ReGo does not guess: a stop without stored coordinates, a bus stop that has a station next to it, or a name that does not fit stays dark and says which source is closed, as in 0.8.1. Buses and trams are usually not in the railway data.
+- Deutsche Bahn is asked only if ÖBB fails. An answer without trips ends the search, and an association that answers but does not know a route is not replaced.
+- Stops that cannot be matched are not searched again for 15 minutes, and routes that start together share one search per stop.
+- The closed source is still asked only once per pause. When it answers again, the routes switch back by themselves.
+- One log line when a backup takes over and one when the association answers again.
+- A refusal (HTTP 401/403) counts as "does not answer", like a timeout.
+
+**Rebuild**
+- Server only: update the add-on. The app stays at 0.8.0.
+
 ## 0.8.1 – A source says no
 
 **Timetable sources**
