@@ -7,6 +7,7 @@ import { loadFcmKey, createFcm } from './fcm.mjs';
 import { randomInt } from 'node:crypto';
 import { createNotifier } from './notifier.mjs';
 import { createGuard } from './guard.mjs';
+import { berlin } from './lib/time.mjs';
 import { ProfileStore, ValidationError, addTours, patchTour, deleteTour, setSettings, replaceProfile, toStop, DEVICE_RE } from './store/profile.mjs';
 
 // Security headers for all responses. 'unsafe-eval'/'unsafe-inline' are needed by the screen loader (dc-lite), nothing else third-party.
@@ -181,17 +182,22 @@ export function createApp({ cfg = config, now = () => Date.now(), service, store
     }
   });
   server.notifier = notifier;
-  return { server, service, store, notifier, status, fcm: fcmP };
+  return { server, service, store, notifier, status, version, fcm: fcmP };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // Every log line starts with the time (Berlin), so a log from the night can be read afterwards
+  const stamp = () => { const b = berlin(Date.now()); return `${b.date.slice(8)}.${b.date.slice(5, 7)}. ${b.time}:${String(new Date().getUTCSeconds()).padStart(2, '0')}`; };
+  for (const m of ['log', 'warn', 'error']) { const orig = console[m].bind(console); console[m] = (...a) => orig(stamp(), ...a); }
   // A forgotten error in a background task must not terminate the backend
   process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));
   process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
-  const { server, notifier, store, fcm } = createApp();
-  server.listen(config.port, config.host, () => console.log(`ReGo-Backend läuft auf http://${config.host}:${config.port} (Quelle: ${config.provider})`));
-  // Instant push depends on the Firebase key (add-on option fcm_key). A missing or unreadable key would otherwise go unnoticed: notifications then only arrive about every 15 minutes.
-  fcm.then((f) => console.log(f.enabled ? 'Push: Firebase-Schlüssel geladen, Sofort-Push ist an' : 'Push: kein gültiger Firebase-Schlüssel (Add-on-Option fcm_key), die App holt Meldungen nur alle ~15 Minuten ab'));
+  const { server, notifier, store, fcm, version } = createApp();
+  server.listen(config.port, config.host, async () => {
+    console.log(`ReGo-Backend ${await version()} läuft auf http://${config.host}:${config.port} (Quelle: ${config.provider})`);
+    // Instant push depends on the Firebase key (add-on option fcm_key). A missing or unreadable key would otherwise go unnoticed: notifications then only arrive about every 15 minutes.
+    console.log((await fcm).enabled ? 'Push: Firebase-Schlüssel geladen, Sofort-Push ist an' : 'Push: kein gültiger Firebase-Schlüssel (Add-on-Option fcm_key), die App holt Meldungen nur alle ~15 Minuten ab');
+  });
   const purge = () => store.purge(config.profileMaxAgeDays).then((n) => n && console.log(`Aufräumen: ${n} Profil(e) ohne Nutzung seit ${config.profileMaxAgeDays} Tagen gelöscht`)).catch((e) => console.error('Aufräumen:', e.message));
   purge(); setInterval(purge, 24 * 3600e3).unref();
   if (config.notifyEverySec > 0) setInterval(async () => { try { await (await notifier()).tick(); } catch (e) { console.error('Push-Prüfung:', e.message); } }, config.notifyEverySec * 1000).unref();

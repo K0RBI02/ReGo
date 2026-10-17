@@ -84,6 +84,7 @@ ReGo is a private hobby project. The data comes from publicly reachable but **un
 - Which source answers a route depends on its stops: the association if both stops belong to the same one (MoBY, the wider one, if they belong to two), otherwise ÖBB if one end is in Austria, otherwise Deutsche Bahn. Stops are translated between sources by name and position.
 - The station search asks all sources in parallel, removes duplicates and caches the result.
 - Answers are cached for a short time and concurrent requests share one source query. If a source fails, the last value is used for up to 30 minutes and marked as stale, and the source is left alone for a short pause. A route without usable data says so; it never shows "on time" without data.
+- If a source answers "too many requests" (HTTP 429), ReGo stops asking it: for as long as the source says (`Retry-After`), otherwise 1 minute, then 2, 4 … at most 30 minutes, and then tests it with a single request. Until then the app shows the last state, and `/status` marks the source. A source also gets at most three requests at the same time.
 
 ## HTTP API
 
@@ -137,6 +138,7 @@ An incident has a stable ID (a hash of the route and its identifying details): i
 - New notifications come only in the push period of a route: on its days, from an hour before the window until 10 minutes after it ends. Outside, incidents stay visible in the app without push.
 - Night quiet 23:00–04:00 (Berlin): no push at night, except for routes whose push period reaches into the night. A departure at 04:20 pushes from 03:20. Other routes and their notifications stay untouched until the morning.
 - Routes with stale data produce no new notifications. If the push service cannot be reached, the batch is tried again at the next check.
+- To keep the load on the sources low, this check refreshes a route that cannot push right now (outside its push period) only every 10 minutes. The app always asks for fresh data.
 
 How to set up instant push is described in the [README](README.md#instant-push-firebase). The app's settings have a test notification.
 
@@ -149,6 +151,7 @@ How to set up instant push is described in the [README](README.md#instant-push-f
 
 - `/status` shows version, sources, devices, push subscriptions and whether instant push is on. The add-on log starts with a network test and lists the errors of the sources. If ReGo hangs, switch on **Watchdog** in the add-on.
 - If the timetable sources are down, the app shows the last state (at most 30 minutes old) with "Keine aktuellen Daten".
+- The log says "zu viele Anfragen" (HTTP 429): a source is slowing ReGo down. ReGo pauses that source by itself and tries again later; the log line says for how long. Fewer routes and no app left open on a second device ease the load. Every log line starts with the time, and the first one names the version.
 - The test notification arrives only after minutes although Firebase is set up: open `/status`. "Sofort-Push: aus" means the key is missing or unreadable (the log says so at start). "an" with "0 mit Firebase-Kennung" means the phone never reported a token: use an APK built with Firebase and switch push off and on again in the app.
 - The app asks for an invitation code: `invite_code` is set and the server does not know the device yet (fresh install, or after "delete profile").
 

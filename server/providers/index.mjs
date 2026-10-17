@@ -6,7 +6,7 @@ import { regionOf, distanceKm } from '../lib/geo.mjs';
 
 /** Provides { db, oebb, pick(stopId) } – Austria through ÖBB, otherwise DB (the DB API covers cross-border traffic). */
 export function createProviders(config, now = () => Date.now()) {
-  const common = { userAgent: config.upstream.userAgent, timeoutMs: config.upstream.timeoutMs, retries: config.upstream.retries };
+  const common = { userAgent: config.upstream.userAgent, timeoutMs: config.upstream.timeoutMs, retries: config.upstream.retries, log: (...a) => config.verbose && console.log(...a) };
   const mock = config.provider === 'mock';
   const efas = mock ? [] : (config.upstream.efa || []).map((e) => new EfaClient(e.url, { ...common, key: e.key }));
   if (config.provider === 'library') {
@@ -59,8 +59,10 @@ function chain(first, second) {
 
 const unsupported =(msg) => ({ name: 'efa', async journeys() { throw new ProviderError(msg, { kind: 'unsupported' }); }, async stop(id) { return { id, name: '', lines: [] }; } });
 
+/** The source did not answer (timeout, 429, 5xx, on pause) – as opposed to: it answered but does not know the stop. */
+const sourceDown = (e) => e?.kind === 'network' || e?.status === 429 || e?.status >= 500 || /derzeit nicht erreichbar/.test(e?.message || '');
+
 /** Find the stop of one association again at the other provider (name + coordinates). */
-const v0err = (e) => e?.kind === 'network' && /derzeit nicht erreichbar/.test(e.message || '');
 export function createTranslator(efa) {
   const cache = new Map();
   return async function translate(stop, target) {
@@ -73,7 +75,8 @@ export function createTranslator(efa) {
     const variants = [...new Set([full.replace(/,\s*/g, ' '), full.replace(/\s*\(.*?\)/g, '').replace(/,\s*/g, ' ').trim(), rest && rest !== city ? `${city} ${rest}` : '', city].filter((v) => v.length >= 3))];
     let list = [];
     for (const q of variants) {
-      try { list = await target.searchStops(q); } catch (e) { if (v0err(e)) throw e; list = []; }
+      // A source that does not answer says nothing about the stop: pass the error on instead of trying more spellings (and then claiming the stop does not exist)
+      try { list = await target.searchStops(q); } catch (e) { if (sourceDown(e)) throw e; list = []; }
       if ((list || []).some((x) => { const d = distanceKm({ lat, lon }, x); return d != null && d <= 0.6; })) break;
     }
     const near = (list || []).map((x) => ({ x, d: distanceKm({ lat, lon }, x) })).filter((c) => c.d != null && c.d <= 0.6).sort((p, r) => p.d - r.d);
@@ -177,7 +180,7 @@ export function build(db, oebb, mock, efas = []) {
       const list = [...efaStops, ...others].filter((s) => !seen.has(s.id) && seen.add(s.id))
         .map((s, n) => ({ s, n })).sort((a, b) => rankOf(a.s.name, q) - rankOf(b.s.name, q) || a.n - b.n).map((x) => x.s);      // exact names and stations to the front, no matter which source
       if (!list.length && errors.length === sources.length) throw errors[0];
-      if (done < sources.length) list.partial = true;      // not all sources were finished: do not cache
+      if (done < sources.length || efas.some((c) => c.healthy?.() === false)) list.partial = true;      // not all sources were finished, or an association is on pause: do not cache
       return list;
     },
   };

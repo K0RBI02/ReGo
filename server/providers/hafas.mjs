@@ -1,3 +1,5 @@
+import { SourcePause, retryAfterSec, fmtPause } from './pause.mjs';
+
 // Client for transport.rest (hafas-client as a REST API). Used for DB (all of Germany, also cross-border)
 // and ÖBB (Austria), each with its own base URL.
 //
@@ -17,10 +19,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const min = (sec) => (sec == null ? 0 : Math.round(sec / 60));
 
 export class HafasClient {
-  constructor(base, { fetchImpl = (...a) => globalThis.fetch(...a), userAgent = 'ReGo', timeoutMs = 8000, retries = 2, name = 'hafas' } = {}) {
+  constructor(base, { fetchImpl = (...a) => globalThis.fetch(...a), userAgent = 'ReGo', timeoutMs = 8000, retries = 2, name = 'hafas', pause = new SourcePause(), log = () => {} } = {}) {
     this.base = base.replace(/\/$/, '');
     this.fetch = fetchImpl; this.userAgent = userAgent; this.timeoutMs = timeoutMs; this.retries = retries; this.name = name;
+    this.pause = pause; this.log = log;
   }
+
+  /** false while the source has us on pause (it said "too many requests") */
+  healthy() { return !this.pause.active(); }
 
   async get(path, params = {}) {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)])).toString();
@@ -28,15 +34,21 @@ export class HafasClient {
     let lastErr;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
+        if (!this.pause.allow()) throw new ProviderError(`${this.name}: derzeit nicht erreichbar (zu viele Anfragen, Pause noch ${fmtPause(Math.max(1, this.pause.left()))})`, { status: 429, kind: 'network' });
         const res = await this.fetch(url, { headers: { 'user-agent': this.userAgent, accept: 'application/json' }, signal: AbortSignal.timeout(this.timeoutMs) });
-        if (res.ok) return await res.json();
-        const retryable = res.status === 429 || res.status >= 500;
+        if (res.ok) { const data = await res.json(); this.pause.ok(); return data; }
+        if (res.status === 429) {
+          const asked = retryAfterSec(res), { sec, fresh } = this.pause.limited(asked);
+          if (fresh) this.log(`${this.name}: zu viele Anfragen (HTTP 429${Number.isFinite(asked) ? `, Retry-After ${asked} s` : ''}) – Pause ${fmtPause(sec)}`);
+          throw new ProviderError(`${this.name}: HTTP 429 – zu viele Anfragen, Pause ${fmtPause(sec)}`, { status: 429, kind: 'http' });
+        }
         lastErr = new ProviderError(`${this.name}: HTTP ${res.status}`, { status: res.status, kind: 'http' });
-        if (!retryable) throw lastErr;
-        const wait = Number(res.headers?.get?.('retry-after')) || 0;
-        if (attempt < this.retries) await sleep(Math.min(wait * 1000 || 400 * 2 ** attempt, 3000));
+        if (res.status < 500) throw lastErr;
+        const wait = retryAfterSec(res);
+        if (attempt < this.retries) await sleep(Math.min(Number.isFinite(wait) && wait > 0 ? wait * 1000 : 400 * 2 ** attempt, 3000));
       } catch (err) {
-        if (err instanceof ProviderError && err.kind === 'http' && !(err.status === 429 || err.status >= 500)) throw err;
+        // 4xx and "too many requests" are final: asking again right away would only make it worse
+        if (err instanceof ProviderError && (err.status === 429 || (err.kind === 'http' && err.status < 500))) throw err;
         lastErr = err instanceof ProviderError ? err : new ProviderError(`${this.name}: ${err.name === 'TimeoutError' ? 'Zeitüberschreitung' : err.message}`, { kind: 'network' });
         if (attempt < this.retries) await sleep(400 * 2 ** attempt);
       }

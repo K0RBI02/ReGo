@@ -67,7 +67,8 @@ export function createNotifier({ config, store, service, now = () => Date.now(),
     const night = hour < 4 || hour >= 23;
     const inScope = (tour) => !night || pushAtNight(tour, now());
     if (night && !profile.tours.some((t) => t.active !== false && inScope(t))) return 0;
-    const state = await service.getState(device);
+    // Nobody is looking at the screen: routes that cannot push right now are only refreshed every few minutes (easier on the sources)
+    const state = await service.getState(device, { background: true });
     const hasTours = Array.isArray(state.tours);
     if (state.connection.status === 'error' && !hasTours) return 0;
     // Routes without fresh data (source disturbed): no new notifications from them, and do not judge disappearance. Other routes carry on as usual.

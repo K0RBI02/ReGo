@@ -23,7 +23,7 @@ export const config = {
     retries: Number(env.REGO_RETRIES || 2),
   },
   // Cache lifetimes in seconds
-  ttl: { search: 24 * 3600, stop: 24 * 3600, journeys: 30, state: 15 },
+  ttl: { search: 24 * 3600, stop: 24 * 3600, journeys: 30, state: 15, idle: 600 },       // idle: push check, routes that cannot push right now
   staleMaxSec: { journeys: 30 * 60 },       // if a source fails, trips are shown from the cache for this long at most
   tourDeadlineMs: Number(env.REGO_TOUR_DEADLINE_MS || 12000),   // a tour waits at most this long for its data
   mapBudgetMs: 5000,                        // and this long for looking up further lines for the map

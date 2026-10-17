@@ -5,7 +5,7 @@ import { distanceKm, regionOf } from './lib/geo.mjs';
 import { buildTour, stillVisible, THEME, SCHEMA_VERSION } from './domain/state.mjs';
 import { buildTransferTour, transferVias, previewRoute, shortcutFor } from './domain/transfer.mjs';
 import { classifyRemark } from './domain/classify.mjs';
-import { windowState, windowView, windowRank, DEFAULT_SCHEDULE } from './domain/window.mjs';
+import { windowState, windowView, windowRank, pushActive, DEFAULT_SCHEDULE } from './domain/window.mjs';
 import { createProviders } from './providers/index.mjs';
 
 /** Waits at most ms for p. After that fallback() applies (if it returns something), otherwise an error. The request itself keeps running and fills the cache. */
@@ -29,6 +29,7 @@ export function createService({ config, store, now = () => Date.now(), providers
   const STALE_MAX_SEC = config.staleMaxSec?.journeys ?? 30 * 60;   // we no longer show older trips during a disruption
   const B_DEADLINE_MS = config.transferDeadlineMs || 4000;     // connecting trips from the transfer station: we wait this long at most (otherwise the source's own suggestion counts)
   const XFER_RESULTS = 8;                                      // connections with a transfer: request a few more so that enough remain per feeder after merging
+  const IDLE_TTL_SEC = config.ttl.idle ?? 600;                 // background check (push): a route that cannot push at the moment is refreshed only this often
 
   async function searchStations(q) {
     const query = String(q || '').trim();
@@ -54,7 +55,7 @@ export function createService({ config, store, now = () => Date.now(), providers
   const transferJourneys = (from, to, t, stamp = '') => {
     const client = (providers.forTourSafe || providers.forTour).call(providers, from, to);
     const key = `jl:${from.id}:${to.id}:t1${stamp}`;
-    return { key, load: () => cache.get(key, config.ttl.journeys, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 }), { maxStaleSec: STALE_MAX_SEC }) };
+    return { key, load: (ttl = config.ttl.journeys) => cache.get(key, ttl, () => client.journeys({ from, to, fromId: from.id, toId: to.id, when: new Date(t).toISOString(), results: XFER_RESULTS, transfers: 1 }), { maxStaleSec: STALE_MAX_SEC }) };
   };
 
   /** Are there trips with at most one transfer between the two stops? true | false | null (unknown) – and a sample connection. */
@@ -69,7 +70,7 @@ export function createService({ config, store, now = () => Date.now(), providers
   }
 
   /** Connecting trips from the transfer station to the destination (second query), per station; if one is missing it is left out and the source's own suggestion counts. */
-  async function loadBLists(tour, journeys, t, stamp = '') {
+  async function loadBLists(tour, journeys, t, stamp = '', ttl = config.ttl.journeys) {
     const out = new Map();
     await Promise.all(transferVias(journeys).slice(0, 2).map(async (v) => {
       const client = (providers.forTourSafe || providers.forTour).call(providers, v.stop, tour.to);
@@ -77,7 +78,7 @@ export function createService({ config, store, now = () => Date.now(), providers
       const when = new Date(Math.max(t, v.firstArr - 10 * 60000)).toISOString();
       try {
         const r = await withDeadline(
-          cache.get(key, config.ttl.journeys, () => client.journeys({ from: v.stop, to: tour.to, fromId: v.stop.id, toId: tour.to.id, when, results: 10 }), { maxStaleSec: STALE_MAX_SEC }),
+          cache.get(key, ttl, () => client.journeys({ from: v.stop, to: tour.to, fromId: v.stop.id, toId: tour.to.id, when, results: 10 }), { maxStaleSec: STALE_MAX_SEC }),
           B_DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         out.set(v.key, (r.value || []).map((j) => j.legs?.[0]).filter((l) => l && l.line));
       } catch (err) { log('Anschlussfahrten nicht verfügbar', v.name, err.message); }
@@ -90,11 +91,11 @@ export function createService({ config, store, now = () => Date.now(), providers
    * (same query and same cache as the "Mit 1 Umstieg suchen" search). Without replacement transport this costs nothing. Returns a function for
    * buildTour, or undefined if there is nothing to check or the source does not answer in time (then there is simply no hint).
    */
-  async function loadShortcut(tour, journeys, t, at = t, stamp = '') {
+  async function loadShortcut(tour, journeys, t, at = t, stamp = '', ttl = config.ttl.journeys) {
     if (!journeys.some((j) => (j.legs?.[0]?.remarks || []).some((r) => classifyRemark(r) === 'replacement'))) return undefined;
     const q = transferJourneys(tour.from, tour.to, at, stamp);
     try {
-      const r = await withDeadline(q.load(), B_DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
+      const r = await withDeadline(q.load(ttl), B_DEADLINE_MS, () => { const hit = cache.peek(q.key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
       const list = r.value || [];
       return (o) => shortcutFor(list, { now: t, ...o });
     } catch (err) { log('Vorschlag mit Umstieg nicht verfügbar', tour.id, err.message); return undefined; }
@@ -106,7 +107,8 @@ export function createService({ config, store, now = () => Date.now(), providers
     return value.lines || [];
   };
 
-  async function getState(device, { lat, lon } = {}) {
+  /** background: the push check asks, nobody is looking at the screen. Routes that cannot push right now are then only refreshed every IDLE_TTL_SEC. */
+  async function getState(device, { lat, lon, background = false } = {}) {
     const profile = await store.load(device);
     const t = now();
     const lines = {};
@@ -122,11 +124,12 @@ export function createService({ config, store, now = () => Date.now(), providers
       // Commute time: before the window (a few hours before at most) we request the trains from its start, otherwise from now
       const win = windowState(tour.schedule || DEFAULT_SCHEDULE, t);
       const at = win.anchor ?? t, stamp = win.anchor ? `@${hhmm(win.anchor)}` : '';
+      const ttl = background && !pushActive(tour, t) ? IDLE_TTL_SEC : config.ttl.journeys;
       const q = xfer ? transferJourneys(tour.from, tour.to, at, stamp) : null;
       const key = xfer ? q.key : `jl:${tour.from.id}:${tour.to.id}${stamp}`;
       try {
         const r = await withDeadline(
-          xfer ? q.load() : cache.get(key, config.ttl.journeys, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(at).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
+          xfer ? q.load(ttl) : cache.get(key, ttl, () => client.journeys({ from: tour.from, to: tour.to, fromId: tour.from.id, toId: tour.to.id, when: new Date(at).toISOString(), results: 5 }), { maxStaleSec: STALE_MAX_SEC }),
           DEADLINE_MS, () => { const hit = cache.peek(key); return hit && (t - hit.at) / 1000 <= STALE_MAX_SEC ? { value: hit.value, at: hit.at, stale: true } : null; });
         journeys = r.value; hadData = true;
         if (r.stale) { stale = true; tourStale = true; oldest = Math.min(oldest, r.at); }
@@ -135,8 +138,8 @@ export function createService({ config, store, now = () => Date.now(), providers
       const linesAtBudget = (id) => (Date.now() - started > MAP_BUDGET_MS ? Promise.resolve([]) : withDeadline(linesAt(id), Math.max(300, MAP_BUDGET_MS - (Date.now() - started)), () => []));
       const fromStop = { ...tour.from, ...(await withDeadline(stopCoords(tour.from), 3000, () => ({}))) };
       const dist = here && fromStop.lat != null ? distanceKm(here, fromStop) : null;
-      const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t, stamp) : undefined;
-      const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t, at, stamp);
+      const bLists = xfer && journeys.length ? await loadBLists(tour, journeys, t, stamp, ttl) : undefined;
+      const shortcut = xfer || tourStale ? undefined : await loadShortcut(tour, journeys, t, at, stamp, ttl);
       const built = await (xfer ? buildTransferTour : buildTour)(tour, journeys, { now: t, minDelay: config.incidentMinDelay, linesAt: linesAtBudget, lines, distanceKm: dist, graceMin: profile.settings.delayGraceMin, stale: tourStale, bLists, shortcutFor: shortcut, window: win });
       if (tourStale) built.tour.stale = true;                  // this route shows old data (or none at all)
       tours[i] = { out: built.tour, inc: built.incidents };

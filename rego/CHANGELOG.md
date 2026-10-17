@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.4 – Gentler on the sources
+
+**Timetable sources**
+- A source that answers "too many requests" (HTTP 429) is now left alone: for as long as it asks (`Retry-After`), otherwise one minute, then two, four … at most 30 minutes. After the pause a single request tests whether it answers again. Before, the routes kept asking every minute even then. Until it answers, the app shows the last state (at most 30 minutes old) and the status page marks the source as "pausiert".
+- At most three requests run at the same time per association.
+- A source that does not answer is no longer reported as "stop not found on the other side of the border" when a route needs a stop translated between two sources.
+- The station search leaves out a source on pause and does not keep the incomplete answer.
+
+**Push**
+- The push check refreshes routes that cannot push right now (another weekday, outside the push period) only every 10 minutes instead of every minute. The app itself still asks for fresh data.
+
+**Log**
+- Every log line starts with the time (Berlin), and the start line names the version. The line for a pause says what the source answered.
+
+**Rebuild**
+- Server change only: update the add-on. The app itself stays the same.
+
 ## 0.7.3 – Early commutes
 
 **Push**
