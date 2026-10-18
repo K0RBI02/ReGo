@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.9 – Top of the route page
+
+**Route page**
+- The route name in the pill at the top takes two lines instead of ending with "…" (before: "Freising → München, Neup…"). With three lines in a row ("S1 › S4 › U5") on a narrow phone the type is a little smaller so that the name still fits.
+- The map keeps as much room on the right as the longest stop name needs, so "Neuperlach Süd" is no longer cut to "Neuperlach S…".
+- Two stops right next to each other with no omitted stops between them (like Hackerbrücke → München Hbf) get at least as much room as their names need, so the names no longer lie on top of each other.
+- In the big card "05:47 · 1 Umstieg" stays together in one line instead of leaving "Umstieg" alone in the last line.
+
+**Rebuild**
+- Looks only: install the new APK (`app-v0.8.9`). The server logic and the API do not change; the add-on update only brings the same screens for the browser.
+
 ## 0.8.8 – Up to two transfers
 
 **Routes with transfers**

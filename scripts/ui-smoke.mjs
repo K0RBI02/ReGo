@@ -690,6 +690,24 @@ const watch = (pg) => {
 };
 const suggestOn = async (pg, n, text) => { const i = pg.locator('input[type=text]').nth(n); await i.click(); await i.fill(''); await i.pressSequentially(text, { delay: 40 }); await pg.waitForTimeout(1400); await pg.getByRole('option').first().click(); };
 const sideways = (pg) => pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+// Top of the departure page: the route name in the pill and the stop names on the map must be complete (no "…") and neighbouring stop names must not lie on top of each other.
+// pill: false when the name cannot fit (three lines in a row of their own on a very narrow phone).
+const headCut = (pg, { pill = true } = {}) => pg.evaluate((withPill) => {
+  const bad = [];
+  const box = [...document.querySelectorAll('div.rg-in')].find((e) => /top: 78px/.test(e.getAttribute('style') || ''));
+  const nm = box && box.lastElementChild;
+  if (withPill && nm && (nm.scrollWidth > nm.clientWidth + 1 || nm.scrollHeight > nm.clientHeight + 1)) bad.push(`route name "${nm.textContent.trim()}" is cut off`);
+  const xs = [];
+  for (const e of [...document.querySelectorAll('span')].filter((x) => /rotate\(-45deg\)/.test(x.getAttribute('style') || '') && x.textContent.trim())) {
+    const r = e.getBoundingClientRect();
+    if (e.scrollWidth > e.clientWidth + 1) bad.push(`stop name "${e.textContent.trim()}" is cut off`);
+    if (r.right > innerWidth - 2) bad.push(`stop name "${e.textContent.trim()}" reaches the edge of the screen`);
+    xs.push({ t: e.textContent.trim(), x: parseFloat((e.getAttribute('style').match(/left: ([\d.]+)px/) || [])[1]) });
+  }
+  xs.sort((a, b) => a.x - b.x);
+  for (let i = 1; i < xs.length; i++) if (xs[i].x - xs[i - 1].x < 24) bad.push(`stop names "${xs[i - 1].t}" and "${xs[i].t}" lie on top of each other`);
+  return bad;
+}, pill);
 // Contrast of text against background (nearest non-transparent ancestor).
 // items = [[tag, text], …] returns [[text, ratio], …] (0 = not found); root = selection returns all visible texts below it with contrast under min.
 const contrastScan = (pg, args) => pg.evaluate(({ items, root, min }) => {
@@ -938,6 +956,7 @@ await check('Transfer trip in the UI', async () => {
       if (await sideways(pg)) problems.push(`${tag}: departure page scrolls sideways`);
       const cut = await pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /rotate\(-45deg\)/.test(e.getAttribute('style') || '') && e.textContent.trim()).filter((e) => e.getBoundingClientRect().right > innerWidth + 1 || e.getBoundingClientRect().left < -1).map((e) => e.textContent));
       if (cut.length) problems.push(`${tag}: label on the card sticks out over the edge: ${cut.join(', ')}`);
+      for (const b of await headCut(pg, { pill: w >= 360 })) problems.push(`${tag}: ${b}`);
       if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: departure page poorly readable: ${bad.slice(0, 4).join(', ')}`); }
       await pg.evaluate(() => { const s = [...document.querySelectorAll('[style*="overflow-y: auto"]')].pop(); if (s) s.scrollTop = 9999; }); await pg.waitForTimeout(300);
       if (await sideways(pg)) problems.push(`${tag}: departure page scrolls sideways at the bottom`);
@@ -1103,6 +1122,7 @@ await check('Two transfers in the UI', async () => {
       if (await sideways(pg)) problems.push(`${tag}: departure page scrolls sideways`);
       const cut = await pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /rotate\(-45deg\)/.test(e.getAttribute('style') || '') && e.textContent.trim()).filter((e) => e.getBoundingClientRect().right > innerWidth + 1 || e.getBoundingClientRect().left < -1).map((e) => e.textContent));
       if (cut.length) problems.push(`${tag}: label on the card sticks out over the edge: ${cut.join(', ')}`);
+      for (const b of await headCut(pg, { pill: w >= 360 })) problems.push(`${tag}: ${b}`);
       if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: departure page poorly readable: ${bad.slice(0, 4).join(', ')}`); }
       // Incidents: for at risk/missed exactly one card, for on time none
       await pg.goto(base + '/Meldungen'); await pg.waitForTimeout(1500);
@@ -1284,6 +1304,67 @@ await check('Feedback without address', async () => {
   } finally { await c.close(); }
 });
 
+// New in 0.8.9: top of the departure page with long names. A route with a transfer at Hackerbrücke and seven stops (Freising → München, Neuperlach Süd), most of them with omitted
+// stops in between: the route name takes two lines instead of ending with "…", no stop name is cut off and the names of neighbouring stops do not lie on top of each other
+// (the stops without omission between them used to get only half as much room). The state is made by hand, like on the card of a real route.
+await check('Long names on the card', async () => {
+  const XD = 'smokenames123456789abcdefg';
+  const names = ['Freising', 'Lohhof', 'Fasanerie', 'Hackerbrücke', 'München Hbf', 'Rosenheimer', 'Neuperlach Süd'];
+  const skips = [2, 2, 5, 0, 3, 4].map((n, i) => (n ? { after: i, n } : null)).filter(Boolean);
+  const dest = 'München, Neuperlach Süd';
+  const mkView = (dep, arr) => ({
+    kind: 'ok', head: `Planmäßig · S1 › S5 ab ${dep}`, big: 'planmäßig', sub: `Ankunft ${dest} ${arr} · 1 Umstieg`,
+    rows: [{ label: 'Abfahrt Freising', sub: 'S1 Richtung Leuchtenbergring · Gleis 3', value: dep, planned: '' }, { label: `Ankunft ${dest}`, sub: 'S5', value: arr, planned: '' }],
+    sections: [
+      { type: 'leg', lineId: 'S1', title: 'Freising → Hackerbrücke', sub: '1. Fahrt · 39 Min.', rows: [{ label: 'Abfahrt Freising', sub: 'S1 · Gleis 3', value: dep, planned: '' }, { label: 'Ankunft Hackerbrücke', sub: 'S1 · Gleis 1', value: '05:13', planned: '' }] },
+      { type: 'transfer', state: 'ok', label: 'Umstieg', title: 'Hackerbrücke', text: 'Gleis 1 → Gleis 1', minutes: 10 },
+      { type: 'leg', lineId: 'S5', title: `Hackerbrücke → ${dest}`, sub: '2. Fahrt · 24 Min.', rows: [{ label: 'Abfahrt Hackerbrücke', sub: 'S5 · Gleis 1', value: '05:23', planned: '' }, { label: `Ankunft ${dest}`, sub: 'S5', value: arr, planned: '' }] },
+    ],
+    ticketHint: null, alternative: null,
+    map: {
+      stations: names.map((n, i) => ({ id: 'n' + i, name: n })), hubIndex: 3, haloIndex: -1, connections: [], disrupted: null, alternative: null,
+      legs: [{ lineId: 'S1', from: 0, to: 3 }, { lineId: 'S5', from: 3, to: 6 }], skips,
+      transfer: { stationIndex: 3, label: 'Umstieg 10 Min. · Gleis 1', state: 'ok' }, times: { dep: `ab ${dep}`, arr: `an ${arr}`, depLate: false, arrLate: false },
+    },
+  });
+  const tour = {
+    id: 'tnames', name: `Freising → ${dest}`, appLink: { label: 'Im DB Navigator ansehen', url: 'https://www.bahn.de/' }, lineId: 'S1', active: true, transfers: 1, via: 'Hackerbrücke', lineIds: ['S1', 'S5'],
+    period: 'am', distanceKm: 0.5, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '04:00', departUntil: '08:00' }, window: { from: '04:00', until: '08:00', mode: 'soon' },
+    departures: [['04:34', '05:47'], ['04:54', '06:07'], ['05:14', '06:27']].map(([dep, arr]) => ({ plannedTime: dep, expectedTime: dep, lineId: 'S1', plannedPlatform: '3', expectedPlatform: '3', delayMin: 0, far: true, lineIds: ['S1', 'S5'], arrTime: arr, transfer: { station: 'Hackerbrücke', minutes: 10, state: 'ok', text: 'Umstieg 10 Min. · Gleis 1' }, view: mkView(dep, arr) })),
+  };
+  for (const [w, h, dark] of [[390, 844, false], [372, 800, false], [360, 780, true], [320, 568, false]]) {
+    const tag = `Long names on the card (${w} px${dark ? ', dark' : ''})`;
+    where = tag;
+    const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, colorScheme: dark ? 'dark' : 'light' });
+    await c.addInitScript(initFor(), [XD]);
+    await c.route('**/api/state**', async (route) => {
+      const res = await route.fetch(); const body = await res.json();
+      body.tours = [tour]; body.incidents = [];
+      body.lines = { ...body.lines, S1: { id: 'S1', label: 'S1', color: '#0B6B3F' }, S5: { id: 'S5', label: 'S5', color: '#0B6B3F' } };
+      await route.fulfill({ response: res, json: body });
+    });
+    const pg = await c.newPage(); pg.setDefaultTimeout(8000); watch(pg);
+    try {
+      await pg.goto(base + '/Detail#tnames.0-m'); await pg.waitForTimeout(1800);
+      const dt = await pg.evaluate(() => document.querySelector('#screen').innerText);
+      if (!/Freising\s*→\s*München, Neuperlach Süd/.test(dt) || !/05:47\s*·\s*1\s*Umstieg/.test(dt)) problems.push(`${tag}: page does not show the route (${dt.replace(/\s+/g, ' ').slice(0, 120)})`);
+      for (const b of await headCut(pg)) problems.push(`${tag}: ${b}`);
+      // "05:47 · 1 Umstieg" stays together in one line (no "Umstieg" alone in the last line)
+      const lines = await pg.evaluate(() => {
+        const e = [...document.querySelectorAll('span')].find((x) => x.children.length === 0 && /^Ankunft München, Neuperlach Süd/.test(x.textContent.trim()));
+        if (!e) return null;
+        e.normalize(); const node = e.firstChild, i = node.textContent.indexOf('05:47');
+        const r = document.createRange(); r.setStart(node, i); r.setEnd(node, node.textContent.length);
+        return new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size;
+      });
+      if (lines === null) problems.push(`${tag}: line with the arrival not found`);
+      else if (lines !== 1) problems.push(`${tag}: "05:47 · 1 Umstieg" is broken over ${lines} lines`);
+      if (await sideways(pg)) problems.push(`${tag}: page scrolls sideways`);
+      if (dark) { const bad = await lowContrast(pg, '#screen'); if (bad.length) problems.push(`${tag}: poorly readable: ${bad.slice(0, 4).join(', ')}`); }
+    } finally { await c.close(); }
+  }
+});
+
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');

@@ -174,7 +174,7 @@ html.rg-dark svg[aria-label="Ticket-Barcode"] [fill]{fill:#1C1A1A !important}
 <sc-if value="{{c.isChev}}" hint-placeholder-val="{{ false }}"><svg style="flex: none" width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="#1C1A1A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" aria-hidden="true"><path d="M1.5 1.5L6.5 6l-5 4.5"></path></svg></sc-if>
 <sc-if value="{{c.isChip}}" hint-placeholder-val="{{ true }}"><span style="{{c.s}}">{{c.t}}</span></sc-if>
 </sc-for>
-</span><span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis">{{route.text}}</span></div>
+</span><span style="{{route.ts}}">{{route.text}}</span></div>
 <header style="position: absolute; left: 0; right: 0; top: 0; padding: 16px 12px 0 20px; display: flex; align-items: center; justify-content: space-between">
 <a href="{{backHref}}" style="min-height: 52px; padding: 0 20px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1.5px solid #E8E8E8; border-radius: 999px; font-size: 17px; font-weight: 600">
 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1C1A1A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M10 6l-6 6 6 6"></path></svg>
@@ -351,15 +351,45 @@ class Component extends DCLogic {
     const n = M.stations.length;
     // Width of the card = width of the app (narrow phones, tablets): otherwise the label is cut off on the right
     const W = Math.max(280, (document.getElementById('app') || {}).clientWidth || 390);
-    const x0 = 36, x1 = W - (n >= 6 ? 98 : 120);
+    const x0 = 36;
     // Trip with a transfer: two lines in their colors (three with two transfers), the transfer stops, omissions ("+5" = 5 stops not shown) and time pills
     const X = M.legs && M.legs.length >= 2 && M.legs.length <= 3 ? M : null;
     const hubIdx = X ? X.legs.slice(0, -1).map((l) => l.to) : [];            // where one changes: the end of every trip but the last
     const skipOf = (i) => (X && (X.skips || []).find((k) => k.after === i)) || null;
-    const wt = (i) => (skipOf(i) ? 2 : 1);                    // an omission gets double width so that the "+5" has room between the dots
-    let wsum = 0; for (let i = 0; i < n - 1; i++) wsum += wt(i);
-    let acc = 0;
-    const st = M.stations.map((s, i) => { const x = n > 1 ? x0 + (x1 - x0) * acc / wsum : x0; acc += wt(i); return Object.assign({}, s, { x, big: i === 0 || i === n - 1 || i === M.hubIndex || hubIdx.includes(i) }); });
+    const isBig = (i) => i === 0 || i === n - 1 || i === M.hubIndex || hubIdx.includes(i);
+    // Width of a stop name as bold text (14 px, 15 px at a big dot): measured when the browser can, otherwise 0.6 em per character
+    let cx = null; try { cx = document.createElement('canvas').getContext('2d'); } catch (e) { /* estimate */ }
+    const nameW = (i) => {
+      const s = String((M.stations[i] || {}).name || ''), px = isBig(i) ? 15 : 14;
+      try { if (cx) { cx.font = '700 ' + px + 'px "Instrument Sans", sans-serif'; const w = cx.measureText(s).width; if (w > 0) return Math.ceil(w); } } catch (e) { /* estimate */ }
+      return Math.ceil(s.length * px * 0.6);
+    };
+    // x of the stops for a line that ends at xe. An omission gets double width so that the "+5" has room between the dots; a gap between two neighbours stays at least 28 px,
+    // otherwise their labels (rotated by 45°, 17 px thick) lie on top of each other
+    const place = (xe) => {
+      let nPlain = 0, nSkip = 0;
+      for (let i = 0; i < n - 1; i++) { if (skipOf(i)) nSkip++; else nPlain++; }
+      const total = xe - x0;
+      const wp = nPlain && nSkip ? (total > 28 * nPlain ? Math.min(2, Math.max(1, 56 * nSkip / (total - 28 * nPlain))) : 2) : 1;
+      const wsum = nPlain * wp + nSkip * 2;
+      let acc = 0;
+      return M.stations.map((s, i) => { const x = n > 1 && wsum > 0 ? x0 + total * acc / wsum : x0; acc += skipOf(i) ? 2 : wp; return x; });
+    };
+    // Right margin of the line: every name (rotated by 45°) must have its whole width under the right edge of the card, otherwise it ends with "…"
+    let mR = n >= 6 ? 98 : 120;
+    const mMax = Math.max(mR, Math.min(130, W - x0 - 24 * Math.max(1, n - 1)));
+    for (let k = 0; k < 6; k++) {
+      const xa = place(W - mR);
+      let more = 0;
+      for (let i = 1; i < n && i < 7; i++) {
+        const over = xa[i] + (nameW(i) + 2) / 1.41 + 20 - W, f = (xa[i] - x0) / (W - mR - x0);
+        if (over > 0 && f > 0.05) more = Math.max(more, over / f);
+      }
+      if (more < 0.5 || mR >= mMax) break;
+      mR = Math.min(mMax, mR + Math.ceil(more));
+    }
+    const xs = place(W - mR);
+    const st = M.stations.map((s, i) => Object.assign({}, s, { x: xs[i], big: isBig(i) }));
     const seg = (a, b) => [[st[a].x, Y], [st[b].x, Y]];
     const inDis = (i) => !!M.disrupted && i >= M.disrupted.from && i + 1 <= M.disrupted.to;       // section i → i+1 is under replacement transport
     const gapHalf = (len) => Math.min(22.6, Math.max(8, len / 2 - 16));
@@ -492,10 +522,13 @@ class Component extends DCLogic {
       chips: routeLines.flatMap((l, k) => (k ? [{ isChev: true }] : []).concat({ isChip: true, t: l.label, s: chipCss(l.color) })),
       cs: badge ? 'display: flex; align-items: center; gap: 4px' : 'display: none',
       text: tour ? tour.name : '',
-      s: 'position: absolute; left: 20px; top: 78px; max-width: calc(100% - 40px); box-sizing: border-box; background: #fff; border-radius: 999px; padding: ' + (badge ? '5px 16px 5px 5px' : '10px 18px') + '; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)' + (tour ? '' : '; display: none')
+      // the name takes two lines of 17 px (the pill stays as high as the signs); with three signs in a row there is less room, so the type is a little smaller
+      ts: 'font-size: ' + (routeLines.length >= 3 ? (W < 360 ? 14 : 15) : 16) + 'px; line-height: 17px; font-weight: 700; letter-spacing: -0.01em; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden',
+      s: 'position: absolute; left: 20px; top: 78px; max-width: calc(100% - 40px); box-sizing: border-box; background: #fff; border-radius: 999px; padding: ' + (badge ? '5px 16px 5px 5px' : '11px 18px') + '; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08)' + (tour ? '' : '; display: none')
     };
     out.statusStyle = 'background: ' + K.bg + '; border-radius: 28px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px';
-    out.head = view.head; out.big = view.big; out.sub = view.sub;
+    out.head = view.head; out.big = view.big;
+    out.sub = String(view.sub || '').replace(/ · (\d+) (Umstiege?)/, '\u00a0·\u00a0$1\u00a0$2');      // "05:47 · 1 Umstieg" stays together in one line
     // Big line at most 48 px, but such that the icon next to it stays (room = width − 2 × 20 − 2 × 20 − 72 − 8; one character is up to 0.55 em wide). 8 px of air above and below, because this line is the most important one on the card.
     out.bigStyle = 'font-size: ' + Math.max(34, Math.min(48, Math.floor((W - 160) / (0.55 * Math.max(1, String(view.big || '').length))))) + 'px; line-height: 1.04; font-weight: 700; letter-spacing: -0.045em; white-space: nowrap; margin: 8px 0';
     out.icon1 = K.icon[0]; out.icon2 = K.icon[1];
