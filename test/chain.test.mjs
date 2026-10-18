@@ -74,7 +74,18 @@ test('Two transfers on time: three lines, two transfer rows, sections (trip – 
   assert.deepEqual(m.transfer, m.changes[0]);
   assert.deepEqual(m.times, { dep: 'ab 07:02', arr: 'an 08:09', depLate: false, arrLate: false });
   assert.equal(m.haloIndex, -1); assert.equal(m.disrupted, null);
+  assert.deepEqual(m.hidden, [0, 0, 0, 0, 0]); assert.deepEqual(m.skips, []);                     // every stop of the trip is on the map: nothing is left out
   assert.ok(r.tour.lineId === 'S1');
+});
+
+test('Long trip with two transfers: the map says exactly how many stops lie between two shown stations (hidden)', async () => {
+  const many = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i}`, name: `${p} ${i + 1}` }));
+  const js = [chain(S1('07:02', { stopovers: [FS, ...many('Halt', 8), MO] }), U3('07:33', { stopovers: [MO, ...many('Gleis', 5), OD] }), U5('07:51', { stopovers: [OD, ...many('Ring', 6), NS] }))];
+  const r = await buildChainTour(tour, js, ctx());
+  const m = r.tour.departures[0].view.map;
+  assert.equal(m.stations.length, 7); assert.equal(m.hidden.length, m.stations.length - 1);
+  assert.equal(m.hidden.reduce((s, h) => s + h, 0) + m.stations.length, 23);                       // 10 + 7 + 8 stops, both transfer stops count once
+  assert.deepEqual(m.skips, m.hidden.map((h, k) => ({ after: k, n: h })).filter((x) => x.n >= 2));
 });
 
 test('One transfer inside the answer: the same rules, like a route with one transfer; direct trips without a transfer row', async () => {

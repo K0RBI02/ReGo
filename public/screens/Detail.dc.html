@@ -297,7 +297,8 @@ Zurück</a>
    Hash  #<incidentId|tourId>-<m|l>   (m = from the main screen, l = from "Meldungen")
    incident.view.map = { stations[], hubIndex, disrupted{from,to}|null, alternative{label,fromIndex,toIndex}|null,
                          haloIndex, connections[{stationIndex,lineId,dir:'down'|'right'}],
-                         legs[{lineId,from,to}] (2 trips with a transfer, 3 with two), transfer{label,state}, changes[{stationIndex,label,state}] } */
+                         legs[{lineId,from,to}] (2 trips with a transfer, 3 with two), transfer{label,state}, changes[{stationIndex,label,state}],
+                         skips[{after,n}] (n >= 2 stops not shown after station "after"), hidden[] (exactly how many stops are not shown between neighbouring stations; without it: from skips) } */
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -307,6 +308,95 @@ class Component extends DCLogic {
     this.state = { id: p[0] || 'i2', from: p[1] === 'l' ? 'l' : 'm', pref: p[2] || '' };      // pref: the tapped incident (from "Meldungen") moves to the top
   }
   renderVals() { return Object.assign(this._rv(), window.REGO.banner()); }
+  // Which stops the line shows, and where. The server delivers up to 7 stops and says how many it left out between them ("hidden"). On a narrow screen that is too many:
+  // the omissions (two grey dots with "+5" between) would get no room for their number. So the line shows as many stops as fit cleanly, the others join the "+N".
+  // Always stay: start, destination, transfer stops and every stop the map points at. Returns { M, xs, mR }: the map (with new indices, "skips" and "hidden" when stops
+  // were left out; the delivered map is not changed) and the x of its stops.
+  _fit(M0, W, x0) {
+    const S0 = M0.stations || [], n0 = S0.length;
+    const isX = !!(M0.legs && M0.legs.length >= 2 && M0.legs.length <= 3);
+    const hubs0 = isX ? M0.legs.slice(0, -1).map((l) => l.to) : [];
+    // Stops not shown between the delivered stops k and k+1; a server without "hidden" only knows "skips" (from two stops on)
+    const hid0 = (k) => {
+      if (Array.isArray(M0.hidden) && M0.hidden.length === n0 - 1) return M0.hidden[k] || 0;
+      const sk = isX && (M0.skips || []).find((q) => q.after === k);
+      return sk ? sk.n : 0;
+    };
+    const big0 = (i) => i === 0 || i === n0 - 1 || i === M0.hubIndex || hubs0.includes(i);
+    // Width of a stop name as bold text (14 px, 15 px at a big dot): measured when the browser can, otherwise 0.6 em per character
+    if (this._cx === undefined) { try { this._cx = document.createElement('canvas').getContext('2d'); } catch (e) { this._cx = null; } }
+    const nameW = (i) => {
+      const s = String((S0[i] || {}).name || ''), px = big0(i) ? 15 : 14;
+      try { if (this._cx) { this._cx.font = '700 ' + px + 'px "Instrument Sans", sans-serif'; const w = this._cx.measureText(s).width; if (w > 0) return Math.ceil(w); } } catch (e) { /* estimate */ }
+      return Math.ceil(s.length * px * 0.6);
+    };
+    const total = (a, b) => { let h = b - a - 1; for (let j = a; j < b; j++) h += hid0(j); return h; };      // stops not shown between the delivered stops a and b
+    const gapsOf = (keep) => keep.slice(1).map((b, k) => total(keep[k], b));
+    // Room between two shown neighbours: an omission needs the break in the line with its two dots and the number ("+5" 66 px, "+12" 76 px); a plain gap at least 28 px,
+    // otherwise their names (rotated by 45°, 17 px thick) lie on top of each other. Inside a stretch with replacement transport (dashed, without a number) a plain gap is enough.
+    const dis0 = M0.disrupted;
+    const needsOf = (keep) => keep.slice(1).map((b, k) => {
+      const a = keep[k], h = total(a, b);
+      return dis0 && a >= dis0.from && b <= dis0.to ? 28 : h >= 10 ? 76 : h >= 2 ? 66 : 28;
+    });
+    const must = new Set([0, n0 - 1, M0.hubIndex, M0.haloIndex, ...hubs0, ...(M0.legs || []).flatMap((l) => [l.from, l.to]),
+      ...(M0.disrupted ? [M0.disrupted.from, M0.disrupted.to] : []), ...(M0.alternative ? [M0.alternative.fromIndex, M0.alternative.toIndex] : []),
+      ...(M0.connections || []).map((c) => c.stationIndex), ...(M0.changes || []).map((c) => c.stationIndex), ...(M0.transfer ? [M0.transfer.stationIndex] : [])]
+      .filter((i) => Number.isInteger(i) && i >= 0 && i < n0));
+    const base = [...must].sort((a, b) => a - b), opt = [];
+    for (let i = 0; i < n0; i++) if (!must.has(i)) opt.push(i);
+    // Only a trip with a transfer and an omission is thinned (a direct trip has no "+N"); the server sends 7 stops at most, so 2^opt stays small
+    const thin = isX && opt.length > 0 && opt.length <= 12 && S0.some((s, k) => k < n0 - 1 && hid0(k) >= 2);
+    const cmp = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+    // The stops for a line of length L: the most that fit with the room they need; among equals the one with the most even gaps. If not even the fewest fit: the fewest.
+    const pick = (L) => {
+      if (!thin) return S0.map((s, i) => i);
+      let best = null;
+      for (let m = 0; m < (1 << opt.length); m++) {
+        const keep = base.concat(opt.filter((o, j) => m & (1 << j))).sort((a, b) => a - b);
+        const sum = needsOf(keep).reduce((t, v) => t + v, 0);
+        const key = sum <= L ? [0, -keep.length, gapsOf(keep).reduce((t, h) => t + h * h, 0)] : [1, sum, 0];
+        if (!best || cmp(key, best.key) < 0) best = { keep, key };
+      }
+      return best.keep;
+    };
+    // x of the stops for a line that ends at xe: every gap gets its share of the line in proportion to the room it needs
+    const layout = (keep, xe) => {
+      const g = needsOf(keep), sum = g.reduce((t, v) => t + v, 0) || 1;
+      let x = x0;
+      return keep.map((o, k) => { if (k) x += g[k - 1] * (xe - x0) / sum; return x; });
+    };
+    // Right margin of the line: every name (rotated by 45°) must have its whole width under the right edge of the card, otherwise it ends with "…"
+    let mR = n0 >= 6 ? 98 : 120, keep = [], xs = [];
+    const mMax = Math.max(mR, Math.min(130, W - x0 - 24 * Math.max(1, n0 - 1)));
+    for (let k = 0; k < 6; k++) {
+      keep = pick(W - mR - x0); xs = layout(keep, W - mR);
+      let more = 0;
+      keep.forEach((o, i) => {
+        if (i < 1) return;
+        const over = xs[i] + (nameW(o) + 2) / 1.41 + 20 - W, f = (xs[i] - x0) / (W - mR - x0);
+        if (over > 0 && f > 0.05) more = Math.max(more, over / f);
+      });
+      if (more < 0.5 || mR >= mMax) break;
+      mR = Math.min(mMax, mR + Math.ceil(more));
+    }
+    keep = pick(W - mR - x0); xs = layout(keep, W - mR);
+    if (keep.length === n0) return { M: M0, xs, mR };
+    // Stops left out: the new map with the indices of the stops that remain, and the stops not shown counted anew
+    const at = new Map(keep.map((o, k) => [o, k])), re = (i) => (at.has(i) ? at.get(i) : -1), g = gapsOf(keep);
+    const M = Object.assign({}, M0, {
+      stations: keep.map((o) => S0[o]),
+      hubIndex: M0.hubIndex >= 0 ? re(M0.hubIndex) : M0.hubIndex, haloIndex: M0.haloIndex >= 0 ? re(M0.haloIndex) : M0.haloIndex,
+      connections: (M0.connections || []).map((c) => Object.assign({}, c, { stationIndex: re(c.stationIndex) })),
+      disrupted: M0.disrupted ? { from: re(M0.disrupted.from), to: re(M0.disrupted.to) } : M0.disrupted,
+      alternative: M0.alternative ? Object.assign({}, M0.alternative, { fromIndex: re(M0.alternative.fromIndex), toIndex: re(M0.alternative.toIndex) }) : M0.alternative,
+      legs: M0.legs && M0.legs.map((l) => Object.assign({}, l, { from: re(l.from), to: re(l.to) })),
+      transfer: M0.transfer && Object.assign({}, M0.transfer, { stationIndex: re(M0.transfer.stationIndex) }),
+      changes: M0.changes && M0.changes.map((c) => Object.assign({}, c, { stationIndex: re(c.stationIndex) })),
+      hidden: g, skips: g.map((h, k) => ({ after: k, n: h })).filter((q) => q.n >= 2)
+    });
+    return { M, xs, mR };
+  }
   _rv() {
     const T = window.REGO;
     // Address: <route>-m | <route>.<n>-m (n-th departure) | <incident>-m (old links)
@@ -342,54 +432,24 @@ class Component extends DCLogic {
     });
     const kindKey = view.noRt ? 'none' : (view.kind || 'ok');      // the source has no real-time data: neutral instead of green
     const K = T.theme.kinds[kindKey];
-    const M = view.map || { stations: [], connections: [], disrupted: null, alternative: null, haloIndex: -1, hubIndex: -1 };
+    // Width of the card = width of the app (narrow phones, tablets): otherwise the label is cut off on the right
+    const W = Math.max(280, (document.getElementById('app') || {}).clientWidth || 390);
+    const x0 = 36;
+    // The line shows as many stops as fit cleanly at this width: every omission ("+5") needs room for its number. Start, destination and transfer stops always stay.
+    const fit = this._fit(view.map || { stations: [], connections: [], disrupted: null, alternative: null, haloIndex: -1, hubIndex: -1 }, W, x0);
+    const M = fit.M;
 
     const Y = 214;
     const pl = (pts) => pts.map((q, i) => (i ? 'L' : 'M') + q[0] + ' ' + q[1]).join('');
     const circ = (q, r) => 'M' + (q[0] - r) + ' ' + q[1] + 'a' + r + ' ' + r + ' 0 1 0 ' + (2 * r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-2 * r) + ' 0z';
     const none = { t: '', s: 'display: none' };
     const n = M.stations.length;
-    // Width of the card = width of the app (narrow phones, tablets): otherwise the label is cut off on the right
-    const W = Math.max(280, (document.getElementById('app') || {}).clientWidth || 390);
-    const x0 = 36;
     // Trip with a transfer: two lines in their colors (three with two transfers), the transfer stops, omissions ("+5" = 5 stops not shown) and time pills
     const X = M.legs && M.legs.length >= 2 && M.legs.length <= 3 ? M : null;
     const hubIdx = X ? X.legs.slice(0, -1).map((l) => l.to) : [];            // where one changes: the end of every trip but the last
     const skipOf = (i) => (X && (X.skips || []).find((k) => k.after === i)) || null;
     const isBig = (i) => i === 0 || i === n - 1 || i === M.hubIndex || hubIdx.includes(i);
-    // Width of a stop name as bold text (14 px, 15 px at a big dot): measured when the browser can, otherwise 0.6 em per character
-    let cx = null; try { cx = document.createElement('canvas').getContext('2d'); } catch (e) { /* estimate */ }
-    const nameW = (i) => {
-      const s = String((M.stations[i] || {}).name || ''), px = isBig(i) ? 15 : 14;
-      try { if (cx) { cx.font = '700 ' + px + 'px "Instrument Sans", sans-serif'; const w = cx.measureText(s).width; if (w > 0) return Math.ceil(w); } } catch (e) { /* estimate */ }
-      return Math.ceil(s.length * px * 0.6);
-    };
-    // x of the stops for a line that ends at xe. An omission gets double width so that the "+5" has room between the dots; a gap between two neighbours stays at least 28 px,
-    // otherwise their labels (rotated by 45°, 17 px thick) lie on top of each other
-    const place = (xe) => {
-      let nPlain = 0, nSkip = 0;
-      for (let i = 0; i < n - 1; i++) { if (skipOf(i)) nSkip++; else nPlain++; }
-      const total = xe - x0;
-      const wp = nPlain && nSkip ? (total > 28 * nPlain ? Math.min(2, Math.max(1, 56 * nSkip / (total - 28 * nPlain))) : 2) : 1;
-      const wsum = nPlain * wp + nSkip * 2;
-      let acc = 0;
-      return M.stations.map((s, i) => { const x = n > 1 && wsum > 0 ? x0 + total * acc / wsum : x0; acc += skipOf(i) ? 2 : wp; return x; });
-    };
-    // Right margin of the line: every name (rotated by 45°) must have its whole width under the right edge of the card, otherwise it ends with "…"
-    let mR = n >= 6 ? 98 : 120;
-    const mMax = Math.max(mR, Math.min(130, W - x0 - 24 * Math.max(1, n - 1)));
-    for (let k = 0; k < 6; k++) {
-      const xa = place(W - mR);
-      let more = 0;
-      for (let i = 1; i < n && i < 7; i++) {
-        const over = xa[i] + (nameW(i) + 2) / 1.41 + 20 - W, f = (xa[i] - x0) / (W - mR - x0);
-        if (over > 0 && f > 0.05) more = Math.max(more, over / f);
-      }
-      if (more < 0.5 || mR >= mMax) break;
-      mR = Math.min(mMax, mR + Math.ceil(more));
-    }
-    const xs = place(W - mR);
-    const st = M.stations.map((s, i) => Object.assign({}, s, { x: xs[i], big: isBig(i) }));
+    const st = M.stations.map((s, i) => Object.assign({}, s, { x: fit.xs[i], big: isBig(i) }));
     const seg = (a, b) => [[st[a].x, Y], [st[b].x, Y]];
     const inDis = (i) => !!M.disrupted && i >= M.disrupted.from && i + 1 <= M.disrupted.to;       // section i → i+1 is under replacement transport
     const gapHalf = (len) => Math.min(22.6, Math.max(8, len / 2 - 16));
@@ -415,9 +475,12 @@ class Component extends DCLogic {
         if (M.disrupted) disD = pl(seg(M.disrupted.from, M.disrupted.to));
         for (const k of X.skips || []) {
           if (inDis(k.after) || !st[k.after + 1]) continue;
-          const xa = st[k.after].x, xb = st[k.after + 1].x, mid = (xa + xb) / 2, hw = gapHalf(xb - xa), off = hw * 0.535;
-          skipD += circ([mid - off, Y], 2.5) + circ([mid + off, Y], 2.5);
-          if (hw >= 17) skipLabels.push({ t: '+' + k.n, s: 'position: absolute; left: ' + mid + 'px; top: ' + Y + 'px; transform: translate(-50%, -50%); font-size: 12px; font-weight: 700; line-height: 1; color: #4A5A62' });
+          const xa = st[k.after].x, xb = st[k.after + 1].x, mid = (xa + xb) / 2, hw = gapHalf(xb - xa);
+          // The dots frame the number (with two digits they sit further out). Too narrow for that: the number alone fills the break; not even that: only the dots
+          const lw = 7 + 7 * String(k.n).length, wide = Math.max(hw * 0.535, lw / 2 + 2.1);
+          const framed = hw - wide - 2.5 >= 3, alone = !framed && hw >= lw / 2 + 2, off = framed ? wide : hw * 0.535;
+          if (!alone) skipD += circ([mid - off, Y], 2.5) + circ([mid + off, Y], 2.5);
+          if (framed || alone) skipLabels.push({ t: '+' + k.n, s: 'position: absolute; left: ' + mid + 'px; top: ' + Y + 'px; transform: translate(-50%, -50%); font-size: 12px; font-weight: 700; line-height: 1; color: #4A5A62' });
         }
       } else if (M.disrupted) {
         const a = M.disrupted.from, b = M.disrupted.to;

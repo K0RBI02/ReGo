@@ -68,7 +68,21 @@ test('Transfer on time: two lines, transfer row, sections (trip – transfer –
   assert.deepEqual(m.transfer, { stationIndex: 3, label: 'Umstieg 9 Min. · Gleis 14', state: 'ok' });
   assert.deepEqual(m.times, { dep: 'ab 07:02', arr: 'an 09:21', depLate: false, arrLate: false });
   assert.equal(m.haloIndex, -1); assert.equal(m.disrupted, null);
+  assert.deepEqual(m.hidden, [0, 0, 1, 0, 0, 1]); assert.deepEqual(m.skips, []);                  // Moosach and Traunstein are not shown (one stop each): counted in hidden, but no "+1" marker in skips
   assert.ok(r.tour.lineId && r.tour.lines === undefined);
+});
+
+test('Long trip: the map says exactly how many stops lie between two shown stations (hidden); skips only from two on', async () => {
+  const many = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i}`, name: `${p} ${i + 1}` }));
+  const s1 = S1('07:02'), re = RE('07:46');
+  s1.stopovers = [FS, ...many('Halt', 9), MH];                                                     // 11 stops
+  re.stopovers = [MH, ...many('Ort', 8), SZ];                                                      // 10 stops, the transfer stop counts once: 20 on the whole route
+  const r = await buildTransferTour(tour, [J(s1, re)], ctx({ bLists: CONNECTIONS }));
+  const m = r.tour.departures[0].view.map;
+  assert.equal(m.stations.length, 7); assert.equal(m.hidden.length, m.stations.length - 1);
+  assert.equal(m.hidden.reduce((s, h) => s + h, 0) + m.stations.length, 20);                       // shown + hidden = all stops of the route
+  assert.deepEqual(m.skips, m.hidden.map((h, k) => ({ after: k, n: h })).filter((x) => x.n >= 2));
+  assert.ok(m.skips.length > 0);                                                                   // 13 stops are not shown: some gap hides two or more
 });
 
 test('Tight but on time: no alarm ("wackelt" only exists for a delayed feeder)', async () => {

@@ -326,8 +326,10 @@ export async function buildTransferTour(tour, journeys, ctx) {
     const idx = sampleStops(stops, [hub, ...(segIdx || [])]);
     const stations = idx.map((i) => ({ id: stops[i].id, name: shortName(stops[i].name) }));
     const hubIndex = idx.indexOf(hub), last = stations.length - 1;
+    // hidden[k]: exactly how many stops of the route lie between the shown stations k and k+1 (the app may show fewer stations on a narrow screen and adds them up)
+    const hidden = idx.slice(1).map((v, k) => v - idx[k] - 1);
     const skips = [];
-    for (let k = 0; k < idx.length - 1; k++) { const hidden = idx[k + 1] - idx[k] - 1; if (hidden >= 2) skips.push({ after: k, n: hidden }); }
+    hidden.forEach((h, k) => { if (h >= 2) skips.push({ after: k, n: h }); });
     const label = e.state === 'missed' ? (e.cancelledB ? 'Anschluss fällt aus' : 'Anschluss verpasst')
       : e.state === 'tight' ? `Umstieg nur noch ${e.buffer} Min.`
         : `Umstieg ${e.buffer} Min.${e.plan.platform ? ` · Gleis ${e.plan.platform}` : ''}`;
@@ -336,7 +338,7 @@ export async function buildTransferTour(tour, journeys, ctx) {
       stations, hubIndex, haloIndex: halo === 'hub' ? hubIndex : halo === 'start' ? 0 : -1, connections: [],
       disrupted: disrupted && disrupted.from >= 0 && disrupted.to >= 0 ? disrupted : null, alternative: null,
       legs: [{ lineId: registerLine(a.line), from: 0, to: hubIndex }, { lineId: registerLine(b.line), from: hubIndex, to: last }],
-      skips, transfer: { stationIndex: hubIndex, label, state: e.state },
+      skips, hidden, transfer: { stationIndex: hubIndex, label, state: e.state },
       // depLate/arrLate: the time pill turns colored when the departure is delayed or the arrival at the destination is later than planned
       times: {
         dep: `ab ${hhmm(a.dep)}`, arr: e.finalArr ? `an ${hhmm(e.finalArr)}` : '',

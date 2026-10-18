@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.10 – A clean line on the route page
+
+**Map**
+- On a route with a transfer the line now shows only as many stops as fit cleanly at the width of your screen. Before, it squeezed in up to 7 stops, the gaps between them were too small for the number, and an omission showed only two grey dots without "+5": the line looked like a jumble of dots and green stubs. Now every omission is drawn with its number between two dots.
+- Start, destination and the transfer stops always stay on the line. Stops that no longer fit are counted in the "+N", so the numbers still add up to all stops of the trip (on a phone about 372 px wide the line shows 5 of the 7 stops, on a tablet all 7).
+- Two-digit numbers ("+11") get a little more room between the dots. In a spot that is too narrow for the dots the number stands alone in the gap of the line instead of disappearing.
+- Inside a stretch with replacement transport (dashed, without a number) a plain gap is enough, so the other omissions get more room.
+
+**API**
+- The map of a route with a transfer has a new field `hidden`: for every two neighbouring stations exactly how many stops of the trip lie between them and are not shown (`stations.length − 1` numbers). `skips` stays as it was (only from two stops on). An older app ignores `hidden`. The new app also works with an older server: it takes the numbers from `skips` then, and a single omitted stop between two shown stops is not counted.
+
+**Rebuild**
+- Looks and server changed: install the new APK (`app-v0.8.10`) and update the add-on. The new app works with an older server too (the numbers can then be off by single omitted stops), and an older app keeps working with the new server.
+
 ## 0.8.9 – Top of the route page
 
 **Route page**

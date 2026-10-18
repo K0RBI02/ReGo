@@ -1307,12 +1307,14 @@ await check('Feedback without address', async () => {
 // New in 0.8.9: top of the departure page with long names. A route with a transfer at Hackerbrücke and seven stops (Freising → München, Neuperlach Süd), most of them with omitted
 // stops in between: the route name takes two lines instead of ending with "…", no stop name is cut off and the names of neighbouring stops do not lie on top of each other
 // (the stops without omission between them used to get only half as much room). The state is made by hand, like on the card of a real route.
-await check('Long names on the card', async () => {
+// New in 0.8.10: the line shows only as many of the seven stops as fit cleanly at the width of the screen, so that every omission has room for its "+N" (before: two grey dots
+// without a number). Everything that is not shown is counted in a "+N": shown stops + all numbers = the 23 stops of the route (also with a server that does not send "hidden").
+await check('Long names and track on the card', async () => {
   const XD = 'smokenames123456789abcdefg';
   const names = ['Freising', 'Lohhof', 'Fasanerie', 'Hackerbrücke', 'München Hbf', 'Rosenheimer', 'Neuperlach Süd'];
   const skips = [2, 2, 5, 0, 3, 4].map((n, i) => (n ? { after: i, n } : null)).filter(Boolean);
   const dest = 'München, Neuperlach Süd';
-  const mkView = (dep, arr) => ({
+  const mkView = (dep, arr, hidden) => ({
     kind: 'ok', head: `Planmäßig · S1 › S5 ab ${dep}`, big: 'planmäßig', sub: `Ankunft ${dest} ${arr} · 1 Umstieg`,
     rows: [{ label: 'Abfahrt Freising', sub: 'S1 Richtung Leuchtenbergring · Gleis 3', value: dep, planned: '' }, { label: `Ankunft ${dest}`, sub: 'S5', value: arr, planned: '' }],
     sections: [
@@ -1323,17 +1325,19 @@ await check('Long names on the card', async () => {
     ticketHint: null, alternative: null,
     map: {
       stations: names.map((n, i) => ({ id: 'n' + i, name: n })), hubIndex: 3, haloIndex: -1, connections: [], disrupted: null, alternative: null,
-      legs: [{ lineId: 'S1', from: 0, to: 3 }, { lineId: 'S5', from: 3, to: 6 }], skips,
+      legs: [{ lineId: 'S1', from: 0, to: 3 }, { lineId: 'S5', from: 3, to: 6 }], skips, ...(hidden ? { hidden: [2, 2, 5, 0, 3, 4] } : {}),       // a server before 0.8.10 does not send "hidden"
       transfer: { stationIndex: 3, label: 'Umstieg 10 Min. · Gleis 1', state: 'ok' }, times: { dep: `ab ${dep}`, arr: `an ${arr}`, depLate: false, arrLate: false },
     },
   });
-  const tour = {
+  const mkTour = (hidden) => ({
     id: 'tnames', name: `Freising → ${dest}`, appLink: { label: 'Im DB Navigator ansehen', url: 'https://www.bahn.de/' }, lineId: 'S1', active: true, transfers: 1, via: 'Hackerbrücke', lineIds: ['S1', 'S5'],
     period: 'am', distanceKm: 0.5, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '04:00', departUntil: '08:00' }, window: { from: '04:00', until: '08:00', mode: 'soon' },
-    departures: [['04:34', '05:47'], ['04:54', '06:07'], ['05:14', '06:27']].map(([dep, arr]) => ({ plannedTime: dep, expectedTime: dep, lineId: 'S1', plannedPlatform: '3', expectedPlatform: '3', delayMin: 0, far: true, lineIds: ['S1', 'S5'], arrTime: arr, transfer: { station: 'Hackerbrücke', minutes: 10, state: 'ok', text: 'Umstieg 10 Min. · Gleis 1' }, view: mkView(dep, arr) })),
-  };
-  for (const [w, h, dark] of [[390, 844, false], [372, 800, false], [360, 780, true], [320, 568, false]]) {
-    const tag = `Long names on the card (${w} px${dark ? ', dark' : ''})`;
+    departures: [['04:34', '05:47'], ['04:54', '06:07'], ['05:14', '06:27']].map(([dep, arr]) => ({ plannedTime: dep, expectedTime: dep, lineId: 'S1', plannedPlatform: '3', expectedPlatform: '3', delayMin: 0, far: true, lineIds: ['S1', 'S5'], arrTime: arr, transfer: { station: 'Hackerbrücke', minutes: 10, state: 'ok', text: 'Umstieg 10 Min. · Gleis 1' }, view: mkView(dep, arr, hidden) })),
+  });
+  // The route has 7 + 16 = 23 stops, 7 of them delivered. On a narrow screen the line shows fewer so that every omission has room for its "+N"; wide: all of them.
+  for (const [w, h, dark, hidden] of [[390, 844, false, true], [372, 800, false, true], [372, 800, false, false], [360, 780, true, true], [320, 568, false, true], [600, 900, false, true]]) {
+    const tag = `Long names on the card (${w} px${dark ? ', dark' : ''}${hidden ? '' : ', server without "hidden"'})`;
+    const tour = mkTour(hidden);
     where = tag;
     const c = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, colorScheme: dark ? 'dark' : 'light' });
     await c.addInitScript(initFor(), [XD]);
@@ -1349,6 +1353,20 @@ await check('Long names on the card', async () => {
       const dt = await pg.evaluate(() => document.querySelector('#screen').innerText);
       if (!/Freising\s*→\s*München, Neuperlach Süd/.test(dt) || !/05:47\s*·\s*1\s*Umstieg/.test(dt)) problems.push(`${tag}: page does not show the route (${dt.replace(/\s+/g, ' ').slice(0, 120)})`);
       for (const b of await headCut(pg)) problems.push(`${tag}: ${b}`);
+      // The track: every stop that is not shown is counted in a "+N" (shown + Σ N = 23), every pair of dots has its number, start, transfer stop and destination stay
+      const tr = await pg.evaluate(() => {
+        const sc = document.querySelector('#screen'), sp = [...sc.querySelectorAll('span')];
+        return {
+          names: sp.filter((x) => /rotate\(-45deg\)/.test(x.getAttribute('style') || '') && x.textContent.trim()).map((x) => x.textContent.trim()),
+          nums: sp.filter((x) => x.children.length === 0 && /^\+\d+$/.test(x.textContent.trim())).map((x) => Number(x.textContent.trim().slice(1))),
+          pairs: [...sc.querySelectorAll('path[fill="#8C8C8C"]')].reduce((a, p) => a + ((p.getAttribute('d') || '').match(/M/g) || []).length / 2, 0),
+        };
+      });
+      const rest = tr.nums.reduce((a, b) => a + b, 0);
+      if (tr.names.length + rest !== 23) problems.push(`${tag}: the track shows ${tr.names.length} stops and "${tr.nums.map((x) => '+' + x).join(' ')}", but the route has 23 stops`);
+      if (tr.pairs !== tr.nums.length) problems.push(`${tag}: ${tr.pairs} breaks in the line, but ${tr.nums.length} numbers`);
+      for (const must of ['Freising', 'Hackerbrücke', 'Neuperlach Süd']) if (!tr.names.includes(must)) problems.push(`${tag}: "${must}" is missing on the track (${tr.names.join(', ')})`);
+      if (w >= 600 ? tr.names.length !== 7 : tr.names.length > 5) problems.push(`${tag}: ${tr.names.length} stops on the track (${tr.names.join(', ')})`);
       // "05:47 · 1 Umstieg" stays together in one line (no "Umstieg" alone in the last line)
       const lines = await pg.evaluate(() => {
         const e = [...document.querySelectorAll('span')].find((x) => x.children.length === 0 && /^Ankunft München, Neuperlach Süd/.test(x.textContent.trim()));
@@ -1367,4 +1385,4 @@ await check('Long names on the card', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');

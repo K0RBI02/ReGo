@@ -216,8 +216,10 @@ export async function buildChainTour(tour, journeys, ctx) {
     const idx = sampleStops(stops, [...hubAt, ...(segIdx || [])]);
     const stations = idx.map((i) => ({ id: stops[i].id, name: shortName(stops[i].name) }));
     const hubs = hubAt.map((h) => idx.indexOf(h)), last = stations.length - 1, bounds = [0, ...hubs, last];
+    // hidden[k]: exactly how many stops of the route lie between the shown stations k and k+1 (the app may show fewer stations on a narrow screen and adds them up)
+    const hidden = idx.slice(1).map((v, k) => v - idx[k] - 1);
     const skips = [];
-    for (let k = 0; k < idx.length - 1; k++) { const hidden = idx[k + 1] - idx[k] - 1; if (hidden >= 2) skips.push({ after: k, n: hidden }); }
+    hidden.forEach((h, k) => { if (h >= 2) skips.push({ after: k, n: h }); });
     const label = (h) => (h.state === 'missed' ? (h.cancelledB ? 'Anschluss fällt aus' : 'Anschluss verpasst') : h.state === 'tight' ? `Umstieg nur noch ${h.buffer} Min.` : `Umstieg ${h.buffer} Min.${h.b.platform ? ` · Gleis ${h.b.platform}` : ''}`);
     const changes = e.hops.map((h, k) => ({ stationIndex: hubs[k], label: label(h), state: h.state }));
     const disrupted = segIdx ? { from: idx.indexOf(segIdx[0]), to: idx.indexOf(segIdx[1]) } : null;
@@ -225,7 +227,7 @@ export async function buildChainTour(tour, journeys, ctx) {
       stations, hubIndex: hubs.length ? hubs[0] : -1, haloIndex: halo === 'hub' ? hubs[hop ?? 0] ?? -1 : halo === 'start' ? 0 : -1, connections: [],
       disrupted: disrupted && disrupted.from >= 0 && disrupted.to >= 0 ? disrupted : null, alternative: null,
       legs: e.legs.map((l, k) => ({ lineId: registerLine(l.line), from: bounds[k], to: bounds[k + 1] })),
-      skips, ...(changes.length ? { transfer: changes[0], changes } : {}),
+      skips, hidden, ...(changes.length ? { transfer: changes[0], changes } : {}),
       // depLate/arrLate: the time pill turns colored when the departure is delayed or the arrival at the destination is later than planned
       times: {
         dep: `ab ${hhmm(e.a.dep)}`, arr: `an ${hhmm(e.finalArr)}`,
