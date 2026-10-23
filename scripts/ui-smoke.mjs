@@ -1253,6 +1253,20 @@ await check('Ticket notes', async () => {
   } finally { await c.close(); }
 });
 
+// Empty ticket safe: it names the two ways that work (scan, choose a picture) and does not promise a wallet import
+await check('Empty ticket safe', async () => {
+  const c = await browser.newContext(NEW_CTX); await c.addInitScript(initFor(), [DEV]);
+  const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+  try {
+    await pg.goto(base + '/Ticket'); await pg.waitForTimeout(1300);
+    const t = await pg.evaluate(() => document.querySelector('#screen').innerText);
+    if (!/Noch kein/.test(t)) problems.push('Empty ticket safe: the empty state is not shown');
+    if (/Wallet/i.test(t)) problems.push('Empty ticket safe: still promises a wallet import');
+    if (!/Scanne den Barcode/.test(t) || !/Bild/.test(t)) problems.push('Empty ticket safe: does not name scanning and choosing a picture');
+    if (await pg.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Empty ticket safe: page scrolls sideways');
+  } finally { await c.close(); }
+});
+
 // Update hint (the app tells its version, the server says there is a newer one) and the way to give feedback (mail with the address visible)
 await check('Update hint and feedback', async () => {
   const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -1385,4 +1399,4 @@ await check('Long names and track on the card', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, update hint and feedback).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, empty ticket safe, update hint and feedback).');

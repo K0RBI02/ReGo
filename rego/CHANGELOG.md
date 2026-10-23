@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.11 – An honest empty safe and a working update hint
+
+**Ticket safe**
+- The empty safe no longer says that you can import a ticket from your wallet – ReGo cannot do that. It now names the two ways that work: scan the barcode of your ticket or choose a picture of it ("Scanne den Barcode deines Tickets oder wähle ein Bild davon aus.").
+
+**Update hint**
+- The hint "new app version" works again. The server still named 0.8.0 as the newest app, so no app from 0.8.0 on was ever told about a newer one. It now names 0.8.11: every older app gets the hint with the link to the download.
+- The APK build now stops with a clear message when it is about to publish a new app version while `APP_LATEST` in `server/config.mjs` names another one.
+
+**Rebuild**
+- Screens and server changed: install the new APK (`app-v0.8.11`) and update the add-on. An older app keeps working with the new server, and the new app with an older server (it only has the new text and no update hint then).
+
 ## 0.8.10 – A clean line on the route page
 
 **Map**

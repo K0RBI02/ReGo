@@ -35,6 +35,18 @@ jobs:
           HOST="${{ inputs.host }}"; [ -z "$HOST" ] && HOST="${{ vars.REGO_HOST }}"; [ -z "$HOST" ] && HOST="rego.tail2a5f03.ts.net"
           echo "host=$HOST" >> "$GITHUB_OUTPUT"
 
+      - name: Check that older apps will be told about this version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          LATEST="$(sed -n "s/^export const APP_LATEST = '\(.*\)';.*/\1/p" server/config.mjs)"
+          if ! gh api "repos/${{ github.repository }}/releases/tags/app-v$VERSION" >/dev/null 2>&1 && [ "$LATEST" != "$VERSION" ]; then
+            echo "::error::App version $VERSION is about to be published, but APP_LATEST in server/config.mjs is '$LATEST'. Set it to '$VERSION' so that older apps get the update hint (see BACKEND.md, Releasing)."
+            exit 1
+          fi
+          echo "APP_LATEST: $LATEST (build $VERSION)" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Provide Firebase configuration
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}

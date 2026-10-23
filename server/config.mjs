@@ -8,9 +8,10 @@ const env = process.env;
 /**
  * Newest version of the Android app that can be downloaded (GitHub Releases, tag app-v<version>). The app reports its version with every state
  * request and is pointed to the update if it is older. The server version does not tell: server-only releases build no APK.
- * Set this to the release version whenever a release changes `public/` or `android/`.
+ * Set this to the release version whenever a release changes `public/` or `android/`. The APK build (apk.yml) stops with a message when it is
+ * about to publish a new app version while this still names another one.
  */
-export const APP_LATEST = '0.8.0';
+export const APP_LATEST = '0.8.11';
 
 /** Where testers send feedback: an email address or a web link (http/https). Anything else, or nothing, gives "" (the app then uses the GitHub issue form). */
 export function contactOf(value) {
