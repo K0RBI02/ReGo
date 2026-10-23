@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.12 – An error report you can save
+
+**Error report**
+- New in the settings, below "Rückmeldung senden": "Fehlerbericht speichern". One tap saves a text file into the "Download" folder of the phone (in a browser it is downloaded). It names the app and server version, the Android and WebView version, the screen size, the state of the connection, how many routes and tickets there are, what the server says about itself (version, how long it has been running, which sources answer, whether the clock of the phone is right), the latest errors and the last steps of the session. Whoever tests the app can send the file along with the feedback.
+- Nothing personal is in it: no stops, routes or tickets, no location, no device model and no device ID. ReGo does not send the file anywhere; whoever saves it decides who gets it.
+- Without a connection the report is still written at once (the server part then says why it is missing); otherwise it waits at most 4 seconds for the server.
+
+**Error log**
+- The app now writes down by itself what goes wrong: no connection or too slow, an error answer of the server, no source that delivers departures, errors of the app itself. The last 30 different messages of the last 14 days stay on the device; the same message again is not a new entry but counts up, with the time of the first and the last time (so a connection that comes and goes does not push everything else out).
+- The log holds no names of stops, routes or tickets and no device ID: what was typed into a search and long codes with digits are cut out before anything is stored.
+
+**App**
+- The bridge that saves a file into "Download" (`RegoNative.saveFile`) now answers whether it worked. The error report uses it to say "Speichern nicht möglich" instead of nothing.
+
+**Rebuild**
+- Screens, app and server changed (the server now names 0.8.12 as the newest app): install the new APK (`app-v0.8.12`) and update the add-on. The new app works with an older server too (the server part of the report may then be empty), and an older app keeps working with the new server.
+
 ## 0.8.11 – An honest empty safe and a working update hint
 
 **Ticket safe**

@@ -15,7 +15,7 @@ Runs the ReGo backend around the clock on your Home Assistant host: the Android 
 - `provider`: `library` (default), `transport-rest` or `mock` (sample data).
 - `fcm_key`: Firebase service-account key (the complete JSON) for instant push. Empty: the app asks the server about every 15 minutes. How to get the key: [README](https://github.com/K0RBI02/ReGo#instant-push-firebase).
 - `ts_mode`: `off`, `serve` (only devices in your tailnet) or `funnel` (public, also for friends without Tailscale). `ts_hostname`: device name in the tailnet (default `rego`). `ts_authkey`: Tailscale auth key, only needed for the first login.
-- `contact`: where testers send feedback: an email address or a web link. The app shows it in the settings and prepares a mail to it (with app and server version). It is only sent to devices that know the server, not shown on the public status page. Empty: the app points to the GitHub issue form.
+- `contact`: where testers send feedback: an email address or a web link. The app shows it in the settings and prepares a mail to it (with app and server version). It is only sent to devices that know the server, not shown on the public status page. Empty: the app points to the GitHub issue form. Next to it the settings offer "Fehlerbericht speichern": a text file in the Download folder of the phone (versions, state, latest errors; no stops, routes, tickets or device ID) that testers can send along with their feedback.
 
 ## https through Tailscale
 

@@ -44,17 +44,26 @@
   let stationCache = LS.get('rego.stations', []);     // [{id,name,region,lat,lon}]
   R.stations = stationCache;
 
+  // What goes into the error log (rlog.js) names only the first part of the path: "/stations?q=Marienplatz" -> "/stations", never what was typed
+  const where = (path) => String(path).split('?')[0].split('/').slice(0, 2).join('/');
+  const logged = (e) => { try { e.logged = true; } catch (x) {} return e; };      // an error that api() has written to the error log already
   const api = async (path, opt = {}) => {
     const code = String(LS.get('rego.invite', '') || '');
-    const res = await fetch(`${window.REGO_API || ''}/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, code ? { 'x-invite': encodeURIComponent(code) } : {}, opt.headers || {}) }));
+    const res = await fetch(`${window.REGO_API || ''}/api${path}`, Object.assign({ signal: (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined }, opt, { headers: Object.assign({ 'x-device': device, 'content-type': 'application/json' }, code ? { 'x-invite': encodeURIComponent(code) } : {}, opt.headers || {}) })).catch((e) => {
+      if (e && e.name === 'AbortError') throw e;                    // cancelled on purpose (e.g. an older stop search), not a problem
+      window.RLOGE && RLOGE('net', where(path) + ': ' + (e && e.name === 'TimeoutError' ? 'Zeitüberschreitung' : 'keine Verbindung'));
+      throw logged(e);
+    });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       const invite = res.status === 403 && !!body.invite;
       if (invite) { R.invite = { needed: true, wrong: !!body.wrong }; try { R.onInvite && R.onInvite(); } catch (e) {} }
-      throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, invite, code: body.code || '' });
+      else window.RLOGE && RLOGE('server', res.status + ' ' + where(path) + (body.error ? ': ' + String(body.error).slice(0, 60) : ''));
+      throw logged(Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, invite, code: body.code || '' }));
     }
     return body;
   };
+  R.api = api;                                                       // for the error report (report.js)
   /** Remember and check the invitation code. true = accepted, false = wrong; without a connection there is an error. */
   R.setInvite = async function (code) {
     LS.set('rego.invite', String(code || '').trim());
@@ -186,6 +195,7 @@
       const state = await api(`/state${qs.length ? '?' + qs.join('&') : ''}`);
       const t = nowParts().now;
       if (state.connection && state.connection.status === 'error') {
+        window.RLOGE && RLOGE('quelle', 'Server erreichbar, aber keine Quelle liefert aktuelle Abfahrten');
         const cached = readCache();
         const ids = new Set(((cached && cached.state.tours) || []).map((x) => x.id));
         // Show the old state only if it knows all current routes and has departures; otherwise newly created routes would disappear
@@ -197,13 +207,14 @@
       } else { R.errorHint = ''; R.outage = false; apply(state, 'ok', t); LS.set('rego.state', { state, at: t, ts: Date.now() }); }
     } catch (e) {
       R.errorHint = e && e.status ? `Server ${e.status}` : (e && e.name === 'TimeoutError') ? 'Zeitüberschreitung' : 'keine Verbindung zum Server';
+      if (!(e && e.logged)) window.RLOGE && RLOGE('js', 'Aktualisieren: ' + (e && e.message));       // not an answer or a missing connection but an error in the app itself
       const cached = readCache();
       if (e && e.invite) {            // the server is waiting for the invitation code: no outage, the gate above explains it
         R.outage = false;
         if (cached) apply(cached.state, 'offline', cached.at); else { R.tours = []; R.incidents = []; R.connection = { status: 'ok', loading: false, lastSync: '' }; }
       } else if (cached) { R.outage = false; apply(cached.state, 'offline', cached.at); }
       else { R.outage = true; R.tours = []; R.incidents = []; R.connection = { status: 'offline', loading: false, lastSync: '' }; }
-    } finally { try { R.onChange && R.onChange({ remount: true }); } catch (e) { window.RLOG && RLOG('onChange: ' + (e && e.message)); } }
+    } finally { try { R.onChange && R.onChange({ remount: true }); } catch (e) { window.RLOG && RLOG('onChange: ' + (e && e.message)); window.RLOGE && RLOGE('js', 'Anzeige: ' + (e && e.message)); } }
   }
   R.loadCached = function () {
     const cached = readCache();

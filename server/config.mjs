@@ -11,7 +11,7 @@ const env = process.env;
  * Set this to the release version whenever a release changes `public/` or `android/`. The APK build (apk.yml) stops with a message when it is
  * about to publish a new app version while this still names another one.
  */
-export const APP_LATEST = '0.8.11';
+export const APP_LATEST = '0.8.12';
 
 /** Where testers send feedback: an email address or a web link (http/https). Anything else, or nothing, gives "" (the app then uses the GitHub issue form). */
 export function contactOf(value) {

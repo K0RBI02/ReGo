@@ -282,7 +282,8 @@ public class MainActivity extends AppCompatActivity {
             getSharedPreferences("rego", MODE_PRIVATE).edit().putBoolean("push", false).apply();
             PollWorker.cancel(MainActivity.this);
         }
-        @JavascriptInterface public void saveFile(String name, String mime, String base64) {
+        /** Saves a file into the "Download" folder. true = saved, false = failed (the page, e.g. the error report, says so as well). */
+        @JavascriptInterface public boolean saveFile(String name, String mime, String base64) {
             try {
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
                 ContentValues v = new ContentValues();
@@ -292,8 +293,10 @@ public class MainActivity extends AppCompatActivity {
                 Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
                 try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, name + " im Ordner „Download“ gespeichert", Toast.LENGTH_LONG).show());
+                return true;
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Speichern fehlgeschlagen", Toast.LENGTH_LONG).show());
+                return false;
             }
         }
     }

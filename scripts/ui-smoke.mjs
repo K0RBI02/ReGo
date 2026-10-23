@@ -1318,6 +1318,85 @@ await check('Feedback without address', async () => {
   } finally { await c.close(); }
 });
 
+// New in 0.8.12: the error report. One tap in the settings saves a text file with versions, state and the latest errors – and with neither stops, routes, tickets nor the device ID.
+// The errors are written down by themselves beforehand (server error, no connection, script error, failed stop search) and are still there after the page has been opened again.
+// In the browser the file is downloaded, in the app the page hands it to RegoNative.saveFile (stand-in here), which says whether it worked.
+await check('Error report', async () => {
+  const XD6 = 'smokereport0123456789abc';
+  const made = await jx(XD6, '/api/tours', 'POST', { from: st, to: mu });
+  const names = [st.name, mu.name, ...made.tours.map((t) => t.name)];
+  const open = async (pg) => {
+    await pg.goto(base + '/Strecken'); await pg.waitForTimeout(1300);
+    await pg.getByRole('button', { name: /Einstellungen/ }).first().click(); await pg.waitForTimeout(500);
+    return pg.getByRole('dialog', { name: 'Einstellungen' });
+  };
+  const noPrivate = (text, what) => {
+    for (const x of [XD6, 'Marienplatz', ...names]) if (text.includes(x)) problems.push(`Error report: ${what} contains "${x}"`);
+  };
+  const json = (body, status = 200) => (r) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+  const c = await browser.newContext({ ...NEW_CTX, acceptDownloads: true }); await c.addInitScript(initFor(), [XD6]);
+  const pg = await c.newPage(); pg.setDefaultTimeout(8000);
+  try {
+    await pg.goto(base + '/Strecken'); await pg.waitForTimeout(1300);
+    // what goes wrong is written down: server error, no connection, a failed stop search (what was typed does not get in), a script error
+    await c.route('**/api/state**', json({ error: 'Interner Fehler' }, 500)); await pg.evaluate(() => window.REGO.refresh()); await c.unroute('**/api/state**');
+    await c.route('**/api/state**', (r) => r.abort()); await pg.evaluate(() => window.REGO.refresh()); await c.unroute('**/api/state**');
+    await c.route('**/api/stations**', json({ error: 'Haltestellensuche gerade nicht erreichbar' }, 502));
+    await pg.evaluate(() => window.REGO.api('/stations?q=Marienplatz').catch(() => {})); await c.unroute('**/api/stations**');
+    await pg.evaluate(() => window.dispatchEvent(new ErrorEvent('error', { message: 'Smoketest: etwas ist kaputt', filename: location.origin + '/js/app.js?v=1', lineno: 7 })));
+    await pg.evaluate(() => window.REGO.refresh());                                      // and now everything works again
+    const want = ['server 500 /state: Interner Fehler', 'net /state: keine Verbindung', 'server 502 /stations: Haltestellensuche gerade nicht erreichbar', 'js Smoketest: etwas ist kaputt app.js:7'];
+    const log = () => pg.evaluate(() => JSON.parse(localStorage.getItem('rego.errors') || '[]').map((x) => x.k + ' ' + x.m));
+    let got = await log();
+    for (const w of want) if (!got.includes(w)) problems.push(`Error report: not written down: ${w} (log: ${got.join(' | ')})`);
+    noPrivate(got.join('\n'), 'the error log');
+    await pg.reload(); await pg.waitForTimeout(1300);
+    got = await log();
+    if (want.some((w) => !got.includes(w))) problems.push('Error report: the error log is gone after opening the page again');
+
+    // the button and the note under it, then the download
+    const dlg = await open(pg);
+    const row = dlg.getByRole('button', { name: /Fehlerbericht speichern/ });
+    if (!(await row.count())) { problems.push('Error report: no button in the settings'); return; }
+    if (!(await dlg.getByText('Ohne Haltestellen, Strecken und Tickets. Die Datei wird heruntergeladen. Schick sie gern mit deiner Rückmeldung.').count())) problems.push('Error report: the note under the button is missing');
+    if ((await row.boundingBox()).height < 44) problems.push('Error report: the button is smaller than 44 px');
+    if (await sideways(pg)) problems.push('Error report: the settings scroll sideways');
+    const [dl] = await Promise.all([pg.waitForEvent('download'), row.click()]);
+    if (!/^rego-fehlerbericht-\d{8}-\d{4}\.txt$/.test(dl.suggestedFilename())) problems.push(`Error report: unexpected file name ${dl.suggestedFilename()}`);
+    const text = readFileSync(await dl.path(), 'utf8');
+    for (const part of ['ReGo – Fehlerbericht', 'App und Gerät', 'Zustand der App', 'Fehler auf diesem Gerät', 'Ablauf dieser Sitzung']) if (!text.includes(part)) problems.push(`Error report: file lacks "${part}"`);
+    if (!/App: +Browser/.test(text) || !/Server: +\d+\.\d+\.\d+/.test(text)) problems.push('Error report: versions missing');
+    if (!/Strecken: +1 \(1 aktiv/.test(text)) problems.push('Error report: the number of routes is missing');
+    if (!/Antwortzeit: +\d+ ms/.test(text)) problems.push('Error report: the server\'s view is missing');
+    for (const w of want) if (!text.includes(w.replace(/^\w+ /, ''))) problems.push(`Error report: the file does not name "${w}"`);
+    noPrivate(text, 'the file');
+    try { await pg.getByText('Fehlerbericht heruntergeladen').waitFor({ timeout: 4000 }); } catch (e) { problems.push('Error report: no message after saving'); }
+  } finally { await c.close(); }
+
+  // In the app: RegoNative.saveFile gets the text file; false (not saved) is said and written down
+  const n = await browser.newContext(NEW_CTX); await n.addInitScript(initFor(), [XD6]);
+  await n.addInitScript(() => { window.__saved = []; window.__ok = true; window.RegoNative = { appVersion: () => '0.8.12', saveFile: (name, mime, b64) => { window.__saved.push({ name, mime, b64 }); return window.__ok; } }; });
+  const np = await n.newPage(); np.setDefaultTimeout(8000);
+  try {
+    const dlg = await open(np);
+    if (!(await dlg.getByText('Ohne Haltestellen, Strecken und Tickets. Die Datei liegt danach im Ordner „Download“. Schick sie gern mit deiner Rückmeldung.').count())) problems.push('Error report in the app: the note names no folder');
+    await dlg.getByRole('button', { name: /Fehlerbericht speichern/ }).click();
+    try { await np.getByText('Fehlerbericht gespeichert').waitFor({ timeout: 6000 }); } catch (e) { problems.push('Error report in the app: no message after saving'); }
+    const saved = await np.evaluate(() => window.__saved);
+    if (saved.length !== 1 || !/^rego-fehlerbericht-\d{8}-\d{4}\.txt$/.test(saved[0].name) || saved[0].mime !== 'text/plain') problems.push(`Error report in the app: saveFile called with ${JSON.stringify(saved.map((x) => [x.name, x.mime]))}`);
+    else {
+      const text = Buffer.from(saved[0].b64, 'base64').toString('utf8');
+      if (!/App: +Android-App 0\.8\.12/.test(text)) problems.push('Error report in the app: the file does not name the app version');
+      noPrivate(text, 'the file in the app');
+    }
+    await np.evaluate(() => { window.__ok = false; });
+    await dlg.getByRole('button', { name: /Fehlerbericht speichern/ }).click();
+    try { await np.getByText('Speichern nicht möglich').waitFor({ timeout: 6000 }); } catch (e) { problems.push('Error report in the app: a failed save is not said'); }
+    if (!(await np.evaluate(() => JSON.parse(localStorage.getItem('rego.errors') || '[]').some((x) => x.k === 'app')))) problems.push('Error report in the app: a failed save is not written down');
+  } finally { await n.close(); }
+});
+
 // New in 0.8.9: top of the departure page with long names. A route with a transfer at Hackerbrücke and seven stops (Freising → München, Neuperlach Süd), most of them with omitted
 // stops in between: the route name takes two lines instead of ending with "…", no stop name is cut off and the names of neighbouring stops do not lie on top of each other
 // (the stops without omission between them used to get only half as much room). The state is made by hand, like on the card of a real route.
@@ -1399,4 +1478,4 @@ await check('Long names and track on the card', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, empty ticket safe, update hint and feedback).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, empty ticket safe, update hint and feedback, error report).');

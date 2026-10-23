@@ -18,6 +18,7 @@ Data stored on the server (your Home-Assistant add-on)
 Data kept only on your device
 - Any invitation code you entered.
 - The feedback address the server sent, and the app version for which you closed the update notice.
+- A short error log: the last 30 things that went wrong (for example "no connection to the server" or an error message of the app) with the time, kept for 14 days at most. It holds no stops, routes, tickets or device ID; what was typed into a search is cut out.
 - Tickets (barcode image, holder name, validity) remain on the device and never leave it. Use the "Export tickets" backup to save them yourself. The camera is used only for reading tickets.
 - The Android app is excluded from automatic Android backups (`allowBackup=false`). When switching devices, use "Export tickets" and "Move device".
 
@@ -26,6 +27,7 @@ Sharing and external services
 - Unofficial sources: publicly reachable but unsupported interfaces may be used. ReGo is a small hobby project and cannot guarantee availability or API stability for unofficial sources.
 - The links in settings (under "Routes": Privacy, ReGo on GitHub) and the download link of the update notice open a GitHub page in the browser; GitHub only sees your request when you open that link.
 - Feedback: "Send feedback" opens your mail app (the address is also written out in the settings) or, if the server has no feedback address, the GitHub issue form. Both come with a prepared text that contains the app and server version, but no device ID. A link set by the operator instead of an email address opens as it is. Nothing is sent until you send the mail or the issue yourself, and GitHub issues are public.
+- Error report: "Save error report" in the settings writes a text file into the "Download" folder of the phone (in a browser it is downloaded): app, server and system version, screen size, state of the connection, how many routes and tickets there are, the error log and the last steps of the session. It holds no stops, routes, tickets, location, device model or device ID. To write it the app asks the server for its public status and its clock, like the version line does. ReGo sends the file nowhere; if you send it on, you decide to whom.
 - Immediate push (optional): the server sends an empty trigger through Google Firebase. Google will learn the Firebase device identifier and the timestamp but not the message text.
 - Remote access uses Tailscale when configured (Serve: limited to your devices; Funnel: public). Tailscale will see usual connection metadata.
 

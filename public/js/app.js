@@ -131,7 +131,7 @@
       syncOutage();
       syncInvite();
       host.scrollTop = 0;
-    }).catch((e) => { window.RLOG && RLOG('Seite ' + name + ' nicht geladen: ' + (e && e.message)); });
+    }).catch((e) => { window.RLOG && RLOG('Seite ' + name + ' nicht geladen: ' + (e && e.message)); window.RLOGE && RLOGE('js', 'Seite ' + name + ' nicht geladen: ' + (e && e.message)); });
     return chain;
   }
 
