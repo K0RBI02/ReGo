@@ -145,6 +145,26 @@ async function appOn(dir, cfg = {}, extra = {}) {
 }
 const hdr = (dev, extra = {}) => ({ 'x-device': dev, 'content-type': 'application/json', ...extra });
 
+test('State: every route carries its stops (ends), so the app can recognise a new route as its return trip; the return trip is linked', async () => {
+  const { server, base } = await appOn(await tmp());
+  const h = hdr('rueckweggeraet123456');
+  const post = (body) => fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify(body) }).then((r) => r.json());
+  try {
+    const out = (await post({ from: FS, to: MH, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '06:00', departUntil: '08:00' } })).tours[0];
+    const back = (await post({ from: MH, to: FS, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '16:30', departUntil: '17:30' } })).tours[0];
+    assert.equal(back.returnOf, out.id);
+    const st = await (await fetch(`${base}/api/state`, { headers: h })).json();
+    const a = st.tours.find((t) => t.id === out.id), b = st.tours.find((t) => t.id === back.id);
+    assert.deepEqual(a.ends, { from: { id: FS.id, name: FS.name }, to: { id: MH.id, name: MH.name } });
+    assert.deepEqual(b.ends, { from: { id: MH.id, name: MH.name }, to: { id: FS.id, name: FS.name } });
+    assert.equal(a.returnId, back.id); assert.equal(b.returnOf, out.id);
+    // A switched-off route carries them as well
+    await fetch(`${base}/api/tours/${out.id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ active: false }) });
+    const off = (await (await fetch(`${base}/api/state`, { headers: h })).json()).tours.find((t) => t.id === out.id);
+    assert.equal(off.active, false); assert.equal(off.ends.from.id, FS.id);
+  } finally { server.close(); }
+});
+
 test('A route without a direct connection is not created (422), one with a direct connection is; when in doubt it is created', async () => {
   const { server, base, service } = await appOn(await tmp());
   const h = hdr('direktgeraet12345678');

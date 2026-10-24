@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.13 – The return trip finds its outward route
+
+**Routes**
+- Create the return trip like any route, with the stops the other way round (place B → place A for a saved route place A → place B). As soon as both stops are chosen, "Neue Strecke" recognises it and says so above the activity time: "Rückweg zu A → B".
+- The activity time then suggests the other half of the day: 16:30–17:30 for a morning route (the slider shows 12 to 20), 07:00–08:00 for an afternoon one. The weekdays are taken over from the outward route. Before, the form always started with 07:00–08:00 and Monday to Friday, so a return trip had to be moved by hand from the morning into the afternoon.
+- Times or days set by hand stay. If the stops change to a pair that is no return trip, the form goes back to the usual defaults.
+- Saving links the two routes: the main screen shows "Hinweg" and "Rückweg", and the same disruption in both directions is one card. Before, a return trip created on its own was a route without any relation to its outward route. A route that already has its return trip is not linked a second time.
+- The stops are matched by their ID, or by their name when one of them was picked from another source.
+
+**API**
+- Every route in `GET /api/state` carries its stops: `ends: {from: {id, name}, to: {id, name}}`.
+- `POST /api/tours` links a single new route that runs a saved route backwards to it (`returnOf` on the new route, `returnId` on the saved one), as long as the saved route has no return trip yet. `roundTrip` works as before.
+
+**App**
+- Removed what the app no longer used since 0.8.6: the round-trip options when creating a route (it sent `roundTrip: false` with every new route) and an empty list of wallet offers.
+
+**Build**
+- The server's dependencies are pinned by `package-lock.json`; CI and the add-on image install exactly these versions (`npm ci`). Dependabot proposes updates of the dependencies and of the workflow actions every Monday as pull requests, which run the tests before they are merged.
+- The workflow actions run on Node 24 (they warned about Node 20 before).
+
+**Rebuild**
+- Screen "Strecken", app and server changed (the server now names 0.8.13 as the newest app): install the new APK (`app-v0.8.13`) and update the add-on. The new app also works with an older server (it recognises the return trip by the route name and suggests the times, but the routes are not linked, and the note does not say they are), and an older app keeps working with the new server (a return trip it creates is linked as well).
+
 ## 0.8.12 – An error report you can save
 
 **Error report**

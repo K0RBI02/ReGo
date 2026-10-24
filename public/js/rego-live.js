@@ -130,6 +130,21 @@
   let timer;
   R.isStation = (name) => stationCache.some((s) => norm(s.name) === norm(name));
   R.findStation = (name) => stationCache.find((s) => norm(s.name) === norm(name));
+  /**
+   * The route that the chosen pair of stops runs backwards (place B → place A for a saved route place A → place B), or null.
+   * Only a route without a return trip counts: the server links the new route to exactly that one (`returnOf`).
+   * By stop ID (`ends`, sent by the server) or name; an older server without `ends` leaves only the name of the route ("A → B").
+   */
+  R.returnFor = (from, to) => {
+    const a = R.findStation(from), b = R.findStation(to);
+    if (!a || !b) return null;
+    const same = (s, x) => !!x && (x.id ? x.id === s.id || norm(x.name) === norm(s.name) : norm(x.name) === norm(s.name));
+    return R.tours.find((t) => {
+      if (t.returnId || t.returnOf) return false;
+      const e = t.ends || (() => { const p = String(t.name || '').split(' → '); return p.length === 2 ? { from: { name: p[0] }, to: { name: p[1] } } : null; })();
+      return !!e && same(b, e.from) && same(a, e.to);
+    }) || null;
+  };
   R.searchStations = function (query) {
     const q = norm(query);
     if (!q || R.isStation(q)) return [];

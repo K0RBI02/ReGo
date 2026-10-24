@@ -48,6 +48,31 @@ test('Cache: last value on error', async () => {
   assert.equal(r.value, 1); assert.equal(r.stale, true);
 });
 
+test('Profile: a new route that is a saved route backwards becomes its return trip, once, also when the stops come from another source', () => {
+  const p = { tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10 } };
+  const A = { id: '1', name: 'A' }, B = { id: '2', name: 'B' };
+  const [out] = addTours(p, { from: A, to: B, schedule: { days: ['Mo'], departAfter: '06:00', departUntil: '08:00' } });
+  const [back] = addTours(p, { from: B, to: A, schedule: { days: ['Mo'], departAfter: '16:30', departUntil: '17:30' } });
+  assert.equal(back.returnOf, out.id); assert.equal(out.returnId, back.id);
+  assert.equal(back.period, 'pm');
+  // The outward route has its return trip: a second one backwards stays on its own, and so does an unrelated route
+  const [again] = addTours(p, { from: B, to: A, schedule: { days: ['Di'], departAfter: '17:00' } });
+  assert.equal(again.returnOf, undefined); assert.equal(out.returnId, back.id);
+  const [other] = addTours(p, { from: A, to: { id: '3', name: 'C' } });
+  assert.equal(other.returnOf, undefined); assert.equal(other.returnId, undefined);
+  // The same stop under another ID (picked from another source) is matched by its name
+  const [c2a] = addTours(p, { from: { id: '30', name: 'C' }, to: { id: '10', name: 'A' } });
+  assert.equal(c2a.returnOf, other.id); assert.equal(other.returnId, c2a.id);
+  // Deleting the return trip frees the outward route: the next one backwards is linked again
+  deleteTour(p, back.id);
+  assert.equal(out.returnId, undefined);
+  const [back2] = addTours(p, { from: B, to: A, schedule: { days: ['Mi'], departAfter: '16:00' } });
+  assert.equal(back2.returnOf, out.id); assert.equal(out.returnId, back2.id);
+  // A pair created together stays as it is
+  const [x, y] = addTours(p, { from: { id: '7', name: 'X' }, to: { id: '8', name: 'Y' }, roundTrip: true });
+  assert.equal(x.returnId, y.id); assert.equal(y.returnOf, x.id);
+});
+
 test('Profile: outward and return trip, deleting unlinks cleanly', () => {
   const p = { tours: [], settings: { pushThresholdMin: 5, delayGraceMin: 10 } };
   const [a, b] = addTours(p, { from: { id: '1', name: 'A' }, to: { id: '2', name: 'B' }, roundTrip: true });

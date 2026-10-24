@@ -56,6 +56,7 @@ The single object every screen reads. Fields: `tours`, `incidents`, `lines` (a P
 - Stations: `searchStations(q)` answers from the local cache (last 400 stations in `rego.stations`) and asks the server after 450 ms; ordering prefers exact names and stations.
 - `meldungen()` is the list shown under "Meldungen" and counted on the button: active routes only, visible incidents only, the same incident on outward and return trip merged into one card (`both`).
 - `win` builds the commute-time slider values (`of`, `fresh('out'|'back')`, `view(w, set, opts)`, `text`): the track covers eight hours (04–12 for a start before noon, otherwise 12–20, longer if the period lies outside), steps of 30 min, handles at least 10 min apart; typed times in the time fields can be exact and widen the track.
+- `returnFor(from, to)`: the saved route without a return trip that the chosen pair runs backwards, by `ends` (stop ID or name) or, from an older server without `ends`, by the route name "A → B". The new-route form uses it (`_pair` in `Strecken.dc.html`).
 - Small helpers: `shortRoute` (drops a doubled place: "Freising, Freising" → "Freising"), `feedback()` (mailto with prepared body, or the link, or the GitHub issue form; contains app and server version, never the device ID), update hint (`updateHint`, `updateBar`, `dismissUpdate`), `loadInfo`, `banner()`.
 
 ## What is stored on the phone
@@ -115,7 +116,7 @@ Edit the `.dc.html`. German texts, informal. Check 320, 390 and 520 px wide and 
 
 ## Decisions and their reasons
 
-- *One "Aktivitätszeit" per route; the return trip is a route of its own* (0.8.6). Two sliders per direction (0.7.2) made setup heavy. The server can still create a pair (`roundTrip`); the app does not offer it yet.
+- *One "Aktivitätszeit" per route; the return trip is a route of its own* (0.8.6). Two sliders per direction (0.7.2) made setup heavy. The server can still create a pair (`roundTrip`); the app does not offer it. Instead the new-route form recognises a return trip (0.8.13): "Rückweg zu …", the other half of the day (16:30–17:30 for a morning route, 07:00–08:00 for an afternoon one) and the outward route's days are suggested while the user has not set times or days himself, and the server links the two when saving. The note says "verbunden" only when the server sends `ends` (an older server does not link).
 - *Routes with a transfer are found by ReGo, not switched on* (0.7.0, 0.8.6, 0.8.7). There is no "always with transfer" setting. The search starts as soon as both stops are chosen, the preview shows what was found, and a second tap on "Speichern" creates the route; in setup nobody can confirm a preview, so it is saved right away. A source that does not answer leaves "Speichern" working (ReGo does not guess).
 - *Settings are a small sheet, not a page* (0.6.1); it keeps the list tidy and the app "easy".
 - *Fixed text size and portrait only* (0.6.0): the layout shifted with the Android font size. Honouring it is an open question (`CLAUDE.md`, known gaps).

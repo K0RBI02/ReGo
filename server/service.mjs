@@ -250,6 +250,8 @@ export function createService({ config, store, now = () => Date.now(), providers
       tours[i] = { out: built.tour, inc: built.incidents };
     }));
 
+    // The stops of each route, so that the app can tell when a new route is an existing one backwards (the return trip)
+    tours.forEach((x, i) => { if (x) { const { from, to } = profile.tours[i]; x.out.ends = { from: { id: from.id, name: from.name }, to: { id: to.id, name: to.name } }; } });
     const outTours = tours.filter(Boolean).map((x) => x.out).sort(sortTours);
     for (const x of tours) if (x) incidents.push(...x.inc.filter((inc) => stillVisible(inc, t, profile.settings.delayGraceMin)));
     incidents.sort((a, b) => b.severity - a.severity);

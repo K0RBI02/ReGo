@@ -248,6 +248,7 @@ Strecke hinzufügen</button>
 </sc-for>
 </div>
 </div>
+<sc-if value="{{hasBack}}" hint-placeholder-val="{{ false }}"><div role="status" style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px"><span style="font-size: 15px; font-weight: 700; color: #1C1A1A; line-height: 1.3">{{backHead}}</span><span style="font-size: 14px; font-weight: 600; color: #4A4747; line-height: 1.35">{{backNote}}</span></div></sc-if>
 <sc-for list="{{wins}}" as="w" hint-placeholder-count="1">
 <div class="rg-win {{w.tone}}" style="{{w.cardStyle}}">
 <div style="font-size: 14px; font-weight: 600; color: #4A4747">{{w.title}}</div>
@@ -435,6 +436,19 @@ class Component extends DCLogic {
     if (want === !!this.state.sheet || this.state.adding) return;
     this._pushed = want; this.setState({ sheet: want });
   }
+  // Return trip: the chosen stops are a saved route backwards (R.returnFor). Then the form suggests the other half of the day and that route's days,
+  // unless the user has set them already; when the pair stops being that return trip, the defaults come back. The server links the two when saving.
+  _pair(patch) {
+    const st = Object.assign({}, this.state, patch), R = window.REGO, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const back = st.editId ? null : R.returnFor(st.from, st.to), id = back ? back.id : '';
+    if (id !== (this.state.backOf || '')) {
+      const evening = back && back.period !== 'pm';
+      if (!st.outSet) patch.out = R.win.fresh(evening ? 'back' : 'out');
+      if (!st.daysSet) patch.days = back && back.schedule ? names.map((n) => back.schedule.days.includes(n)) : [true, true, true, true, true, false, false];
+      patch.backOf = id;
+    }
+    this.setState(patch);
+  }
   flash(msg, prev) {
     clearTimeout(this._tm);
     this.setState({ toast: msg, prev: prev || null });
@@ -465,13 +479,13 @@ class Component extends DCLogic {
     const days = names.map((n, i) => ({
       label: n, on: st.days[i],
       style: 'min-height: 52px; border: 1.5px solid ' + (st.days[i] ? '#1C1A1A' : '#E8E8E8') + '; border-radius: 26px; padding: 0; font-size: 15px; font-weight: 700; ' + (st.days[i] ? 'background: #1C1A1A; color: #fff' : 'background: #fff; color: #1C1A1A'),
-      toggle: () => this.setState({ days: st.days.map((x, j) => j === i ? !x : x) })
+      toggle: () => this.setState({ days: st.days.map((x, j) => j === i ? !x : x), daysSet: true })
     }));
     const val = (e) => (e && e.target ? e.target.value : '');
     const T = window.REGO;
     const editing = !!st.editId;
     const valid = editing || T.isStation(st.from) && T.isStation(st.to) && st.from.trim().toLowerCase() !== st.to.trim().toLowerCase();
-    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => { this._probe.set(st.focus === 'from' ? q.name : st.from, st.focus === 'to' ? q.name : st.to); this.setState({ [st.focus]: q.name, focus: '' }); } })) : [];
+    const sug = st.focus ? T.searchStations(st[st.focus]).map((q) => ({ name: q.name, region: ({ AT: 'Österreich', BY: 'Bayern' })[q.region] || 'Deutschland', pick: () => { this._probe.set(st.focus === 'from' ? q.name : st.from, st.focus === 'to' ? q.name : st.to); this._pair({ [st.focus]: q.name, focus: '' }); } })) : [];
     // The look at the stops (see _probe): busy / direct / transfer (preview: the trips with a transfer row between each two) / none / sorry
     const pr = this._probe.view(), kind = pr ? pr.kind : '';
     const waitFind = kind === 'busy' || kind === 'none';                  // saving waits for the look, and makes no sense when nothing can be reached
@@ -489,9 +503,10 @@ class Component extends DCLogic {
     const pushOn = window.REGO.pushActive();
     const fb = window.REGO.feedback(), upd = window.REGO.updateHint();
     const saving = !!this._saving;
-    // Activity time: when ReGo is active for this route (requests and alerts). One card; a return trip is a route of its own for now.
+    // Activity time: when ReGo is active for this route (requests and alerts). One card; a return trip is a route of its own (linked to its outward route, see _pair).
     const R = window.REGO;
-    const wins = [R.win.view(st.out, (w) => this.setState({ out: w }), { title: 'Aktivitätszeit', tone: 'w' })];
+    const wins = [R.win.view(st.out, (w) => this.setState({ out: w, outSet: true }), { title: 'Aktivitätszeit', tone: 'w' })];
+    const backOf = !editing && st.backOf ? R.tours.find((t) => t.id === st.backOf) : null;
     return {
       pushOn, pushStyle: sw(pushOn), pushText: swText, pushState: pushOn ? 'An' : 'Aus', pushKnob: swKnob,
       togglePush: () => {
@@ -502,8 +517,8 @@ class Component extends DCLogic {
       toast: st.toast, undo: () => { const had = st.prev; clearTimeout(this._tm); this.setState({ toast: '', prev: null }); if (had) { this.setState({ list: had }); window.REGO.actions.undoRemove().catch(() => { this.setState({ list: this._fromRego() }); this.flash('Rückgängig nicht möglich – keine Verbindung', null); }); } },
       undoStyle: 'min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: #fff; color: #1C1A1A; font-size: 15px; font-weight: 700' + (st.prev ? '' : '; display: none'),
       sug, showSugFrom: st.focus === 'from' && sug.length > 0, showSugTo: st.focus === 'to' && sug.length > 0,
-      daysWork: () => this.setState({ days: [true, true, true, true, true, false, false] }),
-      daysAll: () => this.setState({ days: [true, true, true, true, true, true, true] }),
+      daysWork: () => this.setState({ days: [true, true, true, true, true, false, false], daysSet: true }),
+      daysAll: () => this.setState({ days: [true, true, true, true, true, true, true], daysSet: true }),
       saveBlocked: !valid || saving || waitFind, saveLabel: saving ? 'Speichert …' : kind === 'busy' ? 'Sucht …' : 'Speichern',
       saveStyle: 'flex: 1; min-height: 72px; border: 0; border-radius: 999px; font-size: 19px; font-weight: 700; ' + (valid && !saving && !waitFind ? 'background: #1C1A1A; color: #fff' : 'background: #D9D9D9; color: #fff'),
       hasCode: !!st.code, code: st.code || '', claim: st.claim || '', setClaim: (e) => this.setState({ claim: val(e), confirmClaim: false }),
@@ -538,15 +553,18 @@ class Component extends DCLogic {
       adding: st.adding, notAdding: !st.adding, editing, editName: st.editName, showStops: !editing,
       formTitle1: editing ? 'Strecke' : 'Neue', formTitle2: editing ? 'ändern' : 'Strecke',
       from: st.from, to: st.to, wins,
-      setFrom: (e) => { const v = val(e); this._probe.set(v, st.to, 600); this.setState({ from: v, focus: 'from' }); },
-      setTo: (e) => { const v = val(e); this._probe.set(st.from, v, 600); this.setState({ to: v, focus: 'to' }); },
+      hasBack: !!backOf, backHead: backOf ? 'Rückweg zu ' + backOf.name : '',
+      // Linked only by a server that sends `ends` (it is the same version that links); an older one just gets the suggested times
+      backNote: !backOf ? '' : [st.outSet ? '' : backOf.period !== 'pm' ? 'Zeit für den Nachmittag vorgeschlagen.' : 'Zeit für den Morgen vorgeschlagen.', backOf.ends ? 'Beide werden als Hin- und Rückweg verbunden.' : ''].filter(Boolean).join(' '),
+      setFrom: (e) => { const v = val(e); this._probe.set(v, st.to, 600); this._pair({ from: v, focus: 'from' }); },
+      setTo: (e) => { const v = val(e); this._probe.set(st.from, v, 600); this._pair({ to: v, focus: 'to' }); },
       probeBusy: kind === 'busy', probeDirect: kind === 'direct',
       hasSaveErr: kind === 'none' || kind === 'sorry',
       saveErr: kind === 'none' ? pr.from + ' → ' + pr.to + ': Mit weniger als ' + ((pr.max || 1) + 1) + ' Umstiegen nicht erreichbar.' : kind === 'sorry' ? (pr.message || 'Sorry, gerade antwortet keine Quelle. Beim Speichern versuche ich es noch einmal.') : '',
       // Found with a transfer = preview; saving then creates the route with the transfer
       hasXroute: !!xr, xrows, xrouteHead: 'Gefunden · ' + (xr && (xr.legs || []).length > 2 ? (xr.legs.length - 1) + ' Umstiege' : xr && (xr.legs || []).length > 1 ? '1 Umstieg' : 'ohne Umstieg'), xrouteDur: xr ? xr.duration || '' : '',
       xrouteNote: (xr && (xr.legs || []).length > 2 ? 'Mit 1 Umstieg gibt es nichts. ' : '') + 'Mit Speichern legst du die Strecke so an. ReGo wählt ' + (xr && (xr.legs || []).length > 2 ? 'die Umstiege' : 'den Umstieg') + ' für jede Abfahrt neu.',
-      openAdd: () => { this._probe.reset(); this.setState({ adding: true, editId: '', focus: '', from: '', to: '', out: window.REGO.win.fresh('out'), days: [true, true, true, true, true, false, false] }); },
+      openAdd: () => { this._probe.reset(); this.setState({ adding: true, editId: '', focus: '', from: '', to: '', out: window.REGO.win.fresh('out'), days: [true, true, true, true, true, false, false], backOf: '', outSet: false, daysSet: false }); },
       cancelAdd: () => { this._probe.reset(); this.setState({ adding: false, editId: '' }); },
       saveAdd: () => {
         if (!valid || this._saving || waitFind) return;           // already on its way (or the look at the stops is still running): a second tap must not create anything twice

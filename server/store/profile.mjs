@@ -166,6 +166,7 @@ const sameSchedule = (a = {}, b = {}) => { const x = schedule(a), y = schedule(b
  * Returns the created tours (1 or 2). If this exact route with the same days and times already exists
  * (e.g. tapped twice), nothing is created and the existing one is returned. An existing route without a transfer
  * (from an older version, without a direct connection) is switched to transfer when the user now creates it with a transfer.
+ * A single new route that is an existing route backwards becomes its return trip (linked by returnOf/returnId), as long as that route has none yet.
  */
 export function addTours(profile, body) {
   if (!isStop(body?.from) || !isStop(body?.to)) throw new ValidationError('Start und Ziel müssen Haltestellen sein');
@@ -187,6 +188,12 @@ export function addTours(profile, body) {
     const back = schedule({ days: out.days, departAfter: HM.test(body.returnAfter || '') ? body.returnAfter : '16:30', departUntil: body.returnUntil });
     const t2 = { id: `t${rid()}`, name: `${to.name} → ${from.name}`.slice(0, 160), from: to, to: from, active: true, period: back.departAfter < '12:00' ? 'am' : 'pm', schedule: back, returnOf: t1.id, ...xfer };
     t1.returnId = t2.id; list.push(t2);
+  } else {
+    // The same stops the other way round (by ID, or by name when the stop was picked from another source): the return trip of that route.
+    // The first match without a partner wins; a route that already has its return trip is left alone.
+    const same = (a, b) => a.id === b.id || a.name === b.name;
+    const outward = profile.tours.find((x) => x.from && x.to && same(x.from, to) && same(x.to, from) && !x.returnId && !x.returnOf);
+    if (outward) { t1.returnOf = outward.id; outward.returnId = t1.id; }
   }
   profile.tours.push(...list);
   return list;

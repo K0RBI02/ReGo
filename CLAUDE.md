@@ -143,7 +143,7 @@ Korbi decides that something is a release and which number it gets; releases are
 ## Known gaps and ideas – none approved, propose before starting
 
 - **Maintenance:** Android libraries and `targetSdk` 34 are 2024 versions (a Play Store release would need a newer one); no automated tests for the Java side.
-- **Product ideas:** a home-screen widget for the glance at six in the morning; sharing the error report directly (needs a `FileProvider`); a convenient "create the return trip" (a button that swaps the stops and suggests times; the server's `roundTrip` exists); a finer rating for routes with two transfers; honouring the Android font size; cross-border fares explained properly, BahnCard suggestions, wallet import (no clean way is known).
+- **Product ideas:** a home-screen widget for the glance at six in the morning; sharing the error report directly (needs a `FileProvider`); a finer rating for routes with two transfers; honouring the Android font size; cross-border fares explained properly, BahnCard suggestions, wallet import (no clean way is known).
 - **Line map:** choose the shown stops by importance (junctions first); show a single omitted stop as "+1"; the route-name pill with three lines is cut below about 340 px; the design copy's sample data lacks `hidden`.
 - **Sources:** ask the MoBY operator about access (its endpoint says it is not open data; Korbi decides); a systematic list of real border routes; stop-name special cases like Lindau Hbf; buses and trams stay dark when their association is down; the dependence on transport.rest; more associations (depends on the routes users need); closures that are missing from the source data cannot be shown ("Keine Verbindung"), so collect such cases (route, time, screenshot).
 

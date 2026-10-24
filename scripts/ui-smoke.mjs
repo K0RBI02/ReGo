@@ -138,6 +138,44 @@ await check('Commute time', async () => {
   } finally { await fetch(base + '/api/tours/' + mine.id, { method: 'DELETE', headers: H }); }
 });
 
+// Return trip: the new pair is a saved route backwards. The form says so, suggests the afternoon and the route's days, and saving links the two.
+// Times set by hand stay; a pair that is no return trip gets the defaults back.
+await check('Return trip', async () => {
+  const read = (n) => page.locator('input[type=time]').nth(n).inputValue();
+  const times = () => Promise.all([read(0), read(1)]).then((a) => a.join(' '));
+  const days = () => page.locator('button[aria-pressed]').evaluateAll((els) => els.filter((e) => /^(Mo|Di|Mi|Do|Fr|Sa|So)$/.test(e.textContent.trim()) && e.getAttribute('aria-pressed') === 'true').map((e) => e.textContent.trim()).join(' '));
+  const ing = (await j('/api/stations?q=Ingolstadt')).stations[0];
+  const out = (await j('/api/tours', 'POST', { from: mu, to: ing, schedule: { days: ['Mo', 'Mi', 'Fr'], departAfter: '06:00', departUntil: '08:00' } })).tours[0];
+  let made = null;
+  try {
+    await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
+    await page.getByRole('button', { name: /Strecke hinzufügen/ }).click(); await page.waitForTimeout(400);
+    // Typed without the last letter: a name the device knows exactly gets no list of suggestions
+    await suggest(0, ing.name.slice(0, -1)); await suggest(1, mu.name.slice(0, -1)); await page.waitForTimeout(600);
+    if (!(await page.getByText('Rückweg zu ' + out.name).count())) problems.push('Return trip: the form does not say "Rückweg zu ' + out.name + '"');
+    if (!(await page.getByText('Zeit für den Nachmittag vorgeschlagen.', { exact: false }).count())) problems.push('Return trip: no note about the suggested afternoon');
+    const t1 = await times(); if (t1 !== '16:30 17:30') problems.push(`Return trip: times "${t1}" instead of "16:30 17:30"`);
+    const d1 = await days(); if (d1 !== 'Mo Mi Fr') problems.push(`Return trip: days "${d1}" instead of the outward route's "Mo Mi Fr"`);
+    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) problems.push('Return trip: form scrolls sideways');
+    // Another destination: no return trip any more, the morning defaults come back
+    await page.locator('input[type=text]').nth(1).fill(''); await suggest(1, 'Rosenhei'); await page.waitForTimeout(400);
+    if (await page.getByText('Rückweg zu', { exact: false }).count()) problems.push('Return trip: the note stays for a pair that is no return trip');
+    const t2 = await times(); if (t2 !== '07:00 08:00') problems.push(`Return trip: times "${t2}" instead of the defaults after leaving the return trip`);
+    // Back to the return trip, but with a time typed by hand first: that time stays
+    await page.locator('input[type=time]').nth(0).fill('17:00');
+    await page.locator('input[type=text]').nth(1).fill(''); await suggest(1, mu.name.slice(0, -1)); await page.waitForTimeout(600);
+    const t3 = await read(0); if (t3 !== '17:00') problems.push(`Return trip: a typed time was replaced ("${t3}" instead of "17:00")`);
+    await page.getByRole('button', { name: 'Speichern' }).click(); await page.waitForTimeout(1200);
+    const prof = (await j('/api/profile')).tours;
+    made = prof.find((t) => t.from.id === ing.id && t.to.id === mu.id) || null;
+    const back = prof.find((t) => t.id === out.id);
+    if (!made) problems.push('Return trip: the route was not saved');
+    else if (made.returnOf !== out.id || back.returnId !== made.id) problems.push('Return trip: the new route is not linked to its outward route');
+  } finally {
+    for (const id of [out.id, made && made.id].filter(Boolean)) await fetch(base + '/api/tours/' + id, { method: 'DELETE', headers: H });
+  }
+});
+
 // Undo: coordinates are kept
 await check('Undo', async () => {
   const before = (await j('/api/profile')).tours;
@@ -1478,4 +1516,4 @@ await check('Long names and track on the card', async () => {
 
 await browser.close(); server.close();
 if (problems.length) { console.error('Screen test FAILED:\n- ' + [...new Set(problems)].join('\n- ')); process.exit(1); }
-console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, empty ticket safe, update hint and feedback, error report).');
+console.log('Screen test passed (6 screens, change route, back up tickets, double tap, activity time (sliders, main screen), return trip, undo, refresh, apply code, small phone, dark mode, several incidents per route, route without direct connection, font, create without connection, onboarding without direct connection, test notification, version line, settings sheet, invitation code, platform change, cancellation, hero line and "Danach", create with transfer, live search while entering the stops (also with an older server), setup step 1, transfer trip on time / at risk / missed, create with two transfers, two transfers on time / at risk / missed, long names and the track on the card, faster with 1 transfer on replacement transport, no real-time data, ticket notes, empty ticket safe, update hint and feedback, error report).');
