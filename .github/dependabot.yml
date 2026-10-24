@@ -1,4 +1,4 @@
-# Proposes updates of the server's dependencies as pull requests, one look a week.
+# Proposes updates as pull requests, one look a week: the server's npm dependencies and the workflow actions.
 # package-lock.json pins what CI and the add-on image install (npm ci), so nothing changes without such a pull request.
 version: 2
 updates:
@@ -9,3 +9,15 @@ updates:
       day: monday
       timezone: Europe/Berlin
     open-pull-requests-limit: 3
+  # The actions in the two workflows, so they do not fall behind a Node runtime again
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3
+    ignore:
+      # From v6 its caching is a proprietary component under its own licence; v5 runs on Node 24 as well
+      - dependency-name: gradle/actions
+        update-types: ['version-update:semver-major']

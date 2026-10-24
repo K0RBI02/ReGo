@@ -103,7 +103,7 @@ CLAUDE.md  .claude/rules/                      these notes
 package.json     "rego-backend": ESM, Node >= 20, one dependency (hafas-client); scripts: start, demo, probe, test
 package-lock.json  pins every installed package; CI and the add-on image install with `npm ci`
 repository.yaml  makes the repo installable as a Home Assistant add-on repository
-.github/dependabot.yml  weekly pull requests for npm updates
+.github/dependabot.yml  weekly pull requests for npm and workflow-action updates
 .github/workflows/  build.yml (tests + screen test, then the add-on images), apk.yml (signed APK -> GitHub release app-v<version>)
 rego/       the Home Assistant add-on: config.yaml (its `version` is THE release version), Dockerfile, run.sh, DOCS.md, CHANGELOG.md
 server/     the Node backend: index.mjs (HTTP, routes, static files, timers), config.mjs (env -> config, APP_LATEST), service.mjs (getState, search),
@@ -142,7 +142,7 @@ Korbi decides that something is a release and which number it gets; releases are
 
 ## Known gaps and ideas – none approved, propose before starting
 
-- **Maintenance:** workflow actions that still run on Node 20; Android libraries and `targetSdk` 34 are 2024 versions (a Play Store release would need a newer one); no automated tests for the Java side; dead code in `public/js/rego-live.js` (the `trip`/`roundTrip` branch, an empty `walletOffers`).
+- **Maintenance:** Android libraries and `targetSdk` 34 are 2024 versions (a Play Store release would need a newer one); no automated tests for the Java side.
 - **Product ideas:** a home-screen widget for the glance at six in the morning; sharing the error report directly (needs a `FileProvider`); a convenient "create the return trip" (a button that swaps the stops and suggests times; the server's `roundTrip` exists); a finer rating for routes with two transfers; honouring the Android font size; cross-border fares explained properly, BahnCard suggestions, wallet import (no clean way is known).
 - **Line map:** choose the shown stops by importance (junctions first); show a single omitted stop as "+1"; the route-name pill with three lines is cut below about 340 px; the design copy's sample data lacks `hidden`.
 - **Sources:** ask the MoBY operator about access (its endpoint says it is not open data; Korbi decides); a systematic list of real border routes; stop-name special cases like Lindau Hbf; buses and trams stay dark when their association is down; the dependence on transport.rest; more associations (depends on the routes users need); closures that are missing from the source data cannot be shown ("Keine Verbindung"), so collect such cases (route, time, screenshot).

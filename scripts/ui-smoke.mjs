@@ -163,7 +163,7 @@ await check('Refresh while creating', async () => {
   const [n0, n1] = await page.evaluate(async () => {
     const R = window.REGO, n0 = R.tours.length, slow = R.refresh();
     await new Promise((r) => setTimeout(r, 250));
-    await R.actions.addTour({ from: 'Freising', to: 'München Hbf', days: ['Sa'], time: '09:00', trip: 'one', backTime: '16:30' });
+    await R.actions.addTour({ from: 'Freising', to: 'München Hbf', days: ['Sa'], time: '09:00' });
     await slow; return [n0, R.tours.length];
   });
   await page.unroute('**/api/state**');
@@ -567,7 +567,7 @@ await check('Onboarding without a direct connection', async () => {
     expect422 = true;
     try {
       await p.goto(base + '/Onboarding1'); await p.waitForTimeout(1200);
-      await p.evaluate(async ([qa, qb, fa, fb]) => { const R = window.REGO; R.searchStations(qa); await new Promise((r) => setTimeout(r, 900)); R.searchStations(qb); await new Promise((r) => setTimeout(r, 900)); window.REGO_pending = { from: fa, to: fb, trip: 'one' }; R.navigate('/Main'); }, [a, b, from, to]);
+      await p.evaluate(async ([qa, qb, fa, fb]) => { const R = window.REGO; R.searchStations(qa); await new Promise((r) => setTimeout(r, 900)); R.searchStations(qb); await new Promise((r) => setTimeout(r, 900)); window.REGO_pending = { from: fa, to: fb }; R.navigate('/Main'); }, [a, b, from, to]);
       await p.waitForTimeout(3000);
       const t = await p.evaluate(() => document.querySelector('#screen').innerText);
       const tours = (await (await fetch(base + '/api/profile', { headers: { 'x-device': dev, 'content-type': 'application/json' } })).json()).tours;
