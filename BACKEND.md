@@ -30,7 +30,7 @@ The recommended way. Setup and options are in [rego/DOCS.md](rego/DOCS.md). GitH
 ### Standalone
 
 ```sh
-npm install --omit=dev
+npm ci --omit=dev
 HOST=0.0.0.0 PORT=8080 REGO_DATA=/var/lib/rego npm start
 ```
 

@@ -126,11 +126,14 @@ test('Colors: every incident kind has a color that dark mode knows; server and a
   }
 });
 
-test('Version: package.json, add-on and changelog show the same number', async () => {
+test('Version: package.json, its lock file, add-on and changelog show the same number', async () => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).version;
+  // npm ci does not mind a stale version in the lock file, so only this test notices one that a release forgot
+  const lock = JSON.parse(await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'));
   const yaml = /^version:\s*"?([^"\n]+)"?/m.exec(await readFile(new URL('../rego/config.yaml', import.meta.url), 'utf8'))[1].trim();
   const log = /^##\s*\[?v?(\d+\.\d+\.\d+)/m.exec(await readFile(new URL('../rego/CHANGELOG.md', import.meta.url), 'utf8'))[1];
   assert.equal(yaml, pkg); assert.equal(log, pkg);
+  assert.equal(lock.version, pkg); assert.equal(lock.packages[''].version, pkg);
 });
 
 // ---------- no direct connection when creating (T2) ----------

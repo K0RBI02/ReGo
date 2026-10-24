@@ -3,7 +3,10 @@ name: Build add-on
 on:
   push:
     branches: [main]
-    paths: ['rego/**', 'server/**', 'public/**', 'scripts/**', 'test/**', 'package.json', '.github/workflows/build.yml']
+    paths: ['rego/**', 'server/**', 'public/**', 'scripts/**', 'test/**', 'package.json', 'package-lock.json', '.github/workflows/build.yml']
+  # Pull requests (Dependabot's dependency updates) only run the tests; images are built from main alone
+  pull_request:
+    paths: ['server/**', 'public/**', 'scripts/**', 'test/**', 'package.json', 'package-lock.json', '.github/workflows/build.yml']
   workflow_dispatch:
 
 permissions:
@@ -18,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm test
 
   screen-test:
@@ -28,13 +31,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund playwright
       - run: npx playwright install --with-deps chromium
       - run: node scripts/ui-smoke.mjs
 
   build:
     needs: [test, screen-test]
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:

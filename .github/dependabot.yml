@@ -1,0 +1,11 @@
+# Proposes updates of the server's dependencies as pull requests, one look a week.
+# package-lock.json pins what CI and the add-on image install (npm ci), so nothing changes without such a pull request.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3

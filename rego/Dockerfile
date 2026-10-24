@@ -8,8 +8,8 @@ LABEL org.opencontainers.image.source="https://github.com/K0RBI02/ReGo" \
 COPY --from=ts /usr/local/bin/tailscaled /usr/local/bin/tailscaled
 COPY --from=ts /usr/local/bin/tailscale /usr/local/bin/tailscale
 WORKDIR /app
-COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
 COPY server ./server
 COPY public ./public
 COPY rego/config.yaml ./config.yaml

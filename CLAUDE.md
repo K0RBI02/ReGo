@@ -101,7 +101,9 @@ German terms appear in the UI, the API (`name`, `title`, `text` fields) and in t
 README.md  BACKEND.md  PRIVACY.md  LICENSE   public documents (see the table above)
 CLAUDE.md  .claude/rules/                      these notes
 package.json     "rego-backend": ESM, Node >= 20, one dependency (hafas-client); scripts: start, demo, probe, test
+package-lock.json  pins every installed package; CI and the add-on image install with `npm ci`
 repository.yaml  makes the repo installable as a Home Assistant add-on repository
+.github/dependabot.yml  weekly pull requests for npm updates
 .github/workflows/  build.yml (tests + screen test, then the add-on images), apk.yml (signed APK -> GitHub release app-v<version>)
 rego/       the Home Assistant add-on: config.yaml (its `version` is THE release version), Dockerfile, run.sh, DOCS.md, CHANGELOG.md
 server/     the Node backend: index.mjs (HTTP, routes, static files, timers), config.mjs (env -> config, APP_LATEST), service.mjs (getState, search),
@@ -126,7 +128,7 @@ gh run list --limit 6                 state of the last CI runs (or the Actions 
 
 ## Releasing in short
 
-Korbi decides that something is a release and which number it gets; releases are small (one topic each) and every user-visible change ships as one. Steps: raise `version` in `package.json` **and** `rego/config.yaml` → add `## <version> – <title>` at the top of `rego/CHANGELOG.md` (it ends with a **Rebuild** paragraph) → when `public/` or `android/` changed, set `APP_LATEST` in `server/config.mjs` to that version → update the docs → `npm test` (and the screen test when `public/` changed) → commit `Release <version>: …` → push to `main` → watch CI → tell Korbi what to install or update. Workflows, details and the compatibility rule: `.claude/rules/release-and-addon.md`.
+Korbi decides that something is a release and which number it gets; releases are small (one topic each) and every user-visible change ships as one. Steps: raise `version` in `package.json`, `package-lock.json` (twice) **and** `rego/config.yaml` → add `## <version> – <title>` at the top of `rego/CHANGELOG.md` (it ends with a **Rebuild** paragraph) → when `public/` or `android/` changed, set `APP_LATEST` in `server/config.mjs` to that version → update the docs → `npm test` (and the screen test when `public/` changed) → commit `Release <version>: …` → push to `main` → watch CI → tell Korbi what to install or update. Workflows, details and the compatibility rule: `.claude/rules/release-and-addon.md`.
 
 ## Traps that bite everywhere (the area files have the rest)
 
@@ -140,7 +142,7 @@ Korbi decides that something is a release and which number it gets; releases are
 
 ## Known gaps and ideas – none approved, propose before starting
 
-- **Maintenance:** no `package-lock.json` (every add-on build installs the newest `hafas-client` 6.x; a lock file, `npm ci` and Dependabot would pin it); workflow actions that still run on Node 20; Android libraries and `targetSdk` 34 are 2024 versions (a Play Store release would need a newer one); no automated tests for the Java side; dead code in `public/js/rego-live.js` (the `trip`/`roundTrip` branch, an empty `walletOffers`).
+- **Maintenance:** workflow actions that still run on Node 20; Android libraries and `targetSdk` 34 are 2024 versions (a Play Store release would need a newer one); no automated tests for the Java side; dead code in `public/js/rego-live.js` (the `trip`/`roundTrip` branch, an empty `walletOffers`).
 - **Product ideas:** a home-screen widget for the glance at six in the morning; sharing the error report directly (needs a `FileProvider`); a convenient "create the return trip" (a button that swaps the stops and suggests times; the server's `roundTrip` exists); a finer rating for routes with two transfers; honouring the Android font size; cross-border fares explained properly, BahnCard suggestions, wallet import (no clean way is known).
 - **Line map:** choose the shown stops by importance (junctions first); show a single omitted stop as "+1"; the route-name pill with three lines is cut below about 340 px; the design copy's sample data lacks `hidden`.
 - **Sources:** ask the MoBY operator about access (its endpoint says it is not open data; Korbi decides); a systematic list of real border routes; stop-name special cases like Lindau Hbf; buses and trams stay dark when their association is down; the dependence on transport.rest; more associations (depends on the routes users need); closures that are missing from the source data cannot be shown ("Keine Verbindung"), so collect such cases (route, time, screenshot).

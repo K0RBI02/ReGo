@@ -4,6 +4,7 @@ paths:
   - "rego/**"
   - "repository.yaml"
   - "package.json"
+  - "package-lock.json"
   - "server/config.mjs"
   - "*.md"
 ---
@@ -14,9 +15,9 @@ Loaded when you touch workflows, `rego/`, version files, `server/config.mjs` or 
 
 ## The workflows
 
-**`.github/workflows/build.yml` ("Build add-on")** – on every push to `main` that touches `rego/**`, `server/**`, `public/**`, `scripts/**`, `test/**`, `package.json` or the workflow itself (and by hand):
-1. `test` – Node 22, `npm install`, `npm test`.
-2. `screen-test` – `npm install`, `npm install --no-save playwright`, `npx playwright install --with-deps chromium`, `node scripts/ui-smoke.mjs`.
+**`.github/workflows/build.yml` ("Build add-on")** – on every push to `main` that touches `rego/**`, `server/**`, `public/**`, `scripts/**`, `test/**`, `package.json`, `package-lock.json` or the workflow itself (and by hand); on a pull request (Dependabot's) only `test` and `screen-test` run:
+1. `test` – Node 22, `npm ci`, `npm test`.
+2. `screen-test` – `npm ci`, `npm install --no-save playwright`, `npx playwright install --with-deps chromium`, `node scripts/ui-smoke.mjs`.
 3. `build` – only after both are green: builds `rego/Dockerfile` with the repository root as context for `aarch64` (runner `ubuntu-24.04-arm`) and `amd64`, and pushes `ghcr.io/<owner>/rego-addon-<arch>:<version>` and `:latest` (`<version>` is read from `rego/config.yaml`).
 
 **`.github/workflows/apk.yml` ("Build Android app (APK)")** – on every push to `main` that touches `android/**`, `public/**` or the workflow, and by hand (optional input `host`):
@@ -35,8 +36,8 @@ A commit that touches only other files (`CLAUDE.md`, `README.md`, `BACKEND.md`, 
 
 Korbi decides that something is a release and which number it gets. Releases are small and frequent (one topic each) and every user-visible change ships as one. Everything goes to `main` directly; there are no feature branches or pull requests unless Korbi asks for one.
 
-1. Raise `version` in `package.json` **and** `rego/config.yaml` (the same number; `rego/config.yaml` is the source of truth for CI).
-2. Add a heading `## <version> – <title>` at the top of `rego/CHANGELOG.md`, right below `# Changelog` (English, en dash, short title in sentence case, for example `## 0.8.12 – An error report you can save`). A test (`features.test.mjs`) checks that package.json, config.yaml and the newest changelog heading agree; it reads the number with `^##\s*\[?v?(\d+\.\d+\.\d+)`.
+1. Raise `version` in `package.json`, in `package-lock.json` (at the top and under `packages[""]`) **and** in `rego/config.yaml` (the same number; `rego/config.yaml` is the source of truth for CI). `npm version <x.y.z> --no-git-tag-version` changes both npm files at once.
+2. Add a heading `## <version> – <title>` at the top of `rego/CHANGELOG.md`, right below `# Changelog` (English, en dash, short title in sentence case, for example `## 0.8.12 – An error report you can save`). A test (`features.test.mjs`) checks that package.json, the lock file, config.yaml and the newest changelog heading agree; it reads the number with `^##\s*\[?v?(\d+\.\d+\.\d+)`.
 3. If `public/` or `android/` changed in this release, set `APP_LATEST` in `server/config.mjs` to the new version, so that older apps get the update hint. A release that changes only the server leaves `APP_LATEST` alone (no APK is built for it). `beta.test.mjs` checks that it is a real version and never ahead of the server's.
 4. Update the documents that the change touches (see 'Which document to touch').
 5. `npm test`; the screen test if `public/` changed.
@@ -73,9 +74,15 @@ Documents are English and plain (Home Assistant shows `rego/CHANGELOG.md` and `r
 ## The Home Assistant add-on (`rego/`)
 
 - `config.yaml`: slug `rego`, architectures `aarch64` and `amd64`, image `ghcr.io/k0rbi02/rego-addon-{arch}`, port 8080, watchdog on `/api/health`. Options: `contact`, `invite_code` (password), `provider` (`library` | `transport-rest` | `mock`), `ts_mode` (`off` | `serve` | `funnel`), `ts_hostname`, `ts_authkey` (password), `fcm_key` (password). Adding or changing an option means changing `config.yaml` (options **and** schema), `run.sh`, `rego/DOCS.md` and, if it maps to a variable, BACKEND.md.
-- `Dockerfile`: built by CI with the repository root as context (the Pi only pulls). Base `node:22-alpine`; the `tailscaled` and `tailscale` binaries are copied from the official Tailscale image; `npm install --omit=dev`; copies `package.json`, `server/`, `public/`, `rego/config.yaml` (as `/app/config.yaml`, which is how the server reads its version in the container) and `rego/run.sh`. `.dockerignore` keeps `node_modules`, `data`, `dist`, `test`, `.git`, `.github` and zip files out of the build context.
+- `Dockerfile`: built by CI with the repository root as context (the Pi only pulls). Base `node:22-alpine`; the `tailscaled` and `tailscale` binaries are copied from the official Tailscale image; `npm ci --omit=dev` from `package.json` and `package-lock.json`; copies `server/`, `public/`, `rego/config.yaml` (as `/app/config.yaml`, which is how the server reads its version in the container) and `rego/run.sh`. `.dockerignore` keeps `node_modules`, `data`, `dist`, `test`, `.git`, `.github` and zip files out of the build context.
 - `run.sh`: reads `/data/options.json`; exports `HOST=0.0.0.0 PORT=8080 REGO_DATA=/data REGO_VERBOSE=1` and `NODE_OPTIONS=--dns-result-order=ipv4first` (bahn.de hangs over IPv6); maps options to `REGO_PROVIDER`, `REGO_FCM_KEY`, `REGO_INVITE`, `REGO_CONTACT`; runs a network self-test (bahn.de over IPv4 and IPv6, MVV) so the log shows what the container can reach; optionally starts `tailscaled` in userspace networking (state in `/data/tailscale`) and `tailscale serve` or `funnel --bg 8080`; then `exec node server/index.mjs`. `/data` survives add-on updates; never ask the user to uninstall (that loses the Tailscale login and all profiles).
-- Updating: Home Assistant shows an Update button when `version` in `rego/config.yaml` (as published) is newer than the installed one and the image `…:<version>` exists. The image is built by `build.yml` on every push that touches `rego/`, `server/`, `public/`, `scripts/`, `test/` or `package.json`.
+- Updating: Home Assistant shows an Update button when `version` in `rego/config.yaml` (as published) is newer than the installed one and the image `…:<version>` exists. The image is built by `build.yml` on every push that touches `rego/`, `server/`, `public/`, `scripts/`, `test/`, `package.json` or `package-lock.json`.
+
+## Dependencies, the lock file and Dependabot
+
+- `package-lock.json` pins `hafas-client` and everything below it. CI and the add-on image install with `npm ci`, which takes exactly the lock file and fails when it does not match `package.json`. Without it every image build took the newest `hafas-client` 6.x, and an update could change how ÖBB answers without any commit.
+- Changing a dependency: `npm install <package>@<version>` (it rewrites both files), commit `package.json` and `package-lock.json` together, run `npm test`. The one-dependency rule in `CLAUDE.md` still holds.
+- `.github/dependabot.yml` looks for npm updates every Monday and opens at most 3 pull requests. They are the one kind of pull request in this repository. On the pull request `build.yml` runs the unit tests and the screen test but builds no image; merge only when both are green. Merging into `main` runs them again and rebuilds the add-on image under the current version, which a Pi only picks up with the next release. So a dependency update ships with a release, and its changelog entry says so. A major update (`hafas-client` 7) changes the range in `package.json`; read its changelog first, the ÖBB client (`server/providers/lib.mjs`) depends on its API.
 
 ## Adding or changing an add-on option
 
