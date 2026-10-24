@@ -69,9 +69,9 @@
 ## 0.8.9 – Top of the route page
 
 **Route page**
-- The route name in the pill at the top takes two lines instead of ending with "…" (before: "Freising → München, Neup…"). With three lines in a row ("S1 › S4 › U5") on a narrow phone the type is a little smaller so that the name still fits.
-- The map keeps as much room on the right as the longest stop name needs, so "Neuperlach Süd" is no longer cut to "Neuperlach S…".
-- Two stops right next to each other with no omitted stops between them (like Hackerbrücke → München Hbf) get at least as much room as their names need, so the names no longer lie on top of each other.
+- The route name in the pill at the top takes two lines instead of ending with "…" (before: "A → B, long stop na…"). With three lines in a row ("S1 › S4 › U5") on a narrow phone the type is a little smaller so that the name still fits.
+- The map keeps as much room on the right as the longest stop name needs, so a long stop name is no longer cut short with "…".
+- Two stops right next to each other with no omitted stops between them (like two stations next to each other in a city centre) get at least as much room as their names need, so the names no longer lie on top of each other.
 - In the big card "05:47 · 1 Umstieg" stays together in one line instead of leaving "Umstieg" alone in the last line.
 
 **Rebuild**
@@ -80,7 +80,7 @@
 ## 0.8.8 – Up to two transfers
 
 **Routes with transfers**
-- When nothing is left with one transfer – typically because a closure forces another change, like Freising → München-Neuperlach Süd – ReGo now looks for connections with up to two transfers. The order stays the same: direct first, then one transfer, and only if there is nothing with at most one transfer, up to two.
+- When nothing is left with one transfer – typically because a closure forces another change – ReGo now looks for connections with up to two transfers. The order stays the same: direct first, then one transfer, and only if there is nothing with at most one transfer, up to two.
 - This works when you create a route and for routes that already exist. A route asks for two transfers only while no usable connection with at most one is left, and goes back to one as soon as there is one again.
 - Creating shows the preview "Gefunden · 2 Umstiege" with three trips and both transfers. Setup step 1 says "Gefunden: 2 Umstiege in A › B". The route list says "2 Umstiege · meist A › B".
 - The main screen shows the three lines in a row of their own ("S1 › S4 › U5") and a line like "2 Umstiege · 4 und 6 Min.". If one of the two transfers gets tight or is missed, that is what the line says. The detail page lists the three trips with a transfer card between each, and the map shows three lines and both transfer stops.
@@ -93,7 +93,7 @@
 - Creating a route with a transfer is refused with `no-connection` only if not even two transfers work.
 
 **Map**
-- Stop names with the place in front ("München, Moosach") are shortened to the stop ("Moosach").
+- Stop names with the place in front ("Place, Stop") are shortened to the stop ("Stop").
 
 **Rebuild**
 - Looks and server changed: install the new APK (`app-v0.8.8`) and update the add-on. The new app also works with an older server, and older apps keep working with the new server (they show a route with two transfers with its three lines, but the map is a plain line).
@@ -313,11 +313,11 @@
 **Routes**
 - **"Mit 1 Umstieg suchen":** If there is no direct connection between two stops, the "Neue Strecke" form says so as before and shows the button "Mit 1 Umstieg suchen" below it. If ReGo finds something, a preview appears ("Gefunden · 1 Umstieg") with both lines, the transfer station and the waiting time; "Speichern" then creates the route with a transfer, with "Hin und zurück" both directions. If ReGo finds nothing even so, it says so honestly ("Auch mit 1 Umstieg habe ich zwischen A und B nichts gefunden.") and nothing is created. If you change a stop, the preview disappears again.
 - **No switch:** There is no setting "always with a transfer". A transfer is only added when you explicitly search for it on a route. The sentence "ReGo zeigt nur Fahrten ohne Umstieg." has been dropped from the error message.
-- **List:** A route with a transfer shows two line dots with an arrow and below them "1 Umstieg · meist München Hbf".
+- **List:** A route with a transfer shows two line dots with an arrow and below them "1 Umstieg · meist B" (B is the transfer station).
 - **Older routes without a direct connection** ("Keine") can be converted: if you create such a route again with the same days and the same time, the notice with "Mit 1 Umstieg suchen" comes again. If ReGo finds something, the existing route becomes a route with a transfer instead of appearing twice.
 
 **Main screen and detail page**
-- **ReGo chooses the transfer anew for every departure:** Feeder, transfer station and connecting trip can differ for every departure. Each row shows departure, both lines, the arrival at the destination and the transfer ("Umstieg München Hbf · 9 Min."). More than 30 minutes of planned waiting time at the transfer do not count, unless there is nothing else.
+- **ReGo chooses the transfer anew for every departure:** Feeder, transfer station and connecting trip can differ for every departure. Each row shows departure, both lines, the arrival at the destination and the transfer ("Umstieg B · 9 Min."). More than 30 minutes of planned waiting time at the transfer do not count, unless there is nothing else.
 - **The states:** "pünktlich"; "Anschluss wackelt" (the feeder is late, less than 3 minutes remain); "Anschluss verpasst" (no buffer left, ReGo shows the next connection with the new arrival) and "Anschluss fällt aus" (the connecting trip is cancelled, even with an on-time feeder). Replacement transport on the feeder: "Anschluss bleibt erreichbar" as long as the stated extra time suffices, otherwise the connection is at risk or missed.
 - **Detail page:** two sections ("1. Fahrt", "2. Fahrt") with a transfer card between them (platform → platform, minutes). The map shows both lines, marks the transfer station (with a warning ring when at risk or missed), the disrupted section and the time pills for departure and arrival, which change color on a delay. Long routes are shown shortened, omitted stops appear as "+5" on the line.
 - If the timetable source returns only direct trips for a route with a transfer, the usual rules for direct routes apply.
@@ -572,7 +572,7 @@ First mini version after the beta.
 - Fix: Incident cards stack below one another and are no longer squeezed into each other; long texts run through completely (also in the detail).
 - Fix: Train numbers in the line circle ("RE5(Zug-Nr.79030)") become "RE5"; longer abbreviations adapt.
 - Fix: truncated association notices ("… bis Frei") are replaced by the first whole sentence.
-- Shorter route names: "Freising, Freising" becomes "Freising", the same place at both ends is left out once.
+- Shorter route names: "A, A" becomes "A", the same place at both ends is left out once.
 - With replacement transport or construction without a delay there is no "+0 Min." any more.
 
 ## 0.1.16-beta01
