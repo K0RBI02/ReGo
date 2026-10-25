@@ -14,6 +14,9 @@ import { berlin, weekday, toMin } from '../server/lib/time.mjs';
 import { readFileSync } from 'node:fs';
 
 const pw = await import('playwright');
+// A route callback can still be fetching /api/state when its context is closed (the app refreshes every 30 s, a slow browser closes late):
+// that request belongs to a case that is already over. Any other unhandled error still ends the test.
+process.on('unhandledRejection', (e) => { if (/Request context disposed|has been closed/.test(String(e && e.message))) return; throw e; });
 // Limits raised: the test loads many files from one address in a short time (the rate limiting itself is checked by the server tests)
 const { server, store } = createApp({ cfg: { ...config, provider: 'mock', dataDir: await mkdtemp(join(tmpdir(), 'rego-ui-')), notifyEverySec: 0, limits: { ipBurst: 1e6, ipPerSec: 1e6, deviceBurst: 1e6, devicePerSec: 1e6, searchBurst: 1e6, searchPerSec: 1e6, newDevicesPerHour: 1e6 } } });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -21,7 +24,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const DEV = 'uismoketest0123456789abcd';
 const H = { 'x-device': DEV, 'content-type': 'application/json' };
 const j = async (p, m = 'GET', b) => (await fetch(base + p, { method: m, headers: H, body: b ? JSON.stringify(b) : undefined })).json();
-const st = (await j('/api/stations?q=Freising')).stations[0], mu = (await j('/api/stations?q=München')).stations[0];
+const st = (await j('/api/stations?q=Fiktivia')).stations[0], mu = (await j('/api/stations?q=München')).stations[0];
 await j('/api/tours', 'POST', { from: st, to: mu, roundTrip: true });
 
 const browser = await pw.chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -74,7 +77,7 @@ await check('Double tap', async () => {
   const before = (await j('/api/profile')).tours.length;
   await page.goto(base + '/Strecken'); await page.waitForTimeout(1000);
   await page.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-  await suggest(0, 'Freis'); await suggest(1, 'Münch');
+  await suggest(0, 'Fiktiv'); await suggest(1, 'Münch');
   await page.locator('input[type=time]').nth(0).fill('05:30'); await page.locator('input[type=time]').nth(1).fill('06:30');
   // the form looks at the stops by itself ("Sucht …" on the button); the double tap comes when the look is done
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some((x) => x.textContent.trim() === 'Speichern' && x.getAttribute('aria-disabled') !== 'true'));
@@ -192,7 +195,7 @@ await check('Undo', async () => {
 // Refresh while an (old) query is still running: a new route must not get lost
 await check('Refresh while creating', async () => {
   await page.goto(base + '/'); await page.waitForTimeout(1200);
-  await page.evaluate(async () => { const R = window.REGO; R.searchStations('Freising'); await new Promise((r) => setTimeout(r, 900)); R.searchStations('München Hbf'); await new Promise((r) => setTimeout(r, 900)); });
+  await page.evaluate(async () => { const R = window.REGO; R.searchStations('Fiktivia'); await new Promise((r) => setTimeout(r, 900)); R.searchStations('München Hbf'); await new Promise((r) => setTimeout(r, 900)); });
   let first = true;
   await page.route('**/api/state**', async (route) => {
     if (!first) return route.continue();
@@ -201,7 +204,7 @@ await check('Refresh while creating', async () => {
   const [n0, n1] = await page.evaluate(async () => {
     const R = window.REGO, n0 = R.tours.length, slow = R.refresh();
     await new Promise((r) => setTimeout(r, 250));
-    await R.actions.addTour({ from: 'Freising', to: 'München Hbf', days: ['Sa'], time: '09:00' });
+    await R.actions.addTour({ from: 'Fiktivia', to: 'München Hbf', days: ['Sa'], time: '09:00' });
     await slow; return [n0, R.tours.length];
   });
   await page.unroute('**/api/state**');
@@ -319,10 +322,10 @@ await check('Several incidents on one route', async () => {
   // An incident that no longer exists (old push notification): honest display, nothing from another route
   await page.goto(base + '/Detail#iunbekannt1-m'); await page.waitForTimeout(1200);
   const gone = await page.evaluate(() => document.body.innerText);
-  if (!/Beendet/.test(gone) || /RE 5|S1|Freising/.test(gone)) problems.push('Route page: unknown incident shows no honest display');
+  if (!/Beendet/.test(gone) || /RE 5|S1|Fiktivia/.test(gone)) problems.push('Route page: unknown incident shows no honest display');
 });
 
-// Route without a direct connection (sample data: Freising → Salzburg does not exist): honest display instead of "Alles pünktlich", the route stays visible
+// Route without a direct connection (sample data: Fiktivia → Salzburg does not exist): honest display instead of "Alles pünktlich", the route stays visible
 await check('Route without a direct connection (existing)', async () => {
   const sa = (await j('/api/stations?q=Salzburg')).stations[0];
   const mk = async (dev) => {
@@ -589,7 +592,7 @@ await check('Invitation code', async () => {
     // with the code creating a route works (header is sent along)
     await p.goto(b2 + '/Strecken'); await p.waitForTimeout(1200);
     if (await p.locator('.rg-gate').count()) problems.push('Invitation code: gate comes back after reloading');
-    const r = await p.evaluate(async () => { try { await window.REGO.actions.addTour({ from: 'Freising', to: 'Freising', days: ['Mo'], time: '07:00' }); return 'ok'; } catch (e) { return e.message; } });
+    const r = await p.evaluate(async () => { try { await window.REGO.actions.addTour({ from: 'Fiktivia', to: 'Fiktivia', days: ['Mo'], time: '07:00' }); return 'ok'; } catch (e) { return e.message; } });
     if (/Einladungscode/.test(r)) problems.push('Invitation code: creating a route asks for a code again despite the saved code');
   } finally { await c.close(); s2.close(); }
 });
@@ -612,8 +615,8 @@ await check('Onboarding without a direct connection', async () => {
       return { t, tours };
     } finally { expect422 = false; await c.close(); }
   };
-  // Freising → Salzburg Hbf: no direct connection, with 1 transfer there is one → saved right away
-  let r = await run('smokeonb0123456789abcdefg', 'Freising', 'Salzburg Hbf', 'Freising', 'Salzburg');
+  // Fiktivia → Salzburg Hbf: no direct connection, with 1 transfer there is one → saved right away
+  let r = await run('smokeonb0123456789abcdefg', 'Fiktivia', 'Salzburg Hbf', 'Fiktivia', 'Salzburg');
   if (r.tours.length !== 1 || r.tours[0].transfers !== 1) problems.push(`Onboarding without a direct connection: ${r.tours.length} route(s) with transfer ${r.tours.map((x) => x.transfers).join('/')} instead of 1 × 1`);
   if (/keine Direktverbindung|nicht erreichbar|Sorry/.test(r.t)) problems.push('Onboarding without a direct connection: the main page shows an error although the route was found');
   // Passau → Wien: nothing to find → nothing created, the main page names the reason
@@ -781,7 +784,7 @@ await check('Create with transfer', async () => {
   try {
     await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb');
+    await suggestOn(p, 0, 'Fiktiv'); await suggestOn(p, 1, 'Salzb');
     // 1) Without a tap on "Speichern": the form searches by itself (no button) and shows the connection it found; no red notice; nothing is created yet
     await p.waitForTimeout(1500);
     if (!(await card().count())) { problems.push('Create with transfer: no preview after choosing both stops'); return; }
@@ -814,7 +817,7 @@ await check('Create with transfer', async () => {
     //    (the server refuses the pair because there is no direct connection, then the form looks once more and shows the connection)
     await p.route('**/api/connections/search', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ direct: null, found: null, transfers: 1 }) }));
     try {
-      await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(1200);
+      await suggestOn(p, 0, 'Fiktiv'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(1200);
       if (!(await p.getByRole('alert').filter({ hasText: 'Sorry, gerade antwortet keine Quelle' }).count())) problems.push('Create with transfer: no "Sorry" when the source does not answer');
       if (await p.getByRole('alert').filter({ hasText: 'nicht erreichbar' }).count()) problems.push('Create with transfer: "nicht erreichbar" although the source did not answer (must not be a wrong "no")');
       if ((await p.locator('button').filter({ hasText: /^Speichern$/ }).getAttribute('aria-disabled')) === 'true') problems.push('Create with transfer: "Speichern" is blocked although the source only did not answer');
@@ -832,7 +835,7 @@ await check('Create with transfer', async () => {
     await dp.route('**/api/connections/search', async (r) => { if (slow) await new Promise((x) => setTimeout(x, slow)); await r.continue(); });
     await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1000);
     await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-    await suggestOn(dp, 0, 'Freis'); slow = 2500; await suggestOn(dp, 1, 'Salzb'); await dp.waitForTimeout(300);
+    await suggestOn(dp, 0, 'Fiktiv'); slow = 2500; await suggestOn(dp, 1, 'Salzb'); await dp.waitForTimeout(300);
     // while the look is running
     if (!(await dp.getByRole('status').filter({ hasText: 'Sucht Verbindungen' }).count())) problems.push('Dark mode: no line "Sucht Verbindungen …" while searching');
     const badBusy = await lowContrast(dp, '[role=status]');
@@ -841,7 +844,7 @@ await check('Create with transfer', async () => {
     const bad = await lowContrast(dp, '[role=status]');
     if (bad.length) problems.push(`Dark mode: preview "Gefunden · 1 Umstieg" poorly readable: ${bad.slice(0, 4).join(', ')}`);
     if (!(await dp.getByRole('status').filter({ hasText: 'Gefunden · 1 Umstieg' }).count())) problems.push('Dark mode: no preview "Gefunden · 1 Umstieg"');
-    await suggestOn(dp, 0, 'Freis'); await suggestOn(dp, 1, 'Münch'); await dp.waitForTimeout(1500);
+    await suggestOn(dp, 0, 'Fiktiv'); await suggestOn(dp, 1, 'Münch'); await dp.waitForTimeout(1500);
     if (!(await dp.getByRole('status').filter({ hasText: 'Direktverbindung gefunden' }).count())) problems.push('Dark mode: no "Direktverbindung gefunden"');
     const badDirect = await lowContrast(dp, '[role=status]');
     if (badDirect.length) problems.push(`Dark mode: "Direktverbindung gefunden" poorly readable: ${badDirect.slice(0, 4).join(', ')}`);
@@ -865,7 +868,7 @@ await check('Live search while entering the stops', async () => {
   try {
     await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-    await suggestOn(p, 0, 'Freis');
+    await suggestOn(p, 0, 'Fiktiv');
     if (searches || /Sucht Verbindungen/.test(await body())) problems.push('Live search: something is searched with only one stop chosen');
     await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(300);
     if (!/Sucht Verbindungen/.test(await body())) problems.push('Live search: no "Sucht Verbindungen …" right after choosing both stops');
@@ -895,7 +898,7 @@ await check('Live search with an older server', async () => {
   try {
     await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(1500);
+    await suggestOn(p, 0, 'Fiktiv'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(1500);
     if (/Sucht Verbindungen|Gefunden|Direktverbindung|Sorry/.test(await body())) problems.push('Live search (older server): the form shows something by itself although the server does not say whether there is a direct connection');
     if ((await save.innerText()) !== 'Speichern' || (await save.getAttribute('aria-disabled')) !== 'false') problems.push('Live search (older server): "Speichern" is not ready');
     await save.click(); await p.waitForTimeout(2500);
@@ -917,7 +920,7 @@ await check('Setup step 1 looks by itself', async () => {
   try {
     await p.route('**/api/connections/search', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); });
     await p.goto(base + '/Onboarding1'); await p.waitForTimeout(1500);
-    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(300);
+    await suggestOn(p, 0, 'Fiktiv'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(300);
     if (!/Sucht Verbindungen/.test(await text())) problems.push('Setup step 1: no "Sucht Verbindungen …" while searching');
     if ((await next().getAttribute('aria-disabled')) !== 'true') problems.push('Setup step 1: "Weiter" does not wait for the look');
     await p.waitForTimeout(2200);
@@ -926,7 +929,7 @@ await check('Setup step 1 looks by itself', async () => {
     if (await sideways(p)) problems.push('Setup step 1: page scrolls sideways');
     await suggestOn(p, 0, 'Passau'); await suggestOn(p, 1, 'Wien'); await p.waitForTimeout(2500);
     if (!/Mit weniger als 3 Umstiegen nicht erreichbar/.test(await text()) || (await next().getAttribute('aria-disabled')) !== 'true') problems.push('Setup step 1: nothing reachable does not stop "Weiter"');
-    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(2500);
+    await suggestOn(p, 0, 'Fiktiv'); await suggestOn(p, 1, 'Salzb'); await p.waitForTimeout(2500);
     await next().click(); await p.waitForTimeout(800); await next().click(); await p.waitForTimeout(800);
     await p.getByRole('link', { name: "Los geht's" }).click(); await p.waitForTimeout(3500);
     const tours = (await jx(SD, '/api/profile')).tours;
@@ -944,7 +947,7 @@ await check('Transfer trip in the UI', async () => {
   if (!tour) { problems.push(`Transfer trip: route with transfer could not be created (${made.error || 'no answer'})`); return; }
   const MH = { id: '8000261', name: 'München Hbf' };
   const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
-  const S1 = (min, o = {}) => { const d = o.late || 0; return { line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: tour.from, destination: MH, plannedDep: iso(min), dep: iso(min + d), depDelay: d, plannedArr: iso(min + 35), arr: iso(min + 35 + d), arrDelay: d, plannedPlatform: '3', platform: '3', plannedArrPlatform: '2', arrPlatform: '2', stopovers: [tour.from, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MH], remarks: [], cancelled: false }; };
+  const S1 = (min, o = {}) => { const d = o.late || 0; return { line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: tour.from, destination: MH, plannedDep: iso(min), dep: iso(min + d), depDelay: d, plannedArr: iso(min + 35), arr: iso(min + 35 + d), arrDelay: d, plannedPlatform: '3', platform: '3', plannedArrPlatform: '2', arrPlatform: '2', stopovers: [tour.from, { id: 'a', name: 'Musterhof' }, { id: 'b', name: 'Feldmoching' }, MH], remarks: [], cancelled: false }; };
   const RE = (min) => ({ line: { name: 'RE 5', product: 'regionalExpress' }, direction: 'Salzburg Hbf', origin: MH, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 95), arr: iso(min + 95), arrDelay: 0, plannedPlatform: '14', platform: '14', stopovers: [MH, { id: 'c', name: 'Rosenheim' }, { id: 'd', name: 'Prien' }, tour.to], remarks: [], cancelled: false });
   const J = (a, b) => ({ legs: [a, b] });
   const connectingTrips = () => new Map([['münchen hbf', [RE(24), RE(54), RE(84), RE(114)]]]);
@@ -989,7 +992,7 @@ await check('Transfer trip in the UI', async () => {
       await rows.first().click(); await pg.waitForTimeout(1600);
       const dt = await text();
       for (const re of sc.detail) if (!re.test(dt)) problems.push(`${tag}: departure page does not show ${re}`);
-      if (!/Freising\s*→\s*München Hbf/.test(dt) || !/München Hbf\s*→\s*Salzburg Hbf/.test(dt)) problems.push(`${tag}: departure page does not show the two trips`);
+      if (!/Fiktivia\s*→\s*München Hbf/.test(dt) || !/München Hbf\s*→\s*Salzburg Hbf/.test(dt)) problems.push(`${tag}: departure page does not show the two trips`);
       if (!/1\. Fahrt/.test(dt) || !/2\. Fahrt/.test(dt)) problems.push(`${tag}: departure page does not name "1. Fahrt" and "2. Fahrt"`);
       if (await sideways(pg)) problems.push(`${tag}: departure page scrolls sideways`);
       const cut = await pg.evaluate(() => [...document.querySelectorAll('span')].filter((e) => /rotate\(-45deg\)/.test(e.getAttribute('style') || '') && e.textContent.trim()).filter((e) => e.getBoundingClientRect().right > innerWidth + 1 || e.getBoundingClientRect().left < -1).map((e) => e.textContent));
@@ -1018,7 +1021,7 @@ await check('Transfer trip in the UI', async () => {
 });
 
 // ---------- New in 0.8.8: up to two transfers (the fallback when nothing is left with one) ----------
-// Creating: Freising → Neuperlach Süd needs two transfers in the sample data. Preview with three trips and both transfers, route list, setup step 1;
+// Creating: Fiktivia → Neuperlach Süd needs two transfers in the sample data. Preview with three trips and both transfers, route list, setup step 1;
 // an older server (no "maxTransfers") keeps the old wording.
 await check('Create with two transfers', async () => {
   const TD = 'smokexfer5123456789abcdefg';
@@ -1028,7 +1031,7 @@ await check('Create with two transfers', async () => {
   try {
     await p.goto(base + '/Strecken'); await p.waitForTimeout(1000);
     await p.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-    await suggestOn(p, 0, 'Freis'); await suggestOn(p, 1, 'Neuperl'); await p.waitForTimeout(2500);
+    await suggestOn(p, 0, 'Fiktiv'); await suggestOn(p, 1, 'Neuperl'); await p.waitForTimeout(2500);
     if (!(await card().count())) { problems.push(`Create with two transfers: no preview "Gefunden · 2 Umstiege" (${(await p.evaluate(() => document.querySelector('#screen').innerText)).replace(/\s+/g, ' ').slice(0, 200)})`); return; }
     const t = await card().innerText();
     if (!/S ?1/.test(t) || !/S ?4/.test(t) || !/U ?5/.test(t)) problems.push(`Create with two transfers: preview does not name the three lines (${t.replace(/\s+/g, ' ').slice(0, 160)})`);
@@ -1050,7 +1053,7 @@ await check('Create with two transfers', async () => {
     const dp = await dk.newPage(); dp.setDefaultTimeout(8000); watch(dp);
     await dp.goto(base + '/Strecken'); await dp.waitForTimeout(1000);
     await dp.getByRole('button', { name: /Strecke hinzufügen/ }).click();
-    await suggestOn(dp, 0, 'Freis'); await suggestOn(dp, 1, 'Neuperl'); await dp.waitForTimeout(2500);
+    await suggestOn(dp, 0, 'Fiktiv'); await suggestOn(dp, 1, 'Neuperl'); await dp.waitForTimeout(2500);
     if (!(await dp.getByRole('status').filter({ hasText: 'Gefunden · 2 Umstiege' }).count())) problems.push('Create with two transfers (dark): no preview');
     const bad = await lowContrast(dp, '[role=status]');
     if (bad.length) problems.push(`Create with two transfers (dark): preview poorly readable: ${bad.slice(0, 4).join(', ')}`);
@@ -1074,7 +1077,7 @@ await check('Create with two transfers', async () => {
     const sp = await sc.newPage(); sp.setDefaultTimeout(8000); watch(sp);
     const text = () => sp.evaluate(() => document.body.innerText);
     await sp.goto(base + '/Onboarding1'); await sp.waitForTimeout(1500);
-    await suggestOn(sp, 0, 'Freis'); await suggestOn(sp, 1, 'Neuperl'); await sp.waitForTimeout(2500);
+    await suggestOn(sp, 0, 'Fiktiv'); await suggestOn(sp, 1, 'Neuperl'); await sp.waitForTimeout(2500);
     if (!/Gefunden: 2 Umstiege in München Hbf › München Ost/.test(await text())) problems.push(`Setup step 1 (two transfers): the transfers are not named (${(await text()).replace(/\s+/g, ' ').slice(-140)})`);
     if (await sideways(sp)) problems.push('Setup step 1 (two transfers): page scrolls sideways');
     const next = () => sp.getByRole('link', { name: 'Weiter' });
@@ -1101,8 +1104,8 @@ await check('Two transfers in the UI', async () => {
     return { line: { name, product }, direction: to.name, origin: from, destination: to, plannedDep: iso(min), dep: iso(min + d), depDelay: d, plannedArr: iso(min + mins), arr: iso(min + mins + d), arrDelay: d,
       plannedPlatform: '1', platform: '1', plannedArrPlatform: '2', arrPlatform: '2', stopovers: o.stopovers || [from, to], remarks: [], cancelled: false };
   };
-  // Freising → Moosach (S1), Moosach → Odeonsplatz (U3), Odeonsplatz → Neuperlach Süd (U5); six minutes at every transfer
-  const J = (m, o1 = {}, o2 = {}) => ({ legs: [leg('S1', 'suburban', tour.from, MO, m, 27, { stopovers: [tour.from, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MO], ...o1 }), leg('U3', 'subway', MO, OD, m + 33, 14, o2), leg('U5', 'subway', OD, tour.to, m + 53, 18)] });
+  // Fiktivia → Moosach (S1), Moosach → Odeonsplatz (U3), Odeonsplatz → Neuperlach Süd (U5); six minutes at every transfer
+  const J = (m, o1 = {}, o2 = {}) => ({ legs: [leg('S1', 'suburban', tour.from, MO, m, 27, { stopovers: [tour.from, { id: 'a', name: 'Musterhof' }, { id: 'b', name: 'Feldmoching' }, MO], ...o1 }), leg('U3', 'subway', MO, OD, m + 33, 14, o2), leg('U5', 'subway', OD, tour.to, m + 53, 18)] });
   const scen = [
     { name: 'on time', state: 'ok', hero: /pünktlich/, detail: [/Umstieg/], js: () => [J(10), J(30), J(50)] },
     { name: 'first at risk', state: 'tight', hero: /\+4 Min/, detail: [/Anschluss wackelt/], card: /Anschluss wackelt/, js: () => [J(10, { late: 4 }), J(30), J(50)] },
@@ -1150,7 +1153,7 @@ await check('Two transfers in the UI', async () => {
       await rows.first().click(); await pg.waitForTimeout(1600);
       const dt = await text();
       for (const re of sc.detail) if (!re.test(dt)) problems.push(`${tag}: departure page does not show ${re}`);
-      if (!/Freising\s*→\s*Moosach/.test(dt) || !/Moosach\s*→\s*Odeonsplatz/.test(dt) || !/Odeonsplatz\s*→/.test(dt)) problems.push(`${tag}: departure page does not show the three trips`);
+      if (!/Fiktivia\s*→\s*Moosach/.test(dt) || !/Moosach\s*→\s*Odeonsplatz/.test(dt) || !/Odeonsplatz\s*→/.test(dt)) problems.push(`${tag}: departure page does not show the three trips`);
       if (!/1\. Fahrt/.test(dt) || !/2\. Fahrt/.test(dt) || !/3\. Fahrt/.test(dt)) problems.push(`${tag}: departure page does not name "1. Fahrt", "2. Fahrt" and "3. Fahrt"`);
       const label = await pg.locator('svg[role=img]').first().getAttribute('aria-label');
       if (!/Umstieg in Moosach/.test(label || '') || !/Umstieg in Odeonsplatz/.test(label || '')) problems.push(`${tag}: map does not name both transfers (${label})`);
@@ -1186,8 +1189,8 @@ await check('Faster with 1 transfer in the UI', async () => {
   if (!tour) { problems.push(`Faster with 1 transfer: route could not be created (${made.error || 'no answer'})`); return; }
   const MO = { id: '8000902', name: 'Moosach' };
   const iso = (min) => new Date(Date.now() + min * 60000).toISOString();
-  const SEV = { type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Neufahrn und Moosach Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: iso(-600), validUntil: iso(3 * 24 * 60) };
-  const D = (min) => ({ line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: tour.from, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 46), arr: iso(min + 46), arrDelay: 0, plannedPlatform: '3', platform: '3', stopovers: [tour.from, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MO, tour.to], remarks: [SEV], cancelled: false });
+  const SEV = { type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Musterhof und Moosach Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: iso(-600), validUntil: iso(3 * 24 * 60) };
+  const D = (min) => ({ line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: tour.from, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 46), arr: iso(min + 46), arrDelay: 0, plannedPlatform: '3', platform: '3', stopovers: [tour.from, { id: 'a', name: 'Musterhof' }, { id: 'b', name: 'Feldmoching' }, MO, tour.to], remarks: [SEV], cancelled: false });
   const A = (min) => ({ line: { name: 'RE 22', product: 'regionalExpress' }, direction: 'Moosach', origin: tour.from, destination: MO, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 25), arr: iso(min + 25), arrDelay: 0, plannedPlatform: '1', platform: '1', stopovers: [tour.from, MO], remarks: [], cancelled: false });
   const B = (min) => ({ line: { name: 'U3', product: 'subway' }, direction: 'Fürstenried West', origin: MO, destination: tour.to, plannedDep: iso(min), dep: iso(min), depDelay: 0, plannedArr: iso(min + 15), arr: iso(min + 15), arrDelay: 0, plannedPlatform: '1', platform: '1', stopovers: [MO, tour.to], remarks: [], cancelled: false });
   const J = (...legs) => ({ legs });
@@ -1435,21 +1438,21 @@ await check('Error report', async () => {
   } finally { await n.close(); }
 });
 
-// New in 0.8.9: top of the departure page with long names. A route with a transfer at Hackerbrücke and seven stops (Freising → München, Neuperlach Süd), most of them with omitted
+// New in 0.8.9: top of the departure page with long names. A route with a transfer at Hackerbrücke and seven stops (Fiktivia → München, Neuperlach Süd), most of them with omitted
 // stops in between: the route name takes two lines instead of ending with "…", no stop name is cut off and the names of neighbouring stops do not lie on top of each other
 // (the stops without omission between them used to get only half as much room). The state is made by hand, like on the card of a real route.
 // New in 0.8.10: the line shows only as many of the seven stops as fit cleanly at the width of the screen, so that every omission has room for its "+N" (before: two grey dots
 // without a number). Everything that is not shown is counted in a "+N": shown stops + all numbers = the 23 stops of the route (also with a server that does not send "hidden").
 await check('Long names and track on the card', async () => {
   const XD = 'smokenames123456789abcdefg';
-  const names = ['Freising', 'Lohhof', 'Fasanerie', 'Hackerbrücke', 'München Hbf', 'Rosenheimer', 'Neuperlach Süd'];
+  const names = ['Fiktivia', 'Lohhof', 'Fasanerie', 'Hackerbrücke', 'München Hbf', 'Rosenheimer', 'Neuperlach Süd'];
   const skips = [2, 2, 5, 0, 3, 4].map((n, i) => (n ? { after: i, n } : null)).filter(Boolean);
   const dest = 'München, Neuperlach Süd';
   const mkView = (dep, arr, hidden) => ({
     kind: 'ok', head: `Planmäßig · S1 › S5 ab ${dep}`, big: 'planmäßig', sub: `Ankunft ${dest} ${arr} · 1 Umstieg`,
-    rows: [{ label: 'Abfahrt Freising', sub: 'S1 Richtung Leuchtenbergring · Gleis 3', value: dep, planned: '' }, { label: `Ankunft ${dest}`, sub: 'S5', value: arr, planned: '' }],
+    rows: [{ label: 'Abfahrt Fiktivia', sub: 'S1 Richtung Leuchtenbergring · Gleis 3', value: dep, planned: '' }, { label: `Ankunft ${dest}`, sub: 'S5', value: arr, planned: '' }],
     sections: [
-      { type: 'leg', lineId: 'S1', title: 'Freising → Hackerbrücke', sub: '1. Fahrt · 39 Min.', rows: [{ label: 'Abfahrt Freising', sub: 'S1 · Gleis 3', value: dep, planned: '' }, { label: 'Ankunft Hackerbrücke', sub: 'S1 · Gleis 1', value: '05:13', planned: '' }] },
+      { type: 'leg', lineId: 'S1', title: 'Fiktivia → Hackerbrücke', sub: '1. Fahrt · 39 Min.', rows: [{ label: 'Abfahrt Fiktivia', sub: 'S1 · Gleis 3', value: dep, planned: '' }, { label: 'Ankunft Hackerbrücke', sub: 'S1 · Gleis 1', value: '05:13', planned: '' }] },
       { type: 'transfer', state: 'ok', label: 'Umstieg', title: 'Hackerbrücke', text: 'Gleis 1 → Gleis 1', minutes: 10 },
       { type: 'leg', lineId: 'S5', title: `Hackerbrücke → ${dest}`, sub: '2. Fahrt · 24 Min.', rows: [{ label: 'Abfahrt Hackerbrücke', sub: 'S5 · Gleis 1', value: '05:23', planned: '' }, { label: `Ankunft ${dest}`, sub: 'S5', value: arr, planned: '' }] },
     ],
@@ -1461,7 +1464,7 @@ await check('Long names and track on the card', async () => {
     },
   });
   const mkTour = (hidden) => ({
-    id: 'tnames', name: `Freising → ${dest}`, appLink: { label: 'Im DB Navigator ansehen', url: 'https://www.bahn.de/' }, lineId: 'S1', active: true, transfers: 1, via: 'Hackerbrücke', lineIds: ['S1', 'S5'],
+    id: 'tnames', name: `Fiktivia → ${dest}`, appLink: { label: 'Im DB Navigator ansehen', url: 'https://www.bahn.de/' }, lineId: 'S1', active: true, transfers: 1, via: 'Hackerbrücke', lineIds: ['S1', 'S5'],
     period: 'am', distanceKm: 0.5, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr'], departAfter: '04:00', departUntil: '08:00' }, window: { from: '04:00', until: '08:00', mode: 'soon' },
     departures: [['04:34', '05:47'], ['04:54', '06:07'], ['05:14', '06:27']].map(([dep, arr]) => ({ plannedTime: dep, expectedTime: dep, lineId: 'S1', plannedPlatform: '3', expectedPlatform: '3', delayMin: 0, far: true, lineIds: ['S1', 'S5'], arrTime: arr, transfer: { station: 'Hackerbrücke', minutes: 10, state: 'ok', text: 'Umstieg 10 Min. · Gleis 1' }, view: mkView(dep, arr, hidden) })),
   });
@@ -1482,7 +1485,7 @@ await check('Long names and track on the card', async () => {
     try {
       await pg.goto(base + '/Detail#tnames.0-m'); await pg.waitForTimeout(1800);
       const dt = await pg.evaluate(() => document.querySelector('#screen').innerText);
-      if (!/Freising\s*→\s*München, Neuperlach Süd/.test(dt) || !/05:47\s*·\s*1\s*Umstieg/.test(dt)) problems.push(`${tag}: page does not show the route (${dt.replace(/\s+/g, ' ').slice(0, 120)})`);
+      if (!/Fiktivia\s*→\s*München, Neuperlach Süd/.test(dt) || !/05:47\s*·\s*1\s*Umstieg/.test(dt)) problems.push(`${tag}: page does not show the route (${dt.replace(/\s+/g, ' ').slice(0, 120)})`);
       for (const b of await headCut(pg)) problems.push(`${tag}: ${b}`);
       // The track: every stop that is not shown is counted in a "+N" (shown + Σ N = 23), every pair of dots has its number, start, transfer stop and destination stay
       const tr = await pg.evaluate(() => {
@@ -1496,7 +1499,7 @@ await check('Long names and track on the card', async () => {
       const rest = tr.nums.reduce((a, b) => a + b, 0);
       if (tr.names.length + rest !== 23) problems.push(`${tag}: the track shows ${tr.names.length} stops and "${tr.nums.map((x) => '+' + x).join(' ')}", but the route has 23 stops`);
       if (tr.pairs !== tr.nums.length) problems.push(`${tag}: ${tr.pairs} breaks in the line, but ${tr.nums.length} numbers`);
-      for (const must of ['Freising', 'Hackerbrücke', 'Neuperlach Süd']) if (!tr.names.includes(must)) problems.push(`${tag}: "${must}" is missing on the track (${tr.names.join(', ')})`);
+      for (const must of ['Fiktivia', 'Hackerbrücke', 'Neuperlach Süd']) if (!tr.names.includes(must)) problems.push(`${tag}: "${must}" is missing on the track (${tr.names.join(', ')})`);
       if (w >= 600 ? tr.names.length !== 7 : tr.names.length > 5) problems.push(`${tag}: ${tr.names.length} stops on the track (${tr.names.join(', ')})`);
       // "05:47 · 1 Umstieg" stays together in one line (no "Umstieg" alone in the last line)
       const lines = await pg.evaluate(() => {

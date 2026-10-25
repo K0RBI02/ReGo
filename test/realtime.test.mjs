@@ -8,7 +8,7 @@ import { parseLeg, parseJourneys } from '../server/providers/efa.mjs';
 import { buildTour, okState, okView } from '../server/domain/state.mjs';
 import { buildTransferTour } from '../server/domain/transfer.mjs';
 
-const MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' }, FS = { id: '8002078', name: 'Freising' };
+const MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' }, FS = { id: '8002078', name: 'Fiktivia' };
 const MON = '2026-10-12';
 const ms = (hm) => Date.parse(`${MON}T${hm}:00+02:00`);
 const iso = (hm) => `${MON}T${hm}:00+02:00`;
@@ -119,15 +119,15 @@ test('A known delay is always named, whatever the flag says; a cancellation too'
 
 // ---------- trips with a transfer ----------
 
-const FSS = { id: '8002078', name: 'Freising' };
+const FSS = { id: '8002078', name: 'Fiktivia' };
 const S1 = (dep, o = {}) => ({ line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: FSS, destination: MH,
   plannedDep: iso(dep), dep: iso(dep), depDelay: 0, plannedArr: iso(add(dep, 35)), arr: iso(add(dep, 35)), arrDelay: 0,
   plannedPlatform: '3', platform: '3', plannedArrPlatform: '2', arrPlatform: '2',
-  stopovers: [FSS, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MH], remarks: [], cancelled: false, ...o });
+  stopovers: [FSS, { id: 'a', name: 'Musterhof' }, { id: 'b', name: 'Feldmoching' }, MH], remarks: [], cancelled: false, ...o });
 const RE = (dep, o = {}) => ({ line: { name: 'RE 5', product: 'regionalExpress' }, direction: 'Salzburg Hbf', origin: MH, destination: SZ,
   plannedDep: iso(dep), dep: iso(dep), depDelay: 0, plannedArr: iso(add(dep, 95)), arr: iso(add(dep, 95)), arrDelay: 0,
   plannedPlatform: '14', platform: '14', stopovers: [MH, { id: 'c', name: 'Rosenheim' }, SZ], remarks: [], cancelled: false, ...o });
-const ttour = { id: 'tu1', name: 'Freising → Salzburg Hbf', from: FSS, to: SZ, active: true, transfers: 1 };
+const ttour = { id: 'tu1', name: 'Fiktivia → Salzburg Hbf', from: FSS, to: SZ, active: true, transfers: 1 };
 const tctx = (o = {}) => ({ now: ms('06:30'), minDelay: 3, linesAt: async () => [], lines: {}, ...o });
 const TJ = (a, b) => ({ legs: b ? [a, b] : [a] });
 const bl = (...bs) => new Map([['münchen hbf', bs]]);

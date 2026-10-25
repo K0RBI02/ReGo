@@ -20,7 +20,7 @@ const trip = JSON.parse(readFileSync(new URL('./fixtures/efa-trip.json', import.
 const fine = (body) => ({ ok: true, status: 200, json: async () => body });
 const NOTHING = { journeys: [], systemMessages: [{ type: 'warning', module: 'BROKER', code: -8011, text: 'no trips found' }] };
 const BEFORE = '2026-10-11T08:55:00Z', AFTER = '2026-10-11T09:30:00Z', MIDDLE = '2026-10-11T09:05:00Z';      // before / after / between the trips of the test data
-const ARGS = { fromId: 'mvv|de:09178:2', toId: 'mvv|de:09162:1180', results: 8, transfers: 1, from: { name: 'Freising' }, to: { name: 'München, Neuperlach Süd' } };
+const ARGS = { fromId: 'mvv|de:09178:2', toId: 'mvv|de:09162:1180', results: 8, transfers: 1, from: { name: 'Fiktivia' }, to: { name: 'München, Neuperlach Süd' } };
 
 /** EFA client with a fake source: answers(url) -> body, or a number for an HTTP error. */
 function efa(answers, o = {}) {
@@ -55,7 +55,7 @@ test('EFA: nothing usable to come in the plain answer – asked again with the l
   assert.ok(!strong(r.urls[0]) && strong(r.urls[1]) && !lean(r.urls[1]));
   assert.match(r.urls[1], /maxChanges=1/); assert.match(r.urls[1], /calcOneDirection=1/); assert.match(r.urls[1], /calcNumberOfTrips=8/);
   assert.equal(r.lines.length, 1);
-  assert.match(r.lines[0], /mvv: Freising → München, Neuperlach Süd \(1 Umstieg\) – die einfache Abfrage hat nichts Abfahrbares, mit „Umstiegslimit in der Suche“ schon/);
+  assert.match(r.lines[0], /mvv: Fiktivia → München, Neuperlach Süd \(1 Umstieg\) – die einfache Abfrage hat nichts Abfahrbares, mit „Umstiegslimit in der Suche“ schon/);
   assert.match(r.lines[0], /einfache Abfrage: 2 Fahrten \(10:57 bis 11:01; 0 nutzbar; Umstiege 0×2\)/);           // what the plain answer held, in Berlin time
   assert.match(r.lines[0], /Umstiegslimit in der Suche: 2 Fahrten \(11:06 bis 11:11; 2 nutzbar/);
   await r.client.journeys({ ...ARGS, when: MIDDLE });
@@ -82,7 +82,7 @@ test('EFA: when nothing helps the first answer stands; the stronger queries are 
   const js = await r.client.journeys({ ...ARGS, when: AFTER });                   // 09:30: everything has left
   assert.equal(js.length, 2); assert.equal(r.urls.length, 3);
   assert.equal(r.lines.length, 1);
-  assert.match(r.lines[0], /mvv: Freising → München, Neuperlach Süd \(1 Umstieg\) – ab So 11:30 keine Fahrt, die noch fährt/);
+  assert.match(r.lines[0], /mvv: Fiktivia → München, Neuperlach Süd \(1 Umstieg\) – ab So 11:30 keine Fahrt, die noch fährt/);
   assert.match(r.lines[0], /einfache Abfrage: 2 Fahrten \(10:57 bis 11:01; 0 nutzbar; Umstiege 0×2\); Umstiegslimit in der Suche: keine Fahrten; wenigste Umstiege: keine Fahrten/);
   assert.match(r.lines[0], /\(Meldungen der Quelle: warning 404 Fahrplan geändert\)$/);            // the message that is always there (-10015) is left out
   await r.client.journeys({ ...ARGS, when: AFTER });
@@ -137,7 +137,7 @@ test('EFA: direct trips – the stronger query without the fewest transfers; a p
 // ---------- A source that behaves like the real one on the closure weekend ----------
 
 const MIN = 60e3;
-const FS = { id: 'mvv|de:09178:2', name: 'Freising', lat: 48.40, lon: 11.74 }, MH = { id: 'mvv|de:09162:6', name: 'München Hbf', lat: 48.14, lon: 11.56 }, NS = { id: 'mvv|de:09162:1180', name: 'München, Neuperlach Süd', lat: 48.09, lon: 11.65 };
+const FS = { id: 'mvv|de:09178:2', name: 'Fiktivia', lat: 48.40, lon: 11.74 }, MH = { id: 'mvv|de:09162:6', name: 'München Hbf', lat: 48.14, lon: 11.56 }, NS = { id: 'mvv|de:09162:1180', name: 'München, Neuperlach Süd', lat: 48.09, lon: 11.65 };
 const MO = { id: 'mvv|de:09162:700', name: 'München, Moosach' }, OD = { id: 'mvv|de:09162:30', name: 'München, Odeonsplatz' };
 const iso = (ms) => new Date(ms).toISOString().replace('.000Z', 'Z');
 const point = (s) => ({ isGlobalId: true, id: s.id.slice(4), name: s.name, type: 'platform', coord: [48.1, 11.5], parent: { id: s.id.slice(4), name: s.name, type: 'stop', coord: [48.1, 11.5] } });
@@ -149,10 +149,10 @@ const efaLeg = (line, from, to, dep, arr) => ({
 });
 const efaTrip = (...legs) => ({ rating: 0, isAdditional: false, interchanges: legs.length - 1, legs });
 const CLOSED_FROM = Date.parse('2026-10-16T22:20:00+02:00'), CLOSED_TO = Date.parse('2026-10-19T04:40:00+02:00');      // Stammstrecke Friday 22:20 until Monday 04:40
-const slotOf = (ms) => Math.floor((ms - 2 * MIN) / (20 * MIN)) * 20 * MIN + 2 * MIN;                                // the S1 leaves Freising at :02, :22 and :42
+const slotOf = (ms) => Math.floor((ms - 2 * MIN) / (20 * MIN)) * 20 * MIN + 2 * MIN;                                // the S1 leaves Fiktivia at :02, :22 and :42
 
 /**
- * Freising → Neuperlach Süd. Normal: S1 + S5 with one transfer, the best trip. Closed: the best trip of every departure needs two transfers (S1, U3, U5);
+ * Fiktivia → Neuperlach Süd. Normal: S1 + S5 with one transfer, the best trip. Closed: the best trip of every departure needs two transfers (S1, U3, U5);
  * the S1 + U5 trip with one transfer exists (if `u5`) but is two minutes slower. Without the route options EFA takes its best trips for the time asked for,
  * adds the last two trips from before it that satisfy the limit, and only then drops the ones with too many transfers.
  */
@@ -236,7 +236,7 @@ test('Closure weekend: the preview finds what really runs, and the route shows t
     const again = await s.service.getState(s.dev);
     assert.equal(again.tours[0].departures[0].expectedTime, '16:42');
     assert.equal(w.trips().length, 3); assert.ok(w.trips()[2].inSearch);
-    assert.equal(s.lines.filter((l) => /mvv: Freising → München, Neuperlach Süd \(1 Umstieg\) – die einfache Abfrage hat nichts Abfahrbares, mit „Umstiegslimit in der Suche“ schon/.test(l)).length, 1);
+    assert.equal(s.lines.filter((l) => /mvv: Fiktivia → München, Neuperlach Süd \(1 Umstieg\) – die einfache Abfrage hat nichts Abfahrbares, mit „Umstiegslimit in der Suche“ schon/.test(l)).length, 1);
     assert.ok(s.lines.some((l) => /einfache Abfrage: 2 Fahrten \(Fr 21:42 bis Fr 22:02; 0 nutzbar; Umstiege 1×2\)/.test(l)));      // the trips from Friday evening, in the log
   } finally { s.done(); }
 });
@@ -265,7 +265,7 @@ test('Closure weekend without any trip with one transfer: creating the route wor
     const two = w.trips().slice(4);
     assert.equal(two.length, 1); assert.equal(two[0].max, 2); assert.ok(!two[0].inSearch);                   // one plain request with two transfers allowed was enough
     assert.equal(s.lines.filter((l) => /ab Sa 16:36 keine Fahrt, die noch fährt \(einfache Abfrage: 2 Fahrten \(Fr 21:42 bis Fr 22:02; 0 nutzbar; Umstiege 1×2\); Umstiegslimit in der Suche: keine Fahrten; wenigste Umstiege: keine Fahrten\)/.test(l)).length, 1);
-    assert.equal(s.lines.filter((l) => /^Strecke Freising → München, Neuperlach Süd: nichts mit höchstens 1 Umstieg, es gelten die Verbindungen mit bis zu 2 Umstiegen \(8 Fahrten noch nicht abgefahren\)$/.test(l)).length, 1);
+    assert.equal(s.lines.filter((l) => /^Strecke Fiktivia → München, Neuperlach Süd: nichts mit höchstens 1 Umstieg, es gelten die Verbindungen mit bis zu 2 Umstiegen \(8 Fahrten noch nicht abgefahren\)$/.test(l)).length, 1);
 
     // creating the route (the check at creation is the same call) does not ask the source again within the minute
     const before = w.asked.length;
@@ -280,7 +280,7 @@ test('Closure weekend with a trip with one transfer: two transfers are never ask
     const st = await s.service.getState(s.dev);
     assert.deepEqual(st.tours[0].departures.map((d) => d.lineIds), [['S1', 'U5'], ['S1', 'U5'], ['S1', 'U5']]);
     assert.equal(st.tours[0].changes, undefined);
-    assert.ok(w.trips().every((a) => a.max === 1));                                                        // the trips from Freising: never with two transfers
+    assert.ok(w.trips().every((a) => a.max === 1));                                                        // the trips from Fiktivia: never with two transfers
     assert.equal(s.lines.filter((l) => /nichts mit höchstens 1 Umstieg/.test(l)).length, 0);
   } finally { s.done(); }
 });
@@ -332,7 +332,7 @@ test('Normal weekday: the plain query is enough – one request, no route option
 
 // ---------- Preview and route ----------
 
-const FSs = { id: 'mvv|de:09178:2', name: 'Freising' }, MHs = { id: 'mvv|de:09162:6', name: 'München Hbf' }, NSs = { id: 'mvv|de:09162:1180', name: 'München, Neuperlach Süd' };
+const FSs = { id: 'mvv|de:09178:2', name: 'Fiktivia' }, MHs = { id: 'mvv|de:09162:6', name: 'München Hbf' }, NSs = { id: 'mvv|de:09162:1180', name: 'München, Neuperlach Süd' };
 const NOW = Date.parse('2026-10-17T15:14:00+02:00');                                                         // Saturday, closure weekend
 const atLocal = (day, hhmm) => `${day}T${hhmm}:00+02:00`;
 const leg = (line, from, to, dep, arr, product = 'suburban', day = '2026-10-17') => ({
@@ -382,7 +382,7 @@ test('Preview and route see the same trips: an empty answer after a good one doe
     assert.equal(tour.departures.length, 0); assert.equal(tour.view.kind, 'none'); assert.equal(tour.view.big, 'Keine');
     assert.match(tour.view.sub, /Keine Verbindung mit höchstens 2 Umstiegen/);                                 // the answer with two transfers was asked for as well – and is empty
     assert.equal(st.connection.status, 'ok');
-    assert.equal(s.lines.filter((l) => /Strecke ohne Abfahrt: Freising → München, Neuperlach Süd \(1 Umstieg\) – die Quelle lieferte 0 Fahrten, 0 davon noch nicht abgefahren; mit 2 Umstiegen 0 Fahrten, 0 davon noch nicht abgefahren$/.test(l)).length, 1);
+    assert.equal(s.lines.filter((l) => /Strecke ohne Abfahrt: Fiktivia → München, Neuperlach Süd \(1 Umstieg\) – die Quelle lieferte 0 Fahrten, 0 davon noch nicht abgefahren; mit 2 Umstiegen 0 Fahrten, 0 davon noch nicht abgefahren$/.test(l)).length, 1);
 
     s.clock.t += 40e3; s.src.mode = 'full'; st = await s.service.getState(s.dev);                              // the source answers again
     assert.equal(st.tours[0].departures.length, 1);

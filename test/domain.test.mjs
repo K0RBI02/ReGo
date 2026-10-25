@@ -92,7 +92,7 @@ test('API (sample data): create route -> state in the expected shape', async () 
   const h = { 'x-device': 'testgeraet1234567', 'content-type': 'application/json' };
   try {
     assert.equal((await fetch(`${base}/api/state`)).status, 400);
-    const c = await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }) });
+    const c = await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: { id: '8002078', name: 'Fiktivia' }, to: { id: '8000261', name: 'München Hbf' } }) });
     assert.equal(c.status, 201);
     const s = await (await fetch(`${base}/api/state`, { headers: h })).json();
     assert.equal(s.schemaVersion, 1);
@@ -109,7 +109,7 @@ test('API (sample data): create route -> state in the expected shape', async () 
 test('Library adapter: raw format -> normalized, missing stop() is no error', async () => {
   const { LibClient } = await import('../server/providers/lib.mjs');
   const fake = {
-    locations: async () => [{ type: 'stop', id: '8002078', name: 'Freising', location: { latitude: 48.4, longitude: 11.74 } }, { type: 'location', id: 'x', name: 'Straße' }],
+    locations: async () => [{ type: 'stop', id: '8002078', name: 'Fiktivia', location: { latitude: 48.4, longitude: 11.74 } }, { type: 'location', id: 'x', name: 'Straße' }],
     journeys: async (from, to, o) => { assert.equal(o.transfers, 0); return { journeys: [{ legs: [{ line: { name: 'S 1', product: 'suburban' }, direction: 'München Hbf', origin: { id: from, name: 'A' }, destination: { id: to, name: 'B' }, plannedDeparture: '2026-10-10T07:21:00+02:00', departure: '2026-10-10T07:27:00+02:00', departureDelay: 360, plannedArrival: '2026-10-10T08:00:00+02:00', arrival: '2026-10-10T08:06:00+02:00', arrivalDelay: 360, stopovers: [], remarks: [] }] }] }; },
   };
   const c = new LibClient(async () => fake);
@@ -132,7 +132,7 @@ test('Real responses (recorded 10.10.2026): conversion and incidents', async () 
   const dbJ = await load('db-journeys.json'), oebbJ = await load('oebb-journeys.json');
   const ctx = (now) => ({ now, minDelay: 3, linesAt: async () => [], lines: {}, graceMin: 10 });
   const t1 = Date.parse('2026-10-10T16:45:00+02:00');
-  const a = await buildTour({ id: 't1', name: 'Freising → München Hbf', from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }, dbJ, ctx(t1));
+  const a = await buildTour({ id: 't1', name: 'Fiktivia → München Hbf', from: { id: '8002078', name: 'Fiktivia' }, to: { id: '8000261', name: 'München Hbf' } }, dbJ, ctx(t1));
   assert.equal(a.tour.departures[0].delayMin, 4);
   assert.equal(a.incidents[0].kind, 'delay');
   const s1 = dbJ[2].legs[0];
@@ -155,7 +155,7 @@ test('API: moving to the new phone with a one-time code', async () => {
   const oldPhone = { 'x-device': 'oldphone123456789', 'content-type': 'application/json' };
   const newPhone = { 'x-device': 'newphone123456789', 'content-type': 'application/json' };
   try {
-    await fetch(`${base}/api/tours`, { method: 'POST', headers: oldPhone, body: JSON.stringify({ from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' } }) });
+    await fetch(`${base}/api/tours`, { method: 'POST', headers: oldPhone, body: JSON.stringify({ from: { id: '8002078', name: 'Fiktivia' }, to: { id: '8000261', name: 'München Hbf' } }) });
     const { code } = await (await fetch(`${base}/api/transfer`, { method: 'POST', headers: oldPhone, body: '{}' })).json();
     assert.match(code, /^[A-Z2-9]{6}$/);
     assert.equal((await fetch(`${base}/api/transfer/claim`, { method: 'POST', headers: oldPhone, body: JSON.stringify({ code }) })).status, 400);   // not on the same device
@@ -180,5 +180,5 @@ test('Departures: past ones drop out, sorted, next day marked, matching app link
   assert.ok(out.departures.every((d) => d.nextDay));
   assert.equal(out.name, 'München Hbf → Salzburg Hbf');
   assert.equal(out.appLink, null);                          // cross-border: only the ticket hint
-  assert.equal(tidyName('Freising → München, München Hbf'), 'Freising → München Hbf');
+  assert.equal(tidyName('Fiktivia → München, München Hbf'), 'Fiktivia → München Hbf');
 });

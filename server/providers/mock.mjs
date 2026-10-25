@@ -5,7 +5,7 @@ const S = (id, name, lat, lon) => ({ type: 'stop', id, name, location: { type: '
 
 export const MOCK_STOPS = [
   S('8000261', 'München Hbf', 48.1402, 11.5586),          // real?
-  S('8002078', 'Freising', 48.4009, 11.7415),             // real?
+  S('8002078', 'Fiktivia', 48.4009, 11.7415),
   S('8000320', 'Rosenheim', 47.8517, 12.1186),
   S('8000183', 'Ingolstadt Hbf', 48.7448, 11.4372),
   S('8000298', 'Passau Hbf', 48.5740, 13.4511),
@@ -13,7 +13,7 @@ export const MOCK_STOPS = [
   S('8100002', 'Salzburg Hbf', 47.8130, 13.0453),
   S('8100108', 'Wien Hbf', 48.1852, 16.3761),
   S('8100013', 'Linz/Donau Hbf', 48.2903, 14.2912),
-  S('8004279', 'Neufahrn(b Freising)', 48.3167, 11.6667),
+  S('8004279', 'Musterhof(b Fiktivia)', 48.3167, 11.6667),
   S('8000901', 'Feldmoching', 48.2056, 11.5394),
   S('8000902', 'Moosach', 48.1800, 11.5200),
   S('8000903', 'Prien am Chiemsee', 47.8560, 12.3510),
@@ -29,12 +29,12 @@ const ref = (s) => ({ type: 'stop', id: s.id, name: s.name, location: s.location
 
 // Routes: stop sequence, line, product, headway (min), travel time (min)
 const ROUTES = [
-  { name: 'S1', product: 'suburban', every: 20, mins: 46, stops: ids('Freising', 'Neufahrn', 'Feldmoching', 'Moosach', 'München Hbf'), headsign: ['Freising', 'München Hbf'] },
-  { name: 'RE 2', product: 'regionalExpress', every: 60, mins: 24, stops: ids('Freising', 'München Hbf'), headsign: ['Freising', 'München Hbf'] },
+  { name: 'S1', product: 'suburban', every: 20, mins: 46, stops: ids('Fiktivia', 'Musterhof', 'Feldmoching', 'Moosach', 'München Hbf'), headsign: ['Fiktivia', 'München Hbf'] },
+  { name: 'RE 2', product: 'regionalExpress', every: 60, mins: 24, stops: ids('Fiktivia', 'München Hbf'), headsign: ['Fiktivia', 'München Hbf'] },
   { name: 'RE 5', product: 'regionalExpress', every: 30, mins: 78, stops: ids('München Hbf', 'Rosenheim', 'Prien', 'Traunstein', 'Freilassing', 'Salzburg'), headsign: ['Salzburg Hbf', 'München Hbf'], replacement: true },
   { name: 'RJX 61', product: 'nationalExpress', every: 60, mins: 100, stops: ids('München Hbf', 'Rosenheim', 'Salzburg Hbf', 'Linz', 'Wien'), headsign: ['Wien Hbf', 'München Hbf'] },
   { name: 'RE 1', product: 'regionalExpress', every: 60, mins: 50, stops: ids('München Hbf', 'Ingolstadt'), headsign: ['Ingolstadt Hbf', 'München Hbf'] },
-  // Together with the S1 these two make a trip that needs two transfers (Freising → Neuperlach Süd): no stop is shared by the first and the last line
+  // Together with the S1 these two make a trip that needs two transfers (Fiktivia → Neuperlach Süd): no stop is shared by the first and the last line
   { name: 'S4', product: 'suburban', every: 20, mins: 8, stops: ids('München Hbf', 'München Ost'), headsign: ['München Ost', 'München Hbf'] },
   { name: 'U5', product: 'subway', every: 10, mins: 14, stops: ids('München Ost', 'München-Neuperlach'), headsign: ['Neuperlach Süd', 'München Ost'] },
 ];

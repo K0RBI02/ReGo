@@ -16,7 +16,7 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 import { toMin } from '../server/lib/time.mjs';
 
-const MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' }, FS = { id: '8002078', name: 'Freising' };
+const MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' }, FS = { id: '8002078', name: 'Fiktivia' };
 const MON = '2026-10-12', WED = '2026-10-14', SAT = '2026-10-17';              // summer time (CEST)
 const ms = (hm, day = MON, sec = '00') => Date.parse(`${day}T${hm}:${sec}+02:00`);
 const iso = (hm, day = MON) => `${day}T${hm}:00+02:00`;

@@ -43,7 +43,7 @@ It starts the real server (mock provider, rate limits lifted, temporary data dir
 
 - **Setup:** Playwright is not a dependency: `npm install --no-save playwright && npx playwright install chromium` (CI does exactly this). With a Chromium that already exists, set `PW_CHROMIUM=/path/to/chromium`. A full run takes several minutes.
 - **While iterating:** `SMOKE_ONLY='<part of a check name>' node scripts/ui-smoke.mjs` runs only the matching blocks. Run the whole test before you push.
-- **When:** whenever anything under `public/` changes, and when the server changes something the UI reads. Add a `check()` block for every new behaviour of the UI; that is where 320 px, dark mode and "does it really work with a finger" are proven. Helpers: `suggest(n, text)` types into the n-th stop field and picks the first suggestion, `j(path, method, body)` calls the API as the test device, `st` / `mu` are the sample stops Freising and München.
+- **When:** whenever anything under `public/` changes, and when the server changes something the UI reads. Add a `check()` block for every new behaviour of the UI; that is where 320 px, dark mode and "does it really work with a finger" are proven. Helpers: `suggest(n, text)` types into the n-th stop field and picks the first suggestion, `j(path, method, body)` calls the API as the test device, `st` / `mu` are the sample stops Fiktivia and München.
 - **Fragile by nature:** the test looks for German texts and depends on the mock data. If you change a visible text, search the test for it and update it in the same commit. Playwright dismisses `confirm()` dialogs unless a handler accepts them; removing a ticket asks with `window.confirm`, so a check that removes tickets has to accept the dialog.
 
 ## Shared data and history

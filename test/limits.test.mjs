@@ -61,7 +61,7 @@ test('EFA: "too many requests" is not retried, the source is left alone until th
   assert.equal(sent, 1);                                                // no second attempt
   assert.equal(c.healthy(), false);
   await assert.rejects(c.get('XML_TRIP_REQUEST2'), /moby: derzeit nicht erreichbar.*Pause noch 2 Min/);
-  await assert.rejects(c.searchStops('Freising'), /derzeit nicht erreichbar/);
+  await assert.rejects(c.searchStops('Fiktivia'), /derzeit nicht erreichbar/);
   assert.equal(sent, 1);                                                // nothing went out during the pause
   assert.equal(logs.length, 1); assert.match(logs[0], /moby: zu viele Anfragen \(HTTP 429, Retry-After 120 s, „Too Many Requests“\) – Pause 2 Min\./);
   t += 121e3;
@@ -112,9 +112,9 @@ test('transport.rest: "too many requests" puts the source on pause as well', asy
   let sent = 0;
   const h = new HafasClient('https://x.test', { name: 'db', retries: 2, fetchImpl: async () => { sent++; return tooMany('30'); } });
   assert.equal(h.healthy(), true);
-  await assert.rejects(h.searchStops('Freising'), /db: HTTP 429/);
+  await assert.rejects(h.searchStops('Fiktivia'), /db: HTTP 429/);
   assert.equal(sent, 1); assert.equal(h.healthy(), false);
-  await assert.rejects(h.searchStops('Freising'), /derzeit nicht erreichbar/);
+  await assert.rejects(h.searchStops('Fiktivia'), /derzeit nicht erreichbar/);
   assert.equal(sent, 1);
   // 503 is still retried, with the wait the source asks for
   let n = 0;
@@ -163,7 +163,7 @@ async function twoRoutes(name, clock) {
   const dev = `${name.replace(/[^a-z0-9]/gi, '')}geraet12345678`;
   await store.update(dev, (p) => {
     // Monday 07:00: the first route is in its commute time, the second only commutes on Saturdays
-    addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Mo'], departAfter: '07:00', departUntil: '08:00' } });
+    addTours(p, { from: { id: '8002078', name: 'Fiktivia' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Mo'], departAfter: '07:00', departUntil: '08:00' } });
     addTours(p, { from: { id: '8000190', name: 'Landshut' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Sa'], departAfter: '07:00', departUntil: '08:00' } });
   });
   return { store, dev, now };

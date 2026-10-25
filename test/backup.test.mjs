@@ -28,24 +28,24 @@ test('Names: what is special about a stop has to be in the other name – the pl
   assert.equal(spotMatch('Lindau (Bodensee), Lindau Hbf', 'Lindau (Bodensee) Hbf'), 0);
   assert.equal(spotMatch('München, Hauptbahnhof', 'München Hbf'), 0);
   assert.equal(spotMatch('München, Ostbahnhof', 'München Ost'), 0);
-  assert.equal(spotMatch('Freising', 'Freising'), 0);
-  assert.equal(spotMatch('Freising, Bahnhof', 'Freising'), 0);
+  assert.equal(spotMatch('Fiktivia', 'Fiktivia'), 0);
+  assert.equal(spotMatch('Fiktivia, Bahnhof', 'Fiktivia'), 0);
   assert.equal(spotMatch('Garching-Forschungszentrum', 'Garching, Forschungszentrum'), 0);
   assert.equal(spotMatch('Freilassing (Obb), Freilassing', 'Freilassing'), 0);
   assert.equal(spotMatch('Landshut(Bay)Hbf', 'Landshut (Bay) Hbf'), 0);
-  // names as the sources really deliver them (MVV: "Ort, Haltestelle"; ÖBB: "Freising", "Neufahrn(b Freising)")
-  assert.equal(spotMatch('Freising, Freising', 'Freising'), 0);
+  // names as the sources really deliver them (MVV: "Ort, Haltestelle"; ÖBB: "Fiktivia", "Musterhof(b Fiktivia)")
+  assert.equal(spotMatch('Fiktivia, Fiktivia', 'Fiktivia'), 0);
   assert.equal(spotMatch('München, München Hbf', 'München Hbf'), 0);
   assert.equal(spotMatch('München, Münchner Freiheit', 'München Münchner Freiheit'), 0);
-  assert.equal(spotMatch('Freising, Flughafen München', 'Flughafen München'), 0);
+  assert.equal(spotMatch('Fiktivia, Flughafen München', 'Flughafen München'), 0);
   // not the same place: a bus stop is not the station next to it, a second station of the town is not the first
-  assert.equal(spotMatch('Freising, Freising', 'Neufahrn(b Freising)'), -1);                // a single word next door is not the station
-  assert.equal(spotMatch('Freising, Freising', 'Marienplatz'), -1);
-  assert.equal(spotMatch('Freising, Freising', 'Flughafen Briefzentrum, Freising'), -1);
+  assert.equal(spotMatch('Fiktivia, Fiktivia', 'Musterhof(b Fiktivia)'), -1);                // a single word next door is not the station
+  assert.equal(spotMatch('Fiktivia, Fiktivia', 'Marienplatz'), -1);
+  assert.equal(spotMatch('Fiktivia, Fiktivia', 'Flughafen Briefzentrum, Fiktivia'), -1);
   assert.equal(spotMatch('München, Neuperlach Süd', 'München, Klinikum Neuperlach'), -1);
-  assert.equal(spotMatch('Freising, Marienplatz', 'Freising'), -1);
-  assert.equal(spotMatch('Freising', 'Freising, Marienplatz'), -1);
-  assert.equal(spotMatch('Freising', 'Freising Süd'), -1);
+  assert.equal(spotMatch('Fiktivia, Marienplatz', 'Fiktivia'), -1);
+  assert.equal(spotMatch('Fiktivia', 'Fiktivia, Marienplatz'), -1);
+  assert.equal(spotMatch('Fiktivia', 'Fiktivia Süd'), -1);
   assert.equal(spotMatch('Rosenheim, Rosenheim Bahnhof', 'Rosenheim, Kaiserstraße'), -1);
   assert.equal(spotMatch('München, Ostbahnhof', 'München Hbf'), -1);
   assert.equal(spotMatch('München, Hauptbahnhof', 'München Ost'), -1);
@@ -133,7 +133,7 @@ const ROSENHEIM = { id: 'moby|de:09163:9', name: 'Rosenheim', lat: 47.8565, lon:
 const TRAUNSTEIN = { id: 'moby|de:09189:3', name: 'Traunstein', lat: 47.8686, lon: 12.6436 };
 const RAIL_STOPS = [
   { id: '8000320', name: 'Rosenheim', lat: 47.8566, lon: 12.1190 }, { id: '8099001', name: 'Rosenheim, Kaiserstraße', lat: 47.8570, lon: 12.1195 },
-  { id: '8000051', name: 'Traunstein', lat: 47.8690, lon: 12.6430 }, { id: '8000152', name: 'Freising', lat: 48.4003, lon: 11.7367 },
+  { id: '8000051', name: 'Traunstein', lat: 47.8690, lon: 12.6430 }, { id: '8000152', name: 'Fiktivia', lat: 48.4003, lon: 11.7367 },
 ];
 const rail = (name, line) => {
   const r = { name, asked: [], searches: 0, journeys: async (a) => { r.asked.push([a.fromId, a.toId]); return trips(line); } };
@@ -162,16 +162,16 @@ test('Backup routes: between two associations (MVV and MoBY) both stops are tran
   moby.searchStops = async () => { throw closed(); };                                  // MoBY is closed: it cannot translate the MVV stop either
   const oebb = rail('oebb', 'RB 54'), db = rail('db', 'RE 1');
   const p = build(db, oebb, false, [mvv, moby]);
-  const freising = { id: 'mvv|de:09178:1', name: 'Freising', lat: 48.4004, lon: 11.7366 };
-  for (const [from, to] of [[freising, TRAUNSTEIN], [TRAUNSTEIN, freising]]) {
+  const fiktivia = { id: 'mvv|de:09178:1', name: 'Fiktivia', lat: 48.4004, lon: 11.7366 };
+  for (const [from, to] of [[fiktivia, TRAUNSTEIN], [TRAUNSTEIN, fiktivia]]) {
     const j = await p.forTourSafe(from, to).journeys({ from, to, fromId: from.id, toId: to.id, when: new Date().toISOString(), results: 5 });
     assert.equal(j[0].legs[0].line.name, 'RB 54');
   }
   assert.deepEqual(oebb.asked, [['8000152', '8000051'], ['8000051', '8000152']]);
   // MoBY is the one asked for such a route (it is the wider one); if it is open nothing changes
   moby.journeys = async () => trips('RE 5');
-  moby.searchStops = async () => [{ id: 'moby|de:09178:1', name: 'Freising', lat: 48.4003, lon: 11.7367 }];
-  const j2 = await p.forTourSafe(freising, TRAUNSTEIN).journeys({ from: freising, to: TRAUNSTEIN, fromId: freising.id, toId: TRAUNSTEIN.id, when: new Date().toISOString() });
+  moby.searchStops = async () => [{ id: 'moby|de:09178:1', name: 'Fiktivia', lat: 48.4003, lon: 11.7367 }];
+  const j2 = await p.forTourSafe(fiktivia, TRAUNSTEIN).journeys({ from: fiktivia, to: TRAUNSTEIN, fromId: fiktivia.id, toId: TRAUNSTEIN.id, when: new Date().toISOString() });
   assert.equal(j2[0].legs[0].line.name, 'RE 5'); assert.equal(oebb.asked.length, 2);
 });
 
@@ -179,7 +179,7 @@ test('Backup routes: everything else stays as it was', async () => {
   const moby = efaFake('moby', () => { throw closed(); });
   const p = build(rail('db', 'RE 1'), rail('oebb', 'RB 54'), false, [moby]);
   const munich = { id: '8000261', name: 'München Hbf', lat: 48.1402, lon: 11.5586 };
-  assert.equal(p.forTourSafe(munich, { id: '8002078', name: 'Freising', lat: 48.4, lon: 11.7 }), p.db);                // no association: the railway source itself
+  assert.equal(p.forTourSafe(munich, { id: '8002078', name: 'Fiktivia', lat: 48.4, lon: 11.7 }), p.db);                // no association: the railway source itself
   assert.equal(p.forTourSafe(ROSENHEIM, munich), p.forTour(ROSENHEIM, munich));                                       // one end in the association: translated stop, as before
 });
 
