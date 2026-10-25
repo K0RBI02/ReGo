@@ -11,7 +11,7 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 
 const tmp = (n = 'rego-f-') => mkdtemp(join(tmpdir(), n));
-const MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' }, FS = { id: '8002078', name: 'Fiktivia' };
+const MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' }, FS = { id: '8002078', name: 'Freising' };
 const tour = { id: 't1', name: 'München Hbf → Salzburg Hbf', from: MH, to: SZ, active: true };
 const NOW = Date.parse('2026-10-14T07:00:00+02:00');
 const at = (hhmm, day = '2026-10-14') => `${day}T${hhmm}:00+02:00`;
@@ -170,11 +170,11 @@ test('A route without a direct connection is not created (422), one with a direc
   const h = hdr('direktgeraet12345678');
   const post = (body) => fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify(body) });
   try {
-    let r = await post({ from: FS, to: SZ });                              // Fiktivia → Salzburg: the sample data know no trip without a transfer
+    let r = await post({ from: FS, to: SZ });                              // Freising → Salzburg: the sample data know no trip without a transfer
     assert.equal(r.status, 422);
-    assert.match((await r.json()).error, /Zwischen Fiktivia und Salzburg Hbf habe ich keine Direktverbindung gefunden/);
+    assert.match((await r.json()).error, /Zwischen Freising und Salzburg Hbf habe ich keine Direktverbindung gefunden/);
     r = await post({ from: FS, to: SZ, roundTrip: true }); assert.equal(r.status, 422);
-    r = await post({ from: MH, to: FS, roundTrip: true }); assert.equal(r.status, 201);          // München ↔ Fiktivia exists
+    r = await post({ from: MH, to: FS, roundTrip: true }); assert.equal(r.status, 201);          // München ↔ Freising exists
     assert.equal((await (await fetch(`${base}/api/profile`, { headers: h })).json()).tours.length, 2);   // nothing of the rejected one was stored
     // source does not answer: if we do not know, we create it (the user must not be locked out)
     const orig = service.hasDirect; service.hasDirect = async () => null;
@@ -234,7 +234,7 @@ test('Limits per device and for the stop search', async () => {
   try {
     const h = hdr('begrenztgeraet123456');
     const s = [];
-    for (let k = 0; k < 3; k++) s.push((await fetch(`${base}/api/stations?q=Fiktivia`, { headers: h })).status);
+    for (let k = 0; k < 3; k++) s.push((await fetch(`${base}/api/stations?q=Freising`, { headers: h })).status);
     assert.deepEqual(s, [200, 200, 429]);                                     // search: two, then a pause
     assert.equal((await fetch(`${base}/api/state`, { headers: h })).status, 200);       // the rest of the device keeps working (3 search requests + 2 here = burst of 5)
     assert.equal((await fetch(`${base}/api/state`, { headers: h })).status, 200);

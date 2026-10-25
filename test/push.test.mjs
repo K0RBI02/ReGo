@@ -13,15 +13,15 @@ const fcmStub = (result = 'ok') => { const c = { enabled: true, calls: [], resul
 const NATIVE = { native: true, fcm: 'fcm-token-0123456789abcdef' };
 
 test('Relevance and text', () => {
-  const d = { kind: 'delay', delayMin: 8, title: 'S1 Fiktivia → München Hbf', summary: 'Gleiswechsel Gl. 2 → Gl. 3', validity: { activeNow: true } };
+  const d = { kind: 'delay', delayMin: 8, title: 'S1 Freising → München Hbf', summary: 'Gleiswechsel Gl. 2 → Gl. 3', validity: { activeNow: true } };
   assert.ok(relevant(d, 5)); assert.ok(!relevant({ ...d, delayMin: 3 }, 5));
-  assert.deepEqual(textFor(d), { title: 'S1 +8 Min.', body: 'Fiktivia → München Hbf · Gleiswechsel Gl. 2 → Gl. 3' });
+  assert.deepEqual(textFor(d), { title: 'S1 +8 Min.', body: 'Freising → München Hbf · Gleiswechsel Gl. 2 → Gl. 3' });
   assert.ok(relevant({ kind: 'replacement', delayMin: 0, validity: { activeNow: false } }, 5) === false);
   // Cancellation and platform change are always worth a notification, regardless of the delay threshold
   assert.ok(relevant({ kind: 'cancelled', delayMin: 0, validity: { activeNow: true } }, 10));
   assert.ok(relevant({ kind: 'platform', delayMin: 0, validity: { activeNow: true } }, 10));
   assert.deepEqual(textFor({ kind: 'cancelled', lineName: 'RE 5', title: 'RE 5 München Hbf → Salzburg Hbf', summary: 'Fahrt um 07:20 fällt aus' }), { title: 'Ausfall · RE 5', body: 'München Hbf → Salzburg Hbf · Fahrt um 07:20 fällt aus' });
-  assert.equal(textFor({ kind: 'platform', lineName: 'S 1', title: 'S 1 Fiktivia → München Hbf', summary: '07:21 jetzt Gleis 3 statt Gleis 2' }).title, 'Gleiswechsel · S 1');
+  assert.equal(textFor({ kind: 'platform', lineName: 'S 1', title: 'S 1 Freising → München Hbf', summary: '07:21 jetzt Gleis 3 statt Gleis 2' }).title, 'Gleiswechsel · S 1');
   // What may change about a known notification without it being new
   assert.equal(changeOf({ kind: 'delay', delayMin: 6 }), 6); assert.equal(changeOf({ kind: 'cancelled', count: 2 }), 2);
   assert.equal(changeOf({ kind: 'platform', platform: '3' }), '3'); assert.equal(changeOf({ kind: 'construction' }), undefined);
@@ -34,7 +34,7 @@ async function setup(name, { push = NATIVE, incidents, fcm = fcmStub(), t = Date
   const store = new ProfileStore(dir, now);
   const dev = `${name.replace(/[^a-z0-9]/gi, '')}geraet12345678`;
   let tourId;
-  await store.update(dev, (p) => { tourId = addTours(p, { from: { id: '8002078', name: 'Fiktivia' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], departAfter: '11:30', departUntil: '12:30' }, ...(tours || {}) })[0].id; p.push = push; });   // commute time around the test clock: push is allowed
+  await store.update(dev, (p) => { tourId = addTours(p, { from: { id: '8002078', name: 'Freising' }, to: { id: '8000261', name: 'München Hbf' }, schedule: { days: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], departAfter: '11:30', departUntil: '12:30' }, ...(tours || {}) })[0].id; p.push = push; });   // commute time around the test clock: push is allowed
   const cur = { incidents };
   // Without incidents of its own: the mock returns a delay "now"
   const service = incidents ? { getState: async () => ({ connection: { status: 'ok' }, incidents: cur.incidents }) } : createService({ config: cfg, store, now });
@@ -77,7 +77,7 @@ test('Without Firebase: notification is ready for pickup (app asks every ~15 min
 });
 
 test('Notification: change of the delay updates, disappearance removes the notification', async () => {
-  const inc = { id: 'a1', kind: 'delay', delayMin: 6, title: 'S5 Fiktivia → München Hbf', summary: 'x', validity: { activeNow: true } };
+  const inc = { id: 'a1', kind: 'delay', delayMin: 6, title: 'S5 Freising → München Hbf', summary: 'x', validity: { activeNow: true } };
   const { n, dev, cur } = await setup('rego-n3-', { incidents: [inc] });
   assert.equal(await n.checkDevice(dev), 1);
   let out = await n.takeOutbox(dev);
@@ -97,7 +97,7 @@ test('Notification: change of the delay updates, disappearance removes the notif
 
 test('Notification: cancellation and platform change come with their kind, later changes quietly', async () => {
   const cancelled = { id: 'c1', kind: 'cancelled', count: 1, delayMin: 0, lineName: 'RE 5', title: 'RE 5 München Hbf → Salzburg Hbf', summary: 'Fahrt um 07:20 fällt aus', validity: { activeNow: true } };
-  const platform = { id: 'p1', kind: 'platform', platform: '3', delayMin: 0, lineName: 'S 1', title: 'S 1 Fiktivia → München Hbf', summary: '07:21 jetzt Gleis 3 statt Gleis 2', validity: { activeNow: true } };
+  const platform = { id: 'p1', kind: 'platform', platform: '3', delayMin: 0, lineName: 'S 1', title: 'S 1 Freising → München Hbf', summary: '07:21 jetzt Gleis 3 statt Gleis 2', validity: { activeNow: true } };
   const { n, dev, cur } = await setup('rego-n6-', { incidents: [cancelled, platform] });
   assert.equal(await n.checkDevice(dev), 2);
   let out = await n.takeOutbox(dev);
@@ -174,8 +174,8 @@ const H = { 'x-device': 'testdevice0123456789abcdef', 'content-type': 'applicati
 test('Stop search needs a device ID, headers and status are in place', async () => {
   const { server, base } = await appOn(await mkdtemp(join(tmpdir(), 'rego-')));
   try {
-    assert.equal((await fetch(base + '/api/stations?q=Fiktivia')).status, 400);
-    const ok = await fetch(base + '/api/stations?q=Fiktivia', { headers: H });
+    assert.equal((await fetch(base + '/api/stations?q=Freising')).status, 400);
+    const ok = await fetch(base + '/api/stations?q=Freising', { headers: H });
     assert.equal(ok.status, 200);
     assert.match(ok.headers.get('content-security-policy'), /default-src 'self'/);
     assert.equal(ok.headers.get('x-content-type-options'), 'nosniff');
@@ -230,7 +230,7 @@ test('The old switch "Nur rund um die Abfahrt" is accepted but has no effect any
 });
 
 test('Push follows the commute time: from one hour before until 10 min after the window, only on route days', async () => {
-  const inc = (tourId) => [{ id: 'w1', tourId, kind: 'delay', delayMin: 9, title: 'S1 Fiktivia → München Hbf', summary: 'x', validity: { activeNow: true } }];
+  const inc = (tourId) => [{ id: 'w1', tourId, kind: 'delay', delayMin: 9, title: 'S1 Freising → München Hbf', summary: 'x', validity: { activeNow: true } }];
   const s = await setup('rego-n4-', { t: Date.parse('2026-10-12T12:00:00+02:00'), tours: { schedule: { days: ['Mo', 'Di'], departAfter: '07:00', departUntil: '08:00' } } });   // Montag, Mittag
   s.cur.incidents = inc(s.tourId);
   const n = createNotifier({ config: s.cfg, store: s.store, service: { getState: async () => ({ connection: { status: 'ok' }, incidents: s.cur.incidents }) }, now: s.now, fcm: s.fcm });
@@ -247,7 +247,7 @@ test('Push follows the commute time: from one hour before until 10 min after the
 
 test('Push: the end of the commute time does not remove a reported disruption as "behoben", its own end does', async () => {
   const s = await setup('rego-n5-', { t: Date.parse('2026-10-12T07:30:00+02:00'), tours: { schedule: { days: ['Mo'], departAfter: '07:00', departUntil: '08:00' } } });
-  const construction = (tourId) => [{ id: 'b1', tourId, kind: 'construction', delayMin: 0, title: 'S1 Fiktivia → München Hbf', summary: 'Baustelle', validity: { activeNow: true } }];
+  const construction = (tourId) => [{ id: 'b1', tourId, kind: 'construction', delayMin: 0, title: 'S1 Freising → München Hbf', summary: 'Baustelle', validity: { activeNow: true } }];
   s.cur.incidents = construction(s.tourId);
   const n = createNotifier({ config: s.cfg, store: s.store, service: { getState: async () => ({ connection: { status: 'ok' }, incidents: s.cur.incidents }) }, now: s.now, fcm: s.fcm });
   assert.equal(await n.checkDevice(s.dev), 1);                       // reported in the window
@@ -264,8 +264,8 @@ test('Push: the end of the commute time does not remove a reported disruption as
 // ---------- Night quiet (23:00–04:00) and its exception for routes whose own push period reaches into the night ----------
 
 const MON = '2026-10-12', TUE = '2026-10-13';                       // summer time (CEST)
-const delayOf = (id, tourId, delayMin = 9) => ({ id, tourId, kind: 'delay', delayMin, title: 'S1 Fiktivia → München Hbf', summary: 'x', validity: { activeNow: true } });
-const FS = { id: '8002078', name: 'Fiktivia' }, MH = { id: '8000261', name: 'München Hbf' };
+const delayOf = (id, tourId, delayMin = 9) => ({ id, tourId, kind: 'delay', delayMin, title: 'S1 Freising → München Hbf', summary: 'x', validity: { activeNow: true } });
+const FS = { id: '8002078', name: 'Freising' }, MH = { id: '8000261', name: 'München Hbf' };
 const addRoute = (s, to, schedule, legacy = false) => s.store.update(s.dev, (p) => {
   const id = addTours(p, { from: FS, to, schedule })[0].id;
   if (legacy) delete p.tours.find((t) => t.id === id).schedule;      // older data: a route without commute times

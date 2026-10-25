@@ -12,22 +12,22 @@ import { createService } from '../server/service.mjs';
 import { config } from '../server/config.mjs';
 
 const tmp = (n = 'rego-s-') => mkdtemp(join(tmpdir(), n));
-const FS = { id: '8002078', name: 'Fiktivia' }, MO = { id: '8000902', name: 'Moosach' }, MH = { id: '8000261', name: 'München Hbf' };
+const FS = { id: '8002078', name: 'Freising' }, MO = { id: '8000902', name: 'Moosach' }, MH = { id: '8000261', name: 'München Hbf' };
 const NOW = Date.parse('2026-10-14T07:00:00+02:00');
 const at = (hhmm) => `2026-10-14T${hhmm}:00+02:00`;
 const add = (hhmm, m) => { const [h, mi] = hhmm.split(':').map(Number); const x = h * 60 + mi + m; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
 
-// Replacement transport between Musterhof and Moosach: the S1 takes 25 minutes longer
-const SEV = { type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Musterhof und Moosach Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: at('05:00'), validUntil: '2026-10-17T00:00:00+02:00' };
-// Trip without transfer: S1 Fiktivia → München Hbf, 46 min, with replacement transport (except noSev)
+// Replacement transport between Neufahrn and Moosach: the S1 takes 25 minutes longer
+const SEV = { type: 'status', code: 'construction', summary: 'Schienenersatzverkehr', text: 'Wegen Bauarbeiten zwischen Neufahrn und Moosach Schienenersatzverkehr mit Bussen. Reisezeit verlängert sich um ca. 25 Minuten.', validFrom: at('05:00'), validUntil: '2026-10-17T00:00:00+02:00' };
+// Trip without transfer: S1 Freising → München Hbf, 46 min, with replacement transport (except noSev)
 const D = (dep, o = {}) => {
   const d = o.late || 0, arrLate = o.arrLate ?? d;
   return { line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: FS, destination: MH,
     plannedDep: at(dep), dep: at(add(dep, d)), depDelay: d, plannedArr: at(add(dep, 46)), arr: at(add(dep, 46 + arrLate)), arrDelay: arrLate,
-    plannedPlatform: '3', platform: '3', stopovers: [FS, { id: 'a', name: 'Musterhof' }, { id: 'b', name: 'Feldmoching' }, MO, MH],
+    plannedPlatform: '3', platform: '3', stopovers: [FS, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MO, MH],
     remarks: o.noSev ? [] : [SEV], cancelled: false };
 };
-// Detour: RE 22 Fiktivia → Moosach (25 min), then U3 Moosach → München Hbf (15 min)
+// Detour: RE 22 Freising → Moosach (25 min), then U3 Moosach → München Hbf (15 min)
 const A = (dep, o = {}) => ({ line: { name: 'RE 22', product: 'regionalExpress' }, direction: 'Moosach', origin: FS, destination: MO,
   plannedDep: at(dep), dep: at(dep), depDelay: 0, plannedArr: at(add(dep, 25)), arr: at(add(dep, 25)), arrDelay: 0, plannedPlatform: '1', platform: '1',
   stopovers: [FS, MO], remarks: o.remarks || [], cancelled: !!o.cancelled });
@@ -82,7 +82,7 @@ test('Shortcut: direct trips, empty lists and unusable data give no hint', () =>
 
 // ---------- in the incident ----------
 
-const tour = { id: 'tk1', name: 'Fiktivia → München Hbf', from: FS, to: MH, active: true };
+const tour = { id: 'tk1', name: 'Freising → München Hbf', from: FS, to: MH, active: true };
 const ctx = (o = {}) => ({ now: NOW, minDelay: 3, linesAt: async () => [], lines: {}, ...o });
 const DETOURS = [J(D('07:02')), J(A('07:10'), B('07:41')), J(A('07:30'), B('08:00'))];
 

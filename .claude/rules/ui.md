@@ -57,7 +57,7 @@ The single object every screen reads. Fields: `tours`, `incidents`, `lines` (a P
 - `meldungen()` is the list shown under "Meldungen" and counted on the button: active routes only, visible incidents only, the same incident on outward and return trip merged into one card (`both`).
 - `win` builds the commute-time slider values (`of`, `fresh('out'|'back')`, `view(w, set, opts)`, `text`): the track covers eight hours (04–12 for a start before noon, otherwise 12–20, longer if the period lies outside), steps of 30 min, handles at least 10 min apart; typed times in the time fields can be exact and widen the track.
 - `returnFor(from, to)`: the saved route without a return trip that the chosen pair runs backwards, by `ends` (stop ID or name) or, from an older server without `ends`, by the route name "A → B". The new-route form uses it (`_pair` in `Strecken.dc.html`).
-- Small helpers: `shortRoute` (drops a doubled place: "Fiktivia, Fiktivia" → "Fiktivia"), `feedback()` (mailto with prepared body, or the link, or the GitHub issue form; contains app and server version, never the device ID), update hint (`updateHint`, `updateBar`, `dismissUpdate`), `loadInfo`, `banner()`.
+- Small helpers: `shortRoute` (drops a doubled place: "Freising, Freising" → "Freising"), `feedback()` (mailto with prepared body, or the link, or the GitHub issue form; contains app and server version, never the device ID), update hint (`updateHint`, `updateBar`, `dismissUpdate`), `loadInfo`, `banner()`.
 
 ## What is stored on the phone
 

@@ -12,7 +12,7 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 
 const tmp = (n = 'rego-c-') => mkdtemp(join(tmpdir(), n));
-const FS = { id: 'a1', name: 'Fiktivia' }, MO = { id: 'a2', name: 'Moosach' }, OD = { id: 'a3', name: 'Odeonsplatz' }, NS = { id: 'a4', name: 'Neuperlach Süd' };
+const FS = { id: 'a1', name: 'Freising' }, MO = { id: 'a2', name: 'Moosach' }, OD = { id: 'a3', name: 'Odeonsplatz' }, NS = { id: 'a4', name: 'Neuperlach Süd' };
 const NOW = Date.parse('2026-10-14T07:00:00+02:00');
 const at = (hhmm) => `2026-10-14T${hhmm}:00+02:00`;
 const add = (hhmm, m) => { const [h, mi] = hhmm.split(':').map(Number); const x = h * 60 + mi + m; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
@@ -25,7 +25,7 @@ const leg = (name, product, from, to, dep, mins, o = {}) => {
     plannedPlatform: '1', platform: o.platform ?? '1', plannedArrPlatform: '2', arrPlatform: '2',
     stopovers: o.stopovers || [from, to], remarks: o.remarks || [], cancelled: !!o.cancelled };
 };
-const S1 = (dep, o = {}) => leg('S1', 'suburban', FS, MO, dep, 27, { stopovers: [FS, { id: 'n', name: 'Musterhof' }, { id: 'f', name: 'Feldmoching' }, MO], ...o });     // Fiktivia → Moosach
+const S1 = (dep, o = {}) => leg('S1', 'suburban', FS, MO, dep, 27, { stopovers: [FS, { id: 'n', name: 'Neufahrn' }, { id: 'f', name: 'Feldmoching' }, MO], ...o });     // Freising → Moosach
 const U3 = (dep, o = {}) => leg('U3', 'subway', MO, OD, dep, 14, o);                                                                                               // Moosach → Odeonsplatz
 const U5 = (dep, o = {}) => leg('U5', 'subway', OD, NS, dep, 18, o);                                                                                               // Odeonsplatz → Neuperlach Süd
 const chain = (...legs) => ({ legs });
@@ -35,7 +35,7 @@ const TRIPS = (a = {}, b = {}, c = {}) => [
   chain(S1('07:22'), U3('07:53'), U5('08:11')),
   chain(S1('07:42'), U3('08:13'), U5('08:31')),
 ];
-const tour = { id: 'tc1', name: 'Fiktivia → Neuperlach Süd', from: FS, to: { id: 'a4', name: 'München, Neuperlach Süd' }, active: true, transfers: 1 };      // the route has the name the user picked; the trips name the stop shorter
+const tour = { id: 'tc1', name: 'Freising → Neuperlach Süd', from: FS, to: { id: 'a4', name: 'München, Neuperlach Süd' }, active: true, transfers: 1 };      // the route has the name the user picked; the trips name the stop shorter
 const ctx = (o = {}) => ({ now: NOW, minDelay: 3, linesAt: async () => [], lines: {}, ...o });
 
 // ---------- States ----------
@@ -46,7 +46,7 @@ test('Map names: the place before the comma goes ("München, Moosach" → "Moosa
   assert.equal(shortName('Lindau (Bodensee), Lindau Hbf'), 'Lindau Hbf');
   assert.equal(shortName('München Hbf'), 'München Hbf');
   assert.equal(shortName('München-Feldmoching'), 'Feldmoching');
-  assert.equal(shortName('Fiktivia'), 'Fiktivia');
+  assert.equal(shortName('Freising'), 'Freising');
 });
 test('Two transfers on time: three lines, two transfer rows, sections (trip – transfer – trip – transfer – trip) and map', async () => {
   const r = await buildChainTour(tour, TRIPS(), ctx());
@@ -62,13 +62,13 @@ test('Two transfers on time: three lines, two transfer rows, sections (trip – 
   assert.equal(v.kind, 'ok'); assert.equal(v.head, 'Pünktlich · S1 › U3 › U5 ab 07:02'); assert.equal(v.big, 'pünktlich'); assert.equal(v.sub, 'Ankunft München, Neuperlach Süd 08:09 · 2 Umstiege');
   assert.deepEqual(v.sections.map((s) => s.type), ['leg', 'transfer', 'leg', 'transfer', 'leg']);
   assert.deepEqual(v.sections.filter((s) => s.type === 'leg').map((s) => [s.title, s.sub]), [
-    ['Fiktivia → Moosach', '1. Fahrt · 27 Min.'], ['Moosach → Odeonsplatz', '2. Fahrt · 14 Min.'], ['Odeonsplatz → München, Neuperlach Süd', '3. Fahrt · 18 Min.']]);
+    ['Freising → Moosach', '1. Fahrt · 27 Min.'], ['Moosach → Odeonsplatz', '2. Fahrt · 14 Min.'], ['Odeonsplatz → München, Neuperlach Süd', '3. Fahrt · 18 Min.']]);
   assert.deepEqual(v.sections[1], { type: 'transfer', state: 'ok', label: 'Umstieg', title: 'Moosach', text: 'Gleis 2 → Gleis 1', minutes: 4 });
   assert.deepEqual(v.sections[3], { type: 'transfer', state: 'ok', label: 'Umstieg', title: 'Odeonsplatz', text: 'Gleis 2 → Gleis 1', minutes: 4 });
-  assert.deepEqual(v.rows.map((x) => x.label), ['Abfahrt Fiktivia', 'Ankunft Moosach', 'Abfahrt Moosach', 'Ankunft Odeonsplatz', 'Abfahrt Odeonsplatz', 'Ankunft München, Neuperlach Süd']);   // flat list for older UIs
+  assert.deepEqual(v.rows.map((x) => x.label), ['Abfahrt Freising', 'Ankunft Moosach', 'Abfahrt Moosach', 'Ankunft Odeonsplatz', 'Abfahrt Odeonsplatz', 'Ankunft München, Neuperlach Süd']);   // flat list for older UIs
   assert.equal(v.alternative.title, 'Danach'); assert.equal(v.alternative.line1, 'S1 › U3 › U5 ab 07:22'); assert.equal(v.alternative.line2, 'An München, Neuperlach Süd 08:29'); assert.equal(v.alternative.departure, 1);
   const m = v.map;
-  assert.deepEqual(m.stations.map((s) => s.name), ['Fiktivia', 'Musterhof', 'Feldmoching', 'Moosach', 'Odeonsplatz', 'Neuperlach Süd']);
+  assert.deepEqual(m.stations.map((s) => s.name), ['Freising', 'Neufahrn', 'Feldmoching', 'Moosach', 'Odeonsplatz', 'Neuperlach Süd']);
   assert.equal(m.hubIndex, 3); assert.deepEqual(m.legs, [{ lineId: 'S1', from: 0, to: 3 }, { lineId: 'U3', from: 3, to: 4 }, { lineId: 'U5', from: 4, to: 5 }]);
   assert.deepEqual(m.changes, [{ stationIndex: 3, label: 'Umstieg 4 Min. · Gleis 1', state: 'ok' }, { stationIndex: 4, label: 'Umstieg 4 Min. · Gleis 1', state: 'ok' }]);
   assert.deepEqual(m.transfer, m.changes[0]);
@@ -237,7 +237,7 @@ test('Chains of the answer, "is there a trip to come", preview when creating', (
   assert.equal(p.via, 'Moosach'); assert.equal(p.wait, 4); assert.equal(p.duration, '1 Std. 7 Min.');
   assert.deepEqual(p.changes, [{ via: 'Moosach', wait: 4 }, { via: 'Odeonsplatz', wait: 4 }]);
   assert.deepEqual(p.legs.map((l) => [l.line, l.lineId, l.title, l.times]), [
-    ['S1', 'S1', 'Fiktivia → Moosach', 'ab 07:02 · an 07:29'], ['U3', 'U3', 'Moosach → Odeonsplatz', 'ab 07:33 · an 07:47'], ['U5', 'U5', 'Odeonsplatz → Neuperlach Süd', 'ab 07:51 · an 08:09']]);
+    ['S1', 'S1', 'Freising → Moosach', 'ab 07:02 · an 07:29'], ['U3', 'U3', 'Moosach → Odeonsplatz', 'ab 07:33 · an 07:47'], ['U5', 'U5', 'Odeonsplatz → Neuperlach Süd', 'ab 07:51 · an 08:09']]);
   assert.ok(p.legs.every((l) => /^#[0-9a-f]{6}$/i.test(l.color)));
   assert.equal(previewChain([], NOW), null);
   assert.equal(previewChain([chain(S1('07:02', { cancelled: true }), U3('07:33'), U5('07:51'))], NOW), null);
@@ -258,7 +258,7 @@ async function appOn(dir, cfg = {}, extra = {}) {
 }
 const hdr = (dev) => ({ 'x-device': dev, 'content-type': 'application/json' });
 const poster = (base, h) => async (p, b) => { const r = await fetch(`${base}${p}`, { method: 'POST', headers: h, body: JSON.stringify(b) }); return { status: r.status, body: await r.json() }; };
-const MFS = { id: '8002078', name: 'Fiktivia' }, MNS = { id: '8000908', name: 'München-Neuperlach Süd' }, MSZ = { id: '8100002', name: 'Salzburg Hbf' }, MPA = { id: '8000298', name: 'Passau Hbf' }, MWI = { id: '8100108', name: 'Wien Hbf' };
+const MFS = { id: '8002078', name: 'Freising' }, MNS = { id: '8000908', name: 'München-Neuperlach Süd' }, MSZ = { id: '8100002', name: 'Salzburg Hbf' }, MPA = { id: '8000298', name: 'Passau Hbf' }, MWI = { id: '8100108', name: 'Wien Hbf' };
 
 test('Sample data: a pair that needs two transfers is "found" with three trips; one transfer stays one transfer', async () => {
   const { server, base } = await appOn(await tmp(), {}, { now: () => Date.parse('2026-10-14T06:50:00+02:00') });
@@ -270,7 +270,7 @@ test('Sample data: a pair that needs two transfers is "found" with three trips; 
     assert.deepEqual(r.body.route.legs.map((l) => l.line), ['S1', 'S4', 'U5']);
     assert.equal(r.body.route.via, 'München Hbf'); assert.equal(typeof r.body.route.wait, 'number');
     assert.deepEqual(r.body.route.changes.map((c) => c.via), ['München Hbf', 'München Ost']);
-    assert.deepEqual(r.body.route.legs.map((l) => l.title), ['Fiktivia → München Hbf', 'München Hbf → München Ost', 'München Ost → München-Neuperlach Süd']);
+    assert.deepEqual(r.body.route.legs.map((l) => l.title), ['Freising → München Hbf', 'München Hbf → München Ost', 'München Ost → München-Neuperlach Süd']);
     r = await post('/api/connections/search', { from: MFS, to: MSZ });
     assert.equal(r.body.found, true); assert.equal(r.body.transfers, 1); assert.equal(r.body.route.legs.length, 2); assert.equal(r.body.route.changes, undefined);
     r = await post('/api/connections/search', { from: MPA, to: MWI });                 // not even with two transfers
@@ -292,7 +292,7 @@ test('Sample data: create the route (also with the return trip), see the three t
     assert.equal((await post('/api/tours', { from: MFS, to: MSZ, transfers: 1 })).status, 201);
     assert.equal((await post('/api/tours', { from: MFS, to: MNS, transfers: 2 })).status, 400);       // the profile only knows 1
     const st = await (await fetch(`${base}/api/state`, { headers: h })).json();
-    const out = st.tours.find((t) => t.name.startsWith('Fiktivia →') && t.name.includes('Neuperlach') && !t.returnOf), back = st.tours.find((t) => t.returnOf);
+    const out = st.tours.find((t) => t.name.startsWith('Freising →') && t.name.includes('Neuperlach') && !t.returnOf), back = st.tours.find((t) => t.returnOf);
     assert.equal(out.transfers, 1); assert.equal(out.changes, 2); assert.deepEqual(out.lineIds, ['S1', 'S4', 'U5']); assert.equal(out.via, 'München Hbf › München Ost');
     assert.equal(out.departures.length, 3);
     for (const d of out.departures) { assert.deepEqual(d.lineIds, ['S1', 'S4', 'U5']); assert.equal(d.transfer.count, 2); assert.equal(d.transfer.state, 'ok'); assert.match(d.transfer.text, /^2 Umstiege · \d+ und \d+ Min\.$/); assert.deepEqual(d.view.sections.map((s) => s.type), ['leg', 'transfer', 'leg', 'transfer', 'leg']); }

@@ -11,7 +11,7 @@ import { cleanVersion, isNewer } from '../server/lib/version.mjs';
 import { ProfileStore, defaultProfile } from '../server/store/profile.mjs';
 
 const tmp = (n = 'rego-b-') => mkdtemp(join(tmpdir(), n));
-const MH = { id: '8000261', name: 'München Hbf' }, FS = { id: '8002078', name: 'Fiktivia' };
+const MH = { id: '8000261', name: 'München Hbf' }, FS = { id: '8002078', name: 'Freising' };
 
 async function appOn(dir, cfg = {}) {
   const { server, store } = createApp({ cfg: { ...config, dataDir: dir, provider: 'mock', ...cfg } });

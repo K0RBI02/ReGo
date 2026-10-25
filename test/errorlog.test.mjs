@@ -80,7 +80,7 @@ test('Error log: script errors and rejected promises are written down, a harmles
 
 // ---------- the report ----------
 
-const STOPS = ['Marienplatz', 'Garching-Forschungszentrum', 'Fiktivia'];
+const STOPS = ['Marienplatz', 'Garching-Forschungszentrum', 'Freising'];
 const DEVICE = 'k3j9x0q1w2e3r4t5y6u7i8o9';
 const rego = (o = {}) => ({
   deviceId: DEVICE, info: { app: '0.8.12', server: '0.8.12' }, connection: { status: 'offline', lastSync: '22:40' }, errorHint: 'keine Verbindung zum Server', outage: false,

@@ -167,7 +167,7 @@
     return hit.map((s, n) => ({ s, n })).sort((x, y) => score(x.s) - score(y.s) || x.n - y.n).map((x) => x.s).slice(0, 5);
   };
 
-  /* Lange Haltestellennamen: "Fiktivia, Fiktivia" -> "Fiktivia"; gleicher Ort an beiden Enden -> Ort weglassen */
+  /* Lange Haltestellennamen: "Freising, Freising" -> "Freising"; gleicher Ort an beiden Enden -> Ort weglassen */
   const split = (s) => { const m = /^([^,]+),\s*(.+)$/.exec(s); return m ? { loc: m[1].trim(), rest: m[2].trim() } : null; };
   const dedupe = (s) => { const p = split(s); return p && norm(p.loc) === norm(p.rest) ? p.loc : s; };
   const dropLoc = (s, other) => { const p = split(s); return p && norm(other).startsWith(norm(p.loc)) ? p.rest : s; };

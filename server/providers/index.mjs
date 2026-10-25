@@ -72,7 +72,7 @@ const STATION_WORDS = new Set(['bahnhof', 'bhf', 'bf', 'hbf', 'pbf', 'haupt', 'b
 
 /**
  * Does a stop of another source plausibly mean the same place? Used where ReGo steps in for an association and must not guess:
- * what is special about the original name ("Marienplatz" in "Fiktivia, Marienplatz") has to be in the other name as well, and the other
+ * what is special about the original name ("Marienplatz" in "Freising, Marienplatz") has to be in the other name as well, and the other
  * name must not add anything. The place before the comma and words like "Bahnhof" or "Hbf" do not count.
  * Only if the original has no comma (its place is unknown) the other may put its own place name in front: "Neuperlach Süd" and "München Neuperlach Süd".
  * Returns 0 (same words), 1 (the other adds its place name) or -1 (not the same place).

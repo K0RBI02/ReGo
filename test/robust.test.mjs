@@ -13,7 +13,7 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 
 const tmp = (n = 'rego-r-') => mkdtemp(join(tmpdir(), n));
-const FS = { id: '8002078', name: 'Fiktivia' }, MH = { id: '8000261', name: 'München Hbf' };
+const FS = { id: '8002078', name: 'Freising' }, MH = { id: '8000261', name: 'München Hbf' };
 
 async function appOn(dir, cfg = {}) {
   const { server, store } = createApp({ cfg: { ...config, dataDir: dir, provider: 'mock', ...cfg } });
@@ -223,7 +223,7 @@ test('API (sample data): an existing route without a direct connection stays in 
   const h = hdr('leergeraet1234567890');
   try {
     const find = async (q) => (await (await fetch(`${base}/api/stations?q=${encodeURIComponent(q)}`, { headers: h })).json()).stations[0];
-    const [fs, sa, muc] = [await find('Fiktivia'), await find('Salzburg'), await find('München Hbf')];
+    const [fs, sa, muc] = [await find('Freising'), await find('Salzburg'), await find('München Hbf')];
     // Creating anew has not been possible since 0.6.0 (422). Routes from older versions or after a timetable change still exist, though.
     assert.equal((await fetch(`${base}/api/tours`, { method: 'POST', headers: h, body: JSON.stringify({ from: fs, to: sa }) })).status, 422);
     await store.update('leergeraet1234567890', (p) => { addTours(p, { from: fs, to: sa }); });

@@ -12,19 +12,19 @@ import { createApp } from '../server/index.mjs';
 import { config } from '../server/config.mjs';
 
 const tmp = (n = 'rego-x-') => mkdtemp(join(tmpdir(), n));
-const FS = { id: '8002078', name: 'Fiktivia' }, MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' };
+const FS = { id: '8002078', name: 'Freising' }, MH = { id: '8000261', name: 'München Hbf' }, SZ = { id: '8100002', name: 'Salzburg Hbf' };
 const MO = { id: '8000902', name: 'Moosach' }, PA = { id: '8000298', name: 'Passau Hbf' }, WI = { id: '8100108', name: 'Wien Hbf' };
 const NOW = Date.parse('2026-10-14T07:00:00+02:00');
 const at = (hhmm) => `2026-10-14T${hhmm}:00+02:00`;
 const add = (hhmm, m) => { const [h, mi] = hhmm.split(':').map(Number); const x = h * 60 + mi + m; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
 
-// Feeder: S1 Fiktivia → München Hbf (35 min); connection: RE 5 München Hbf → Salzburg Hbf (95 min)
+// Feeder: S1 Freising → München Hbf (35 min); connection: RE 5 München Hbf → Salzburg Hbf (95 min)
 const S1 = (dep, o = {}) => {
   const d = o.late || 0, arrLate = o.arrLate ?? d;
   return { line: { name: 'S1', product: 'suburban' }, direction: 'Ostbahnhof', origin: FS, destination: MH,
     plannedDep: at(dep), dep: at(add(dep, d)), depDelay: d, plannedArr: at(add(dep, 35)), arr: at(add(dep, 35 + arrLate)), arrDelay: arrLate,
     plannedPlatform: '3', platform: o.platform ?? '3', plannedArrPlatform: '2', arrPlatform: '2',
-    stopovers: [FS, { id: 'a', name: 'Musterhof' }, { id: 'b', name: 'Feldmoching' }, MO, MH], remarks: o.remarks || [], cancelled: !!o.cancelled };
+    stopovers: [FS, { id: 'a', name: 'Neufahrn' }, { id: 'b', name: 'Feldmoching' }, MO, MH], remarks: o.remarks || [], cancelled: !!o.cancelled };
 };
 const RE = (dep, o = {}) => {
   const d = o.late || 0;
@@ -33,7 +33,7 @@ const RE = (dep, o = {}) => {
     plannedPlatform: '14', platform: '14', stopovers: [MH, { id: 'c', name: 'Rosenheim' }, { id: 'd', name: 'Prien' }, { id: 'e', name: 'Traunstein' }, SZ],
     remarks: o.remarks || [], cancelled: !!o.cancelled };
 };
-const tour = { id: 'tu1', name: 'Fiktivia → Salzburg Hbf', from: FS, to: SZ, active: true, transfers: 1 };
+const tour = { id: 'tu1', name: 'Freising → Salzburg Hbf', from: FS, to: SZ, active: true, transfers: 1 };
 const ctx = (o = {}) => ({ now: NOW, minDelay: 3, linesAt: async () => [], lines: {}, ...o });
 const J = (a, b) => ({ legs: b ? [a, b] : [a] });
 const bl = (...bs) => new Map([['münchen hbf', bs]]);
@@ -58,12 +58,12 @@ test('Transfer on time: two lines, transfer row, sections (trip – transfer –
   assert.equal(v.kind, 'ok'); assert.equal(v.big, 'pünktlich'); assert.equal(v.sub, 'Ankunft Salzburg Hbf 09:21 · 1 Umstieg');
   assert.deepEqual(v.sections.map((s) => s.type), ['leg', 'transfer', 'leg']);
   assert.deepEqual(v.sections[1], { type: 'transfer', state: 'ok', label: 'Umstieg', title: 'München Hbf', text: 'Gleis 2 → Gleis 14', minutes: 9 });
-  assert.equal(v.sections[0].title, 'Fiktivia → München Hbf'); assert.equal(v.sections[0].sub, '1. Fahrt · 35 Min.');
+  assert.equal(v.sections[0].title, 'Freising → München Hbf'); assert.equal(v.sections[0].sub, '1. Fahrt · 35 Min.');
   assert.equal(v.sections[2].title, 'München Hbf → Salzburg Hbf'); assert.equal(v.sections[2].sub, '2. Fahrt · 1 Std. 35 Min.');
-  assert.deepEqual(v.rows.map((x) => x.label), ['Abfahrt Fiktivia', 'Ankunft München Hbf', 'Abfahrt München Hbf', 'Ankunft Salzburg Hbf']);   // flat list for older UIs
+  assert.deepEqual(v.rows.map((x) => x.label), ['Abfahrt Freising', 'Ankunft München Hbf', 'Abfahrt München Hbf', 'Ankunft Salzburg Hbf']);   // flat list for older UIs
   assert.equal(v.alternative.title, 'Danach'); assert.match(v.alternative.line1, /S1 › RE 5 ab 07:22/);
   const m = v.map;
-  assert.deepEqual(m.stations.map((s) => s.name), ['Fiktivia', 'Musterhof', 'Feldmoching', 'München Hbf', 'Rosenheim', 'Prien', 'Salzburg Hbf']);
+  assert.deepEqual(m.stations.map((s) => s.name), ['Freising', 'Neufahrn', 'Feldmoching', 'München Hbf', 'Rosenheim', 'Prien', 'Salzburg Hbf']);
   assert.equal(m.hubIndex, 3); assert.deepEqual(m.legs, [{ lineId: 'S1', from: 0, to: 3 }, { lineId: 'RE5', from: 3, to: 6 }]);
   assert.deepEqual(m.transfer, { stationIndex: 3, label: 'Umstieg 9 Min. · Gleis 14', state: 'ok' });
   assert.deepEqual(m.times, { dep: 'ab 07:02', arr: 'an 09:21', depLate: false, arrLate: false });
@@ -102,7 +102,7 @@ test('Connection at risk: feeder delayed, only 1 minute of buffer left – incid
   assert.equal(d.view.alternative.title, 'Nächster Anschluss'); assert.equal(d.view.alternative.line1, 'RE 5 ab 08:16 · Gleis 14'); assert.equal(d.view.alternative.line2, 'An Salzburg Hbf 09:51');
   assert.equal(d.view.map.haloIndex, 3); assert.equal(d.view.map.transfer.label, 'Umstieg nur noch 1 Min.'); assert.equal(d.view.map.transfer.state, 'tight');
   assert.deepEqual([d.view.map.times.depLate, d.view.map.times.arrLate], [true, false]);
-  assert.deepEqual(d.view.sections[0].rows[0], { label: 'Abfahrt Fiktivia', sub: 'S1 Richtung Ostbahnhof · Gleis 3', value: '07:10', planned: '07:02' });
+  assert.deepEqual(d.view.sections[0].rows[0], { label: 'Abfahrt Freising', sub: 'S1 Richtung Ostbahnhof · Gleis 3', value: '07:10', planned: '07:02' });
   // Incident: exactly one, related to the connection
   assert.equal(r.incidents.length, 1);
   const i = r.incidents[0];
@@ -187,7 +187,7 @@ test('The feeder is cancelled: cancellation incident as for a direct route, the 
 });
 
 test('Only direct trips (the source no longer suggests a transfer): the usual rules with all incidents', async () => {
-  const direct = { id: 'td', name: 'Fiktivia → München Hbf', from: FS, to: MH, active: true, transfers: 1 };
+  const direct = { id: 'td', name: 'Freising → München Hbf', from: FS, to: MH, active: true, transfers: 1 };
   const r = await buildTransferTour(direct, [J(S1('07:02', { late: 8 })), J(S1('07:22'))], ctx());
   assert.equal(r.tour.transfers, undefined); assert.equal(r.tour.departures[0].transfer, undefined);
   assert.equal(r.tour.departures[0].view.kind, 'delay');
@@ -209,7 +209,7 @@ test('Preview when creating and transfer stations', () => {
   const js = [J(S1('07:02'), RE('08:16')), J(S1('07:22'), RE('08:16')), J(S1('07:42'), RE('08:46'))];
   const p = previewRoute(js);                                                // the first with a reasonable wait (07:02 waits 39 min)
   assert.equal(p.via, 'München Hbf'); assert.equal(p.wait, 19); assert.equal(p.duration, '2 Std. 29 Min.');
-  assert.deepEqual(p.legs.map((l) => [l.line, l.lineId, l.title, l.times]), [['S1', 'S1', 'Fiktivia → München Hbf', 'ab 07:22 · an 07:57'], ['RE 5', 'RE5', 'München Hbf → Salzburg Hbf', 'ab 08:16 · an 09:51']]);
+  assert.deepEqual(p.legs.map((l) => [l.line, l.lineId, l.title, l.times]), [['S1', 'S1', 'Freising → München Hbf', 'ab 07:22 · an 07:57'], ['RE 5', 'RE5', 'München Hbf → Salzburg Hbf', 'ab 08:16 · an 09:51']]);
   assert.ok(/^#[0-9a-f]{6}$/i.test(p.legs[0].color));
   assert.equal(previewRoute([]), null);
   assert.equal(previewRoute([J(S1('07:02', { cancelled: true }), RE('07:46'))]), null);
@@ -263,7 +263,7 @@ test('Look at a pair of stops: direct connection, preview with 1 transfer, nothi
     assert.equal(r.status, 200); assert.equal(r.body.direct, false); assert.equal(r.body.found, true); assert.equal(r.body.transfers, 1);
     assert.equal(r.body.route.via, 'München Hbf'); assert.equal(r.body.route.legs.length, 2); assert.equal(typeof r.body.route.wait, 'number');
     assert.deepEqual(r.body.route.legs.map((l) => l.line), ['S1', 'RE 5']);
-    assert.deepEqual(r.body.route.legs.map((l) => l.title), ['Fiktivia → München Hbf', 'München Hbf → Salzburg Hbf']);
+    assert.deepEqual(r.body.route.legs.map((l) => l.title), ['Freising → München Hbf', 'München Hbf → Salzburg Hbf']);
     assert.match(r.body.route.legs[0].times, /^ab \d\d:\d\d · an \d\d:\d\d$/); assert.match(r.body.route.duration, /Std\./);
     r = await post('/api/connections/search', { from: MH, to: FS });                      // exists directly: nothing more is looked up
     assert.equal(r.body.direct, true); assert.equal(r.body.found, true); assert.equal(r.body.transfers, 0); assert.equal(r.body.route, undefined);
@@ -286,7 +286,7 @@ test('Create route with transfer: first without a direct connection (422 no-dire
   const h = hdr('umstiegsanlegen1234'), post = poster(base, h);
   try {
     let r = await post('/api/tours', { from: FS, to: SZ });
-    assert.equal(r.status, 422); assert.equal(r.body.code, 'no-direct'); assert.equal(r.body.error, 'Zwischen Fiktivia und Salzburg Hbf habe ich keine Direktverbindung gefunden.');
+    assert.equal(r.status, 422); assert.equal(r.body.code, 'no-direct'); assert.equal(r.body.error, 'Zwischen Freising und Salzburg Hbf habe ich keine Direktverbindung gefunden.');
     r = await post('/api/tours', { from: PA, to: WI, transfers: 1 });
     assert.equal(r.status, 422); assert.equal(r.body.code, 'no-connection'); assert.equal(r.body.error, 'Passau Hbf → Wien Hbf: Mit weniger als 3 Umstiegen nicht erreichbar.');
     assert.equal((await post('/api/tours', { from: FS, to: SZ, transfers: 2 })).status, 400);
